@@ -1,0 +1,10 @@
+単なるPC間移動用メモ
+
+Epoch: 13 Train Perplexity: 46.386
+Epoch: 13 Valid Perplexity: 127.216
+Test Perplexity: 120.971
+
+real	125m18.423s
+user	822m39.032s
+sys	41m46.352s
+
