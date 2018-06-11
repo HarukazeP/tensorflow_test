@@ -1,138 +1,18 @@
-# External evaluation, global step 10000
-  decoding to output /tmp/nmt_model/output_test.
-  done, num sentences 1268, num translations per input 1, time 25s, Thu Jun  7 19:00:13 2018.
-  bleu test: 4.7
-  saving hparams to /tmp/nmt_model/hparams
-2018-06-07 19:00:23.713547: I tensorflow/core/kernels/shuffle_dataset_op.cc:112] Filling up shuffle buffer (this may take a while): 91625 of 128000
-2018-06-07 19:00:27.692539: I tensorflow/core/kernels/shuffle_dataset_op.cc:126] Shuffle buffer filled.
-  step 10500 lr 1 step-time 1.84s wps 2.96K ppl 36.62 gN 3.19 bleu 5.30, Thu Jun  7 19:02:31 2018
-  step 10600 lr 1 step-time 1.68s wps 3.31K ppl 36.38 gN 3.13 bleu 5.30, Thu Jun  7 19:05:19 2018
-  step 10700 lr 1 step-time 1.69s wps 3.31K ppl 36.45 gN 3.06 bleu 5.30, Thu Jun  7 19:08:08 2018
-  step 10800 lr 1 step-time 1.72s wps 3.32K ppl 37.89 gN 3.17 bleu 5.30, Thu Jun  7 19:10:59 2018
-  step 10900 lr 1 step-time 1.68s wps 3.31K ppl 36.90 gN 3.04 bleu 5.30, Thu Jun  7 19:13:47 2018
-  step 11000 lr 1 step-time 1.69s wps 3.33K ppl 36.47 gN 3.12 bleu 5.30, Thu Jun  7 19:16:37 2018
-# Save eval, global step 11000
-2018-06-07 19:16:37.434503: W tensorflow/core/kernels/lookup_util.cc:362] Table trying to initialize from file /tmp/nmt_data/vocab.vi is already initialized.
-2018-06-07 19:16:37.435077: W tensorflow/core/kernels/lookup_util.cc:362] Table trying to initialize from file /tmp/nmt_data/vocab.en is already initialized.
-2018-06-07 19:16:37.435156: W tensorflow/core/kernels/lookup_util.cc:362] Table trying to initialize from file /tmp/nmt_data/vocab.en is already initialized.
-  loaded infer model parameters from /tmp/nmt_model/translate.ckpt-11000, time 0.04s
-  # 686
-    src: Việc ta làm là đẩy họ , kể cả tôi vào thế giới với lời răn dạy , phải hoàn hảo .
-    ref: What we do though is we send each one of them , including myself , out into the world with the admonition , be perfect .
-    nmt: What we &apos;re doing is they &apos;re taught me , &quot; <unk> , &quot; but they &apos;re all <unk> .
-2018-06-07 19:16:37.538437: W tensorflow/core/kernels/lookup_util.cc:362] Table trying to initialize from file /tmp/nmt_data/vocab.vi is already initialized.
-2018-06-07 19:16:37.538996: W tensorflow/core/kernels/lookup_util.cc:362] Table trying to initialize from file /tmp/nmt_data/vocab.en is already initialized.
-  loaded eval model parameters from /tmp/nmt_model/translate.ckpt-11000, time 0.05s
-  eval dev: perplexity 34.46, time 10s, Thu Jun  7 19:16:47 2018.
-  eval test: perplexity 39.76, time 9s, Thu Jun  7 19:16:57 2018.
-  step 11100 lr 1 step-time 1.70s wps 3.32K ppl 36.81 gN 3.07 bleu 5.30, Thu Jun  7 19:19:47 2018
-  step 11200 lr 1 step-time 1.70s wps 3.32K ppl 37.24 gN 3.09 bleu 5.30, Thu Jun  7 19:22:37 2018
-  step 11300 lr 1 step-time 1.68s wps 3.32K ppl 37.01 gN 3.08 bleu 5.30, Thu Jun  7 19:25:25 2018
-  step 11400 lr 1 step-time 1.70s wps 3.32K ppl 37.15 gN 3.03 bleu 5.30, Thu Jun  7 19:28:16 2018
-# Finished an epoch, step 11473. Perform external evaluation
-2018-06-07 19:30:15.709116: W tensorflow/core/kernels/lookup_util.cc:362] Table trying to initialize from file /tmp/nmt_data/vocab.vi is already initialized.
-2018-06-07 19:30:15.709633: W tensorflow/core/kernels/lookup_util.cc:362] Table trying to initialize from file /tmp/nmt_data/vocab.en is already initialized.
-2018-06-07 19:30:15.710158: W tensorflow/core/kernels/lookup_util.cc:362] Table trying to initialize from file /tmp/nmt_data/vocab.en is already initialized.
-  loaded infer model parameters from /tmp/nmt_model/translate.ckpt-11000, time 0.05s
-  # 876
-    src: Vậy điều gì xảy ra ở đây ?
-    ref: So what happened here ?
-    nmt: What happens ?
-2018-06-07 19:30:15.774400: W tensorflow/core/kernels/lookup_util.cc:362] Table trying to initialize from file /tmp/nmt_data/vocab.vi is already initialized.
-2018-06-07 19:30:15.774899: W tensorflow/core/kernels/lookup_util.cc:362] Table trying to initialize from file /tmp/nmt_data/vocab.en is already initialized.
-2018-06-07 19:30:15.775431: W tensorflow/core/kernels/lookup_util.cc:362] Table trying to initialize from file /tmp/nmt_data/vocab.en is already initialized.
-  loaded infer model parameters from /tmp/nmt_model/translate.ckpt-11000, time 0.05s
-# External evaluation, global step 11000
-  decoding to output /tmp/nmt_model/output_dev.
-  done, num sentences 1553, num translations per input 1, time 25s, Thu Jun  7 19:30:41 2018.
-  bleu dev: 5.5
-  saving hparams to /tmp/nmt_model/hparams
-# External evaluation, global step 11000
-  decoding to output /tmp/nmt_model/output_test.
-  done, num sentences 1268, num translations per input 1, time 23s, Thu Jun  7 19:31:05 2018.
-  bleu test: 4.5
-  saving hparams to /tmp/nmt_model/hparams
-2018-06-07 19:31:15.477420: I tensorflow/core/kernels/shuffle_dataset_op.cc:112] Filling up shuffle buffer (this may take a while): 92829 of 128000
-2018-06-07 19:31:19.249566: I tensorflow/core/kernels/shuffle_dataset_op.cc:126] Shuffle buffer filled.
-  step 11500 lr 1 step-time 1.84s wps 2.97K ppl 36.65 gN 3.33 bleu 5.52, Thu Jun  7 19:32:09 2018
-  step 11600 lr 1 step-time 1.69s wps 3.34K ppl 35.49 gN 3.18 bleu 5.52, Thu Jun  7 19:34:59 2018
-  step 11700 lr 1 step-time 1.69s wps 3.32K ppl 34.75 gN 3.04 bleu 5.52, Thu Jun  7 19:37:47 2018
-  step 11800 lr 1 step-time 1.72s wps 3.32K ppl 35.47 gN 3.12 bleu 5.52, Thu Jun  7 19:40:39 2018
-  step 11900 lr 1 step-time 1.70s wps 3.32K ppl 35.43 gN 3.10 bleu 5.52, Thu Jun  7 19:43:29 2018
-  step 12000 lr 1 step-time 1.68s wps 3.30K ppl 34.73 gN 3.13 bleu 5.52, Thu Jun  7 19:46:17 2018
-# Save eval, global step 12000
-2018-06-07 19:46:17.722092: W tensorflow/core/kernels/lookup_util.cc:362] Table trying to initialize from file /tmp/nmt_data/vocab.vi is already initialized.
-2018-06-07 19:46:17.722587: W tensorflow/core/kernels/lookup_util.cc:362] Table trying to initialize from file /tmp/nmt_data/vocab.en is already initialized.
-2018-06-07 19:46:17.723159: W tensorflow/core/kernels/lookup_util.cc:362] Table trying to initialize from file /tmp/nmt_data/vocab.en is already initialized.
-  loaded infer model parameters from /tmp/nmt_model/translate.ckpt-12000, time 0.05s
-  # 1405
-    src: Nên bằng cách kết hợp màu sắc , độ tương phản và ánh sáng tại các viền ranh giới giữa các bức ảnh khác nhau , thêm vào các khuyết tật ảnh như chiều sâu của cánh đồng , khử đi màu sắc và bụi ảnh , chúng tôi xoá đi các đường viền giữa ở bức ảnh khác nhau và làm cho nó như thể là một bức đồng nhất. bất chấp một thực tế bức ảnh về cơ bản có thể bao gồm cả trăm lớp nền .
-    ref: So by matching color , contrast and brightness in the borders between the different images , adding photographic defects like depth of field , desaturated colors and noise , we erase the borders between the different images and make it look like one single image , despite the fact that one image can contain hundreds of layers basically .
-    nmt: So , in the way , the <unk> of the <unk> and the <unk> , which is a <unk> , and the <unk> of the <unk> , which is the only way we see the <unk> , which is the only way that you can see the <unk> of the <unk> , and the <unk> of the <unk> , which is the <unk> , which is the <unk> , which is the <unk> , and it &apos;s the same way that you can see the <unk> , and then you can see the <unk> .
-2018-06-07 19:46:17.983527: W tensorflow/core/kernels/lookup_util.cc:362] Table trying to initialize from file /tmp/nmt_data/vocab.vi is already initialized.
-2018-06-07 19:46:17.983966: W tensorflow/core/kernels/lookup_util.cc:362] Table trying to initialize from file /tmp/nmt_data/vocab.en is already initialized.
-  loaded eval model parameters from /tmp/nmt_model/translate.ckpt-12000, time 0.05s
-  eval dev: perplexity 32.77, time 10s, Thu Jun  7 19:46:28 2018.
-  eval test: perplexity 37.03, time 9s, Thu Jun  7 19:46:38 2018.
-2018-06-07 19:46:38.451124: W tensorflow/core/kernels/lookup_util.cc:362] Table trying to initialize from file /tmp/nmt_data/vocab.vi is already initialized.
-2018-06-07 19:46:38.451509: W tensorflow/core/kernels/lookup_util.cc:362] Table trying to initialize from file /tmp/nmt_data/vocab.en is already initialized.
-2018-06-07 19:46:38.452151: W tensorflow/core/kernels/lookup_util.cc:362] Table trying to initialize from file /tmp/nmt_data/vocab.en is already initialized.
-  loaded infer model parameters from /tmp/nmt_model/translate.ckpt-12000, time 0.05s
-  # 1190
-    src: Hãy nói đến Al .
-    ref: So meet Al .
-    nmt: Let &apos;s talk about the <unk> .
-2018-06-07 19:46:38.531800: W tensorflow/core/kernels/lookup_util.cc:362] Table trying to initialize from file /tmp/nmt_data/vocab.vi is already initialized.
-2018-06-07 19:46:38.532689: W tensorflow/core/kernels/lookup_util.cc:362] Table trying to initialize from file /tmp/nmt_data/vocab.en is already initialized.
-  loaded eval model parameters from /tmp/nmt_model/translate.ckpt-12000, time 0.05s
-  eval dev: perplexity 32.77, time 10s, Thu Jun  7 19:46:48 2018.
-  eval test: perplexity 37.03, time 9s, Thu Jun  7 19:46:58 2018.
-2018-06-07 19:46:58.713541: W tensorflow/core/kernels/lookup_util.cc:362] Table trying to initialize from file /tmp/nmt_data/vocab.vi is already initialized.
-2018-06-07 19:46:58.714220: W tensorflow/core/kernels/lookup_util.cc:362] Table trying to initialize from file /tmp/nmt_data/vocab.en is already initialized.
-2018-06-07 19:46:58.714276: W tensorflow/core/kernels/lookup_util.cc:362] Table trying to initialize from file /tmp/nmt_data/vocab.en is already initialized.
-  loaded infer model parameters from /tmp/nmt_model/translate.ckpt-12000, time 0.04s
+2018-06-08 20:04:53.266078: W tensorflow/core/kernels/lookup_util.cc:362] Table trying to initialize from file /tmp/nmt_data/vocab.en is already initialized.
+2018-06-08 20:04:53.266126: W tensorflow/core/kernels/lookup_util.cc:362] Table trying to initialize from file /tmp/nmt_data/vocab.en is already initialized.
+  loaded infer model parameters from /tmp/nmt_attention_model/best_bleu/translate.ckpt-12000, time 0.05s
 # External evaluation, global step 12000
-  decoding to output /tmp/nmt_model/output_dev.
-  done, num sentences 1553, num translations per input 1, time 32s, Thu Jun  7 19:47:31 2018.
-  bleu dev: 5.7
-  saving hparams to /tmp/nmt_model/hparams
+  decoding to output /tmp/nmt_attention_model/output_dev.
+  done, num sentences 1553, num translations per input 1, time 28s, Fri Jun  8 20:05:21 2018.
+  bleu dev: 14.4
+  saving hparams to /tmp/nmt_attention_model/hparams
 # External evaluation, global step 12000
-  decoding to output /tmp/nmt_model/output_test.
-  done, num sentences 1268, num translations per input 1, time 34s, Thu Jun  7 19:48:05 2018.
-  bleu test: 4.5
-  saving hparams to /tmp/nmt_model/hparams
-# Final, step 12000 lr 1 step-time 1.68s wps 3.30K ppl 34.73 gN 3.13 dev ppl 32.77, dev bleu 5.7, test ppl 37.03, test bleu 4.5, Thu Jun  7 19:48:06 2018
-# Done training!, time 21703s, Thu Jun  7 19:48:06 2018.
-# Start evaluating saved best models.
-2018-06-07 19:48:06.312685: W tensorflow/core/kernels/lookup_util.cc:362] Table trying to initialize from file /tmp/nmt_data/vocab.vi is already initialized.
-2018-06-07 19:48:06.313184: W tensorflow/core/kernels/lookup_util.cc:362] Table trying to initialize from file /tmp/nmt_data/vocab.en is already initialized.
-2018-06-07 19:48:06.313208: W tensorflow/core/kernels/lookup_util.cc:362] Table trying to initialize from file /tmp/nmt_data/vocab.en is already initialized.
-  loaded infer model parameters from /tmp/nmt_model/best_bleu/translate.ckpt-12000, time 0.04s
-  # 532
-    src: Và anh ta chỉ và đám đông khách du lịch thường xuyên vào mỗi ngày , được máy camera quay lại thường xuyen ,
-    ref: And he pointed to the busloads of tourists that would show up everyday , with cameras ready usually .
-    nmt: And he was just at the top and he was <unk> , and he was <unk> , and he was <unk> .
-2018-06-07 19:48:06.426212: W tensorflow/core/kernels/lookup_util.cc:362] Table trying to initialize from file /tmp/nmt_data/vocab.vi is already initialized.
-2018-06-07 19:48:06.427385: W tensorflow/core/kernels/lookup_util.cc:362] Table trying to initialize from file /tmp/nmt_data/vocab.en is already initialized.
-  loaded eval model parameters from /tmp/nmt_model/best_bleu/translate.ckpt-12000, time 0.06s
-  eval dev: perplexity 32.77, time 10s, Thu Jun  7 19:48:16 2018.
-  eval test: perplexity 37.03, time 9s, Thu Jun  7 19:48:26 2018.
-2018-06-07 19:48:26.637802: W tensorflow/core/kernels/lookup_util.cc:362] Table trying to initialize from file /tmp/nmt_data/vocab.vi is already initialized.
-2018-06-07 19:48:26.640028: W tensorflow/core/kernels/lookup_util.cc:362] Table trying to initialize from file /tmp/nmt_data/vocab.en is already initialized.
-2018-06-07 19:48:26.640071: W tensorflow/core/kernels/lookup_util.cc:362] Table trying to initialize from file /tmp/nmt_data/vocab.en is already initialized.
-  loaded infer model parameters from /tmp/nmt_model/best_bleu/translate.ckpt-12000, time 0.04s
-# External evaluation, global step 12000
-  decoding to output /tmp/nmt_model/output_dev.
-  done, num sentences 1553, num translations per input 1, time 32s, Thu Jun  7 19:48:58 2018.
-  bleu dev: 5.7
-  saving hparams to /tmp/nmt_model/hparams
-# External evaluation, global step 12000
-  decoding to output /tmp/nmt_model/output_test.
-  done, num sentences 1268, num translations per input 1, time 34s, Thu Jun  7 19:49:33 2018.
-  bleu test: 4.5
-  saving hparams to /tmp/nmt_model/hparams
-# Best bleu, step 12000 lr 1 step-time 1.68s wps 3.30K ppl 34.73 gN 3.13 dev ppl 32.77, dev bleu 5.7, test ppl 37.03, test bleu 4.5, Thu Jun  7 19:49:33 2018
+  decoding to output /tmp/nmt_attention_model/output_test.
+  done, num sentences 1268, num translations per input 1, time 28s, Fri Jun  8 20:05:50 2018.
+  bleu test: 16.2
+  saving hparams to /tmp/nmt_attention_model/hparams
+# Best bleu, step 12000 lr 1 step-time 2.02s wps 2.83K ppl 15.97 gN 5.39 dev ppl 15.22, dev bleu 14.4, test ppl 13.89, test bleu 16.2, Fri Jun  8 20:05:51 2018
 
-real	363m37.702s
-user	2626m36.912s
-sys	78m0.872s
+real	425m42.286s
+user	2893m27.640s
+sys	116m59.148s
