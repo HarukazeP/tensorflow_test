@@ -18,7 +18,7 @@
       	    入力はhogehoge_cloze.txt
 	    出力はhogehoge_ans.txt
 
-time python3 -m nmt.nmt_mine \
+time python3 -m nmt.nmt \
 --attention=scaled_luong \
 --src=cloze --tgt=ans \
 --vocab_prefix=../Data/my_nmt/enwiki_vocab30000  \
@@ -31,7 +31,7 @@ time python3 -m nmt.nmt_mine \
 --num_units=128 \
 --metrics=accuracy \
 --share_vocab=True \
---inference_ref_file=../Data/my_nmt/center_ans.txt \
+--inference_ref_file=../Data/my_nmt/center.ans \
 --inference_output_file=./output/model_output_tmp.txt
 
 
