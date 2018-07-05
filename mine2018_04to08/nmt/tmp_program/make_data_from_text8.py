@@ -46,7 +46,7 @@ def preprocess_line(before_line):
     after_line=after_line.replace('7', ' seven ')
     after_line=after_line.replace('8', ' eight ')
     after_line=after_line.replace('9', ' nine ')
-    after_line = re.sub(r'[^(a-z|\{|\})]', ' ', after_line)
+    after_line = re.sub(r'[^a-z\{\}]', ' ', after_line)
     after_line = re.sub(r'[ ]+', ' ', after_line)
 
     return after_line
