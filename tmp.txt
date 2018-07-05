@@ -51,6 +51,22 @@ time python3 -m nmt.nmt \
 --metrics=bleu
 
 
+time python3 -m nmt.nmt \
+    --attention=scaled_luong \
+    --src=vi --tgt=en \
+    --vocab_prefix=../Data/nmt_data/vocab  \
+    --train_prefix=../Data/nmt_data/train \
+    --dev_prefix=../Data/nmt_data/tst2012  \
+    --test_prefix=../Data/nmt_data/tst2013 \
+    --out_dir=./output \
+    --num_train_steps=12000 \
+    --steps_per_stats=100 \
+    --num_layers=2 \
+    --num_units=128 \
+    --dropout=0.2 \
+    --metrics=bleu
+
+
 
   File "/home/tamaki/M2/Tensorflow/mine2018_4to7/nmt/nmt/model.py", line 303, in build_graph
     encoder_outputs, encoder_state, hparams)
