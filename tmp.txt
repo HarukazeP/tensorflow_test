@@ -21,7 +21,7 @@
 time python3 -m nmt.nmt_mine \
 --attention=scaled_luong \
 --src=cloze --tgt=ans \
---vocab_prefix=../Data/my_nmt/enwiki_vocab10000  \
+--vocab_prefix=../Data/my_nmt/enwiki_vocab30000  \
 --train_prefix=../Data/my_nmt/miniWiki_head500_nmt \
 --dev_prefix=../Data/my_nmt/miniWiki_tail100_nmt  \
 --test_prefix=../Data/my_nmt/center \
