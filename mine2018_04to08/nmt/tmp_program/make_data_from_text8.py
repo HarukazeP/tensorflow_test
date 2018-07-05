@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 '''
-seq2seq—p‚Étext8ƒR[ƒpƒX‚©‚çŠwKƒf[ƒ^‚ÆŒŸØƒf[ƒ^‚ğì¬
+seq2seqç”¨ã«text8ã‚³ãƒ¼ãƒ‘ã‚¹ã‹ã‚‰å­¦ç¿’ãƒ‡ãƒ¼ã‚¿ã¨æ¤œè¨¼ãƒ‡ãƒ¼ã‚¿ã‚’ä½œæˆ
 
 '''
 
@@ -15,7 +15,7 @@ import os
 import os.path
 import subprocess
 
-#----- ƒOƒ[ƒoƒ‹•Ï”ˆê—— -----
+#----- ã‚°ãƒ­ãƒ¼ãƒãƒ«å¤‰æ•°ä¸€è¦§ -----
 my_epoch=100
 vec_size=100
 maxlen_words = 5
@@ -24,16 +24,16 @@ today_str=''
 tmp_vec_dict=dict()
 
 
-#----- ŠÖ”ŒQ -----
+#----- é–¢æ•°ç¾¤ -----
 
-#ŠÔ•\¦
+#æ™‚é–“è¡¨ç¤º
 def print_time(str1):
     today=datetime.datetime.today()
     print(str1)
     print(today)
     return today
 
-#ŠwKƒf[ƒ^‚âƒeƒXƒgƒf[ƒ^‚Ö‚Ì‘Oˆ—
+#å­¦ç¿’ãƒ‡ãƒ¼ã‚¿ã‚„ãƒ†ã‚¹ãƒˆãƒ‡ãƒ¼ã‚¿ã¸ã®å‰å‡¦ç†
 def preprocess_line(before_line):
     after_line=before_line.lower()
     after_line=after_line.replace('0', ' zero ')
@@ -52,13 +52,13 @@ def preprocess_line(before_line):
     return after_line
 
 
-#list‚ÌŠe—v‘f‚ğ’PŒê‚Å˜AŒ‹‚µ‚ÄstringŒ^‚Å•Ô‚·
+#listã®å„è¦ç´ ã‚’å˜èªã§é€£çµã—ã¦stringå‹ã§è¿”ã™
 def list_to_sent(list_line, start, end):
     sent=' '.join(list_line[start:end])
     return sent
 
 
-#•¶‚Ì’·‚³‚Ì—”
+#æ–‡ã®é•·ã•ã®ä¹±æ•°
 def rand_sent():
     li=list(range(1,41))
     we=[ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.03135889, 0.06271777, 0.06271777, 0.09756098, 0.1358885, 0.09407666, 0.08710801, 0.10801394, 0.08362369, 0.04181185, 0.05574913, 0.04529617, 0.05574913, 0.03832753, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
@@ -68,15 +68,15 @@ def rand_sent():
     return np.random.choice(li, p=we)
 
 
-#‹óŠ‚Ì’·‚³‚Ì—”
+#ç©ºæ‰€ã®é•·ã•ã®ä¹±æ•°
 def rand_cloze():
     li=list(range(1,6))
     we=[0.615502686109, 0.235610130468, 0.114351496546, 0.0283960092095, 0.00613967766692]
     we[0]=1.0-sum(we)+we[0]
     return np.random.choice(li, p=we)
 
-#ŠwKƒf[ƒ^‚Ö‚Ì‘Oˆ—‚ğs‚¤
-#¬•¶š‰»CƒAƒ‹ƒtƒ@ƒxƒbƒgˆÈŠO‚Ì•¶š‚ÌíœC1–œ’PŒê‚²‚Æ‚É•ªŠ„
+#å­¦ç¿’ãƒ‡ãƒ¼ã‚¿ã¸ã®å‰å‡¦ç†ã‚’è¡Œã†
+#å°æ–‡å­—åŒ–ï¼Œã‚¢ãƒ«ãƒ•ã‚¡ãƒ™ãƒƒãƒˆä»¥å¤–ã®æ–‡å­—ã®å‰Šé™¤ï¼Œ1ä¸‡å˜èªã”ã¨ã«åˆ†å‰²
 def parse_line(old_path, new_path):
     if (os.path.exists(new_path)==False):
         print('Preprpcessing training data...')
@@ -86,11 +86,11 @@ def parse_line(old_path, new_path):
         with open(old_path) as f_in:
             with open(new_path, 'w') as f_out:
                 for line in f_in:
-                    #‚±‚Ì‘Oˆ—‚Ítext8‚Æ‚©‚Ì‘Oˆ—‚Æ“¯‚¶
+                    #ã“ã®å‰å‡¦ç†ã¯text8ã¨ã‹ã®å‰å‡¦ç†ã¨åŒã˜
                     line=preprocess_line(line)
                     line_list=line.split(' ')
                     line_len=len(line_list)
-                    #max_lenˆÈ‰º‚Ì‚Í˜AŒ‹‚µ‚ÄŸ‚Ö
+                    #max_lenä»¥ä¸‹ã®æ™‚ã¯é€£çµã—ã¦æ¬¡ã¸
                     max_len=rand_sent()
                     if(text_len+line_len <= max_len):
                         if(text_len==0):
@@ -98,7 +98,7 @@ def parse_line(old_path, new_path):
                         else:
                             text=text+' '+line
                         text_len=text_len+line_len
-                    #max_len‚æ‚è’·‚¢‚Æ‚«‚Ímax_len’PŒê‚²‚Æ‚É‹æØ‚Á‚Äƒtƒ@ƒCƒ‹‚Ö‘‚«‚İ
+                    #max_lenã‚ˆã‚Šé•·ã„ã¨ãã¯max_lenå˜èªã”ã¨ã«åŒºåˆ‡ã£ã¦ãƒ•ã‚¡ã‚¤ãƒ«ã¸æ›¸ãè¾¼ã¿
                     else:
                         while (line_len>max_len):
                             if(text_len==0):
@@ -108,15 +108,15 @@ def parse_line(old_path, new_path):
                             f_out.write(text+'\n')
                             text=''
                             text_len=0
-                            #c‚è‚ÌXV
+                            #æ®‹ã‚Šã®æ›´æ–°
                             line_list=line_list[max_len-text_len+1:]
                             line_len=len(line_list)
                             max_len=rand_sent()
-                        #while I‚í‚èi1s‚Ì––”ö‚Ìˆ—j
-                        #—]‚è‚ÍŸ‚Ìs‚Æ˜AŒ‹
+                        #while çµ‚ã‚ã‚Šï¼ˆ1è¡Œã®æœ«å°¾ã®å‡¦ç†ï¼‰
+                        #ä½™ã‚Šã¯æ¬¡ã®è¡Œã¨é€£çµ
                         text=list_to_sent(line_list,0,line_len)
                         text_len=line_len
-                #forI‚í‚èiƒtƒ@ƒCƒ‹‚ÌÅŒã‚Ìs‚Ìˆ—j
+                #forçµ‚ã‚ã‚Šï¼ˆãƒ•ã‚¡ã‚¤ãƒ«ã®æœ€å¾Œã®è¡Œã®å‡¦ç†ï¼‰
                 if text_len!=0:
                     text=preprocess_line(text)
                     f_out.write(text+'\n')
@@ -141,11 +141,11 @@ def make_data(old_path, cloze_path, ans_path):
                         line_list=line.split(' ')
                         line_len=len(line_list)
                         if line_len > 8:
-                            #cloze_len‚Í1`5‚Ì‚Ç‚ê‚©
+                            #cloze_lenã¯1ï½5ã®ã©ã‚Œã‹
                             cloze_len=rand_cloze()
-                            #cloze_start‚Í0`
-                            #—á‚¦‚Î1s‚É10’PŒê‚ ‚Á‚ÄC‹óŠ‚ª2’PŒê‚È‚çC
-                            #randint(9)‚Æ‚È‚èCcloze_start‚Í0`8
+                            #cloze_startã¯0ï½
+                            #ä¾‹ãˆã°1è¡Œã«10å˜èªã‚ã£ã¦ï¼Œç©ºæ‰€ãŒ2å˜èªãªã‚‰ï¼Œ
+                            #randint(9)ã¨ãªã‚Šï¼Œcloze_startã¯0ï½8
                             cloze_start=np.random.randint(line_len-cloze_len+1)
                             cloze_end=cloze_start+cloze_len+1
                             
@@ -162,14 +162,14 @@ def make_data(old_path, cloze_path, ans_path):
 
 
 
-#----- ‚¢‚í‚ä‚émain•”‚İ‚½‚¢‚È‚Ì -----
+#----- ã„ã‚ã‚†ã‚‹mainéƒ¨ã¿ãŸã„ãªã® -----
 
-#ŠJn‚ÌƒvƒŠƒ“ƒg
+#é–‹å§‹æ™‚åˆ»ã®ãƒ—ãƒªãƒ³ãƒˆ
 start_time=print_time('all start')
 
 
-#ƒf[ƒ^
-tmp_path='../../Data/my_nmt/tmp_wiki.txt'   # –ñ95MB 1s‚Ì‚İ, –ñ1700–œ’PŒê(–ñ7–œí—Ş)  http://mattmahoney.net/dc/text8.zip
+#ãƒ‡ãƒ¼ã‚¿
+tmp_path='../../Data/my_nmt/text8.txt'   # ç´„95MB 1è¡Œã®ã¿, ç´„1700ä¸‡å˜èª(ç´„7ä¸‡ç¨®é¡)  http://mattmahoney.net/dc/text8.zip
 
 print('Loading  '+tmp_path)
 file_name=tmp_path[:-4]
