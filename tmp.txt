@@ -1,18 +1,19 @@
-2018-06-08 20:04:53.266078: W tensorflow/core/kernels/lookup_util.cc:362] Table trying to initialize from file /tmp/nmt_data/vocab.en is already initialized.
-2018-06-08 20:04:53.266126: W tensorflow/core/kernels/lookup_util.cc:362] Table trying to initialize from file /tmp/nmt_data/vocab.en is already initialized.
-  loaded infer model parameters from /tmp/nmt_attention_model/best_bleu/translate.ckpt-12000, time 0.05s
-# External evaluation, global step 12000
-  decoding to output /tmp/nmt_attention_model/output_dev.
-  done, num sentences 1553, num translations per input 1, time 28s, Fri Jun  8 20:05:21 2018.
-  bleu dev: 14.4
-  saving hparams to /tmp/nmt_attention_model/hparams
-# External evaluation, global step 12000
-  decoding to output /tmp/nmt_attention_model/output_test.
-  done, num sentences 1268, num translations per input 1, time 28s, Fri Jun  8 20:05:50 2018.
-  bleu test: 16.2
-  saving hparams to /tmp/nmt_attention_model/hparams
-# Best bleu, step 12000 lr 1 step-time 2.02s wps 2.83K ppl 15.97 gN 5.39 dev ppl 15.22, dev bleu 14.4, test ppl 13.89, test bleu 16.2, Fri Jun  8 20:05:51 2018
-
-real	425m42.286s
-user	2893m27.640s
-sys	116m59.148s
+		time python3 -m nmt.nmt_mine \
+	    --attention=scaled_luong \
+	    --src=cloze --tgt=ans \
+	    --vocab_prefix=../Data/my_nmt/text8_vocab10000  \
+	    --train_prefix=../Data/my_nmt/text8_nmt \
+	    --dev_prefix=../Data/my_nmt/text8_nmt_dev  \
+	    --test_prefix=../Data/my_nmt/center \
+	    --out_dir=./output \
+	    --num_train_steps=12000 \
+	    --steps_per_stats=100 \
+	    --num_units=128 \
+	    --metrics=accuracy \
+	    --inference_ref_file=../Data/my_nmt/center_ans.txt \
+	    --inference_output_file=./output/model_output.txt
+      
+      
+      
+      	    入力はhogehoge_cloze.txt
+	    出力はhogehoge_ans.txt
