@@ -1,4 +1,9 @@
-		time python3 -m nmt.nmt_mine \
+https://pytorch.org/tutorials/intermediate/seq2seq_translation_tutorial.html#exercises
+http://caffe.classcat.com/2018/05/15/pytorch-tutorial-intermediate-seq2seq-translation/
+
+
+
+time python3 -m nmt.nmt_mine \
 	    --attention=scaled_luong \
 	    --src=cloze --tgt=ans \
 	    --vocab_prefix=../Data/my_nmt/text8_vocab10000  \
