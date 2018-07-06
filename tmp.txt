@@ -147,6 +147,32 @@ time python3 -m nmt.nmt \
 --metrics=bleu
 
 
+
+
+time python3 -m nmt.nmt \
+	    --attention=scaled_luong \
+	    --src=cloze --tgt=ans \
+	    --vocab_prefix=/home/tamaki/M2/Tensorflow/mine2018_4to7/Data/my_nmt/enwiki_vocab30000  \
+	    --train_prefix=/home/tamaki/M2/Tensorflow/mine2018_4to7/Data/my_nmt/text8_nmt \
+	    --dev_prefix=/home/tamaki/M2/Tensorflow/mine2018_4to7/Data/my_nmt/text8_nmt_dev  \
+	    --test_prefix=/home/tamaki/M2/Tensorflow/mine2018_4to7/Data/my_nmt/center \
+	    --out_dir=./text8_output \
+    --share_vocab=True \
+    --num_train_steps=12000 \
+    --steps_per_stats=100 \
+    --num_layers=2 \
+    --num_units=128 \
+    --dropout=0.2 \
+--metrics=bleu
+
+center
+real	156m14.918s
+user	595m42.572s
+sys	46m48.348s
+
+
+
+
   File "/home/tamaki/M2/Tensorflow/mine2018_4to7/nmt/nmt/model.py", line 303, in build_graph
     encoder_outputs, encoder_state, hparams)
   File "/home/tamaki/M2/Tensorflow/mine2018_4to7/nmt/nmt/model.py", line 466, in _build_decoder
