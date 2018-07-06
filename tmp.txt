@@ -112,6 +112,24 @@ time python3 -m nmt.nmt \
 
 
 
+time python3 -m nmt.nmt \
+    --attention=scaled_luong \
+    --src=vi --tgt=en \
+    --vocab_prefix=/home/tamaki/M2/Tensorflow/mine2018_4to7/Data/my_nmt/enwiki_vocab30000 \
+    --train_prefix=/home/tamaki/M2/Tensorflow/mine2018_4to7/Data/my_nmt/miniWiki_head500_nmt \
+    --dev_prefix=/home/tamaki/M2/Tensorflow/mine2018_4to7/Data/my_nmt/miniWiki_tail100_nmt  \
+    --test_prefix=/home/tamaki/M2/Tensorflow/mine2018_4to7/Data/my_nmt/center_nmt \
+    --out_dir=my_output \
+    --share_vocab=True \
+    --num_train_steps=12000 \
+    --steps_per_stats=100 \
+    --num_layers=2 \
+    --num_units=128 \
+    --dropout=0.2 \
+--metrics=bleu
+
+
+
   File "/home/tamaki/M2/Tensorflow/mine2018_4to7/nmt/nmt/model.py", line 303, in build_graph
     encoder_outputs, encoder_state, hparams)
   File "/home/tamaki/M2/Tensorflow/mine2018_4to7/nmt/nmt/model.py", line 466, in _build_decoder
