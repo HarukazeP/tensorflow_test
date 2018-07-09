@@ -195,6 +195,26 @@ sys	100m29.108s
 
 
 
+100回しようとしてうまくいかないやつ
+# External evaluation, global step 12000
+  decoding to output ./text8_output_ep100/output_dev.
+  done, num sentences 1000, num translations per input 1, time 11s, Mon Jul  9 22:24:52 2018.
+  bleu dev: 63.3
+  saving hparams to ./text8_output_ep100/hparams
+# External evaluation, global step 12000
+  decoding to output ./text8_output_ep100/output_test.
+  done, num sentences 324, num translations per input 1, time 5s, Mon Jul  9 22:24:57 2018.
+  bleu test: 42.1
+  saving hparams to ./text8_output_ep100/hparams
+# Best bleu, step 12000 lr 1 step-time 2.32s wps 1.84K ppl 12593200116810555326464.00 gN 22796165.78 dev ppl 2.89, dev bleu 63.3, test ppl 2.75, test bleu 42.1, Mon Jul  9 22:24:57 2018
+
+real	476m32.279s
+user	3314m53.272s
+sys	100m44.904s
+
+
+
+
   File "/home/tamaki/M2/Tensorflow/mine2018_4to7/nmt/nmt/model.py", line 303, in build_graph
     encoder_outputs, encoder_state, hparams)
   File "/home/tamaki/M2/Tensorflow/mine2018_4to7/nmt/nmt/model.py", line 466, in _build_decoder
