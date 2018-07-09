@@ -147,6 +147,11 @@ time python3 -m nmt.nmt \
 --metrics=bleu
 
 
+center
+real	156m14.918s
+user	595m42.572s
+sys	46m48.348s
+
 
 
 time python3 -m nmt.nmt \
@@ -165,10 +170,27 @@ time python3 -m nmt.nmt \
     --dropout=0.2 \
 --metrics=bleu
 
-center
-real	156m14.918s
-user	595m42.572s
-sys	46m48.348s
+
+
+
+
+# External evaluation, global step 12000
+  decoding to output ./text8_output/output_dev.
+  done, num sentences 1000, num translations per input 1, time 12s, Sat Jul  7 09:50:05 2018.
+  bleu dev: 64.1
+  saving hparams to ./text8_output/hparams
+# External evaluation, global step 12000
+  decoding to output ./text8_output/output_test.
+  done, num sentences 324, num translations per input 1, time 7s, Sat Jul  7 09:50:12 2018.
+  bleu test: 41.6
+  saving hparams to ./text8_output/hparams
+# Best bleu, step 12000 lr 1 step-time 2.26s wps 1.89K ppl 1.95 gN 25.07 dev ppl 3.01, dev bleu 64.1, test ppl 2.94, test bleu 41.6, Sat Jul  7 09:50:12 2018
+
+real	469m19.065s
+user	3263m55.564s
+sys	100m29.108s
+
+
 
 
 
