@@ -196,10 +196,11 @@ def count_correct_num(ref_path, ans_path):
     all_correct_num=0
     cloze_correct_num=0
     sent_correct_num=0
-    
+    line_num=0
     with open(ref_path) as f_ref:
         with open(ans_path, 'w') as f_ans:
             for ref_line in f_ref:
+                line_num+=1
                 ans_line=f_ans.readline()
                 if is_correct_cloze(ref_line):
                     cloze_sent_num+=1
