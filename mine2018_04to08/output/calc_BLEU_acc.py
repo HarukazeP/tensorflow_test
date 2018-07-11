@@ -209,7 +209,7 @@ def count_correct_num(ref_path, ans_path):
                         all_correct_num+=1
                         cloze_correct_num+=1
                         sent_correct_num+=1
-                    elif:
+                    else:
                         if check_cloze(ref_line, ans_line):
                             cloze_correct_num+=1
                         if check_sent(ref_line, ans_line):
