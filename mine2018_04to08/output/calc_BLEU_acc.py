@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 '''
-seq2seq‚ÌŒ‹‰Ê‚©‚çBLEU‚Æ‚©acc‚Æ‚©ŒvZ
+seq2seqã®çµæœã‹ã‚‰BLEUã¨ã‹accã¨ã‹è¨ˆç®—
 '''
 
 from __future__ import print_function
@@ -17,12 +17,12 @@ import tensorflow as tf
 
 
 
-#----- ƒOƒ[ƒoƒ‹•Ï”ˆê—— -----
+#----- ã‚°ãƒ­ãƒ¼ãƒãƒ«å¤‰æ•°ä¸€è¦§ -----
 
 
 
 
-#----- ‚Æ‚Á‚Ä‚«‚½ŠÖ”ŒQ -----
+#----- ã¨ã£ã¦ããŸé–¢æ•°ç¾¤ -----
 
 
 
@@ -161,90 +161,90 @@ def _bleu(ref_file, trans_file, subword_option=None):
 
 
 
-#----- ©ìŠÖ” -----
+#----- è‡ªä½œé–¢æ•° -----
 
 def is_correct_cloze(line):
-	left=line.count('{')
-	right=line.count('}')
-	if left*right==1:
-		return True
-	elif left+right>1:
-		print(line)
-	return False
+    left=line.count('{')
+    right=line.count('}')
+    if left*right==1:
+        return True
+    elif left+right>1:
+        print(line)
+    return False
 
 
 
 def check_cloze(ref, ans):
-	ref=re.sub(r'.*{', '', ref)
-	ref=re.sub(r'}.*', '', ref)
-	
-	ans=re.sub(r'.*{', '', ans)
-	ans=re.sub(r'}.*', '', ans)
-	
-	return ref==ans
+    ref=re.sub(r'.*{', '', ref)
+    ref=re.sub(r'}.*', '', ref)
+    
+    ans=re.sub(r'.*{', '', ans)
+    ans=re.sub(r'}.*', '', ans)
+    
+    return ref==ans
 
 
 def check_sent(ref, ans):
-	ref=re.sub(r'{.*}', '', ref)
-	ans=re.sub(r'{.*}', '', ans)
-	
-	return return ref==ans
+    ref=re.sub(r'{.*}', '', ref)
+    ans=re.sub(r'{.*}', '', ans)
+    
+    return ref==ans
 
 
 def count_correct_num(ref_path, ans_path):
-	cloze_sent_num=0
-	all_correct_num=0
-	cloze_correct_num=0
-	sent_correct_num=0
-	
+    cloze_sent_num=0
+    all_correct_num=0
+    cloze_correct_num=0
+    sent_correct_num=0
+    
     with open(ref_path) as f_ref:
         with open(ans_path, 'w') as f_ans:
-        	for ref_line in f_ref:
-        		ans_line=f_ans.readline()
-        		if is_correct_cloze(ref_line):
-        			cloze_sent_num+=1
-        			ref_line=re.sub(r'[^a-z{}<> ]', '', ref_line)
-        			ans_line=re.sub(r'[^a-z{}<> ]', '', ans_line)
-        			if ref_line == ans_line:
-        				all_correct_num+=1
-        				cloze_correct_num+=1
-        				sent_correct_num+=1
-        			elif:
-        				if check_cloze(ref_line, ans_line):
-        					cloze_correct_num+=1
-        				if check_sent(ref_line, ans_line):
-        					sent_correct_num+=1
+            for ref_line in f_ref:
+                ans_line=f_ans.readline()
+                if is_correct_cloze(ref_line):
+                    cloze_sent_num+=1
+                    ref_line=re.sub(r'[^a-z{}<> ]', '', ref_line)
+                    ans_line=re.sub(r'[^a-z{}<> ]', '', ans_line)
+                    if ref_line == ans_line:
+                        all_correct_num+=1
+                        cloze_correct_num+=1
+                        sent_correct_num+=1
+                    elif:
+                        if check_cloze(ref_line, ans_line):
+                            cloze_correct_num+=1
+                        if check_sent(ref_line, ans_line):
+                            sent_correct_num+=1
 
 
-	'''
-	•Ô‚è’l‚Í
-	line_numF–â‘è•¶‚Ì”
-	cloze_sent_numF{‚Æ}‚Ì—¼•û‚ğŠÜ‚Ş•¶‚Ì”
-	all_correct_numF—\‘ª‚Æ‹³tƒf[ƒ^‚ªŠ®‘Sˆê’v‚µ‚Ä‚¢‚é”
-	cloze_correct_numF‹óŠ“à‚Å—\‘ª‚Æ‹³tƒf[ƒ^‚ªŠ®‘Sˆê’v‚µ‚Ä‚¢‚é”
-	sent_correct_numF‹óŠ“à‚Å—\‘ª‚Æ‹³tƒf[ƒ^‚ªŠ®‘Sˆê’v‚µ‚Ä‚¢‚é”
-	
-	'''
-	return line_num, cloze_sent_num, all_correct_num, cloze_correct_num, sent_correct_num
+    '''
+    è¿”ã‚Šå€¤ã¯
+    line_numï¼šå•é¡Œæ–‡ã®æ•°
+    cloze_sent_numï¼š{ã¨}ã®ä¸¡æ–¹ã‚’å«ã‚€æ–‡ã®æ•°
+    all_correct_numï¼šäºˆæ¸¬ã¨æ•™å¸«ãƒ‡ãƒ¼ã‚¿ãŒå®Œå…¨ä¸€è‡´ã—ã¦ã„ã‚‹æ•°
+    cloze_correct_numï¼šç©ºæ‰€å†…ã§äºˆæ¸¬ã¨æ•™å¸«ãƒ‡ãƒ¼ã‚¿ãŒå®Œå…¨ä¸€è‡´ã—ã¦ã„ã‚‹æ•°
+    sent_correct_numï¼šç©ºæ‰€å†…ã§äºˆæ¸¬ã¨æ•™å¸«ãƒ‡ãƒ¼ã‚¿ãŒå®Œå…¨ä¸€è‡´ã—ã¦ã„ã‚‹æ•°
+    
+    '''
+    return line_num, cloze_sent_num, all_correct_num, cloze_correct_num, sent_correct_num
 
 
 
 def print_result(ref_path, ans_path):
-	print('file: ',ref_path)
-	BLEU=_bleu(ref_path, ans_path)
-	line, num_cloze, all, cloze, sent =count_correct_num(ref_path, ans_path)
-	print('file: ',ref_path)
-	print('BLEU: ',BLEU)
-	print('acc(all): ',1.0*all/line)
-	print('acc(cloze): ',1.0*cloze/line)
-	print('acc(sent): ',1.0*sent/line)
-	print('num: ',line)
-	print('cloze miss: ',line - num_cloze)
+    print('file: ',ref_path)
+    BLEU=_bleu(ref_path, ans_path)
+    line, num_cloze, all, cloze, sent =count_correct_num(ref_path, ans_path)
+    print('file: ',ref_path)
+    print('BLEU: ',BLEU)
+    print('acc(all): ',1.0*all/line)
+    print('acc(cloze): ',1.0*cloze/line)
+    print('acc(sent): ',1.0*sent/line)
+    print('num: ',line)
+    print('cloze miss: ',line - num_cloze)
 
-#return ‚È‚µ
+#return ãªã—
 
 
-#----- ‚¢‚í‚ä‚émain•”‚İ‚½‚¢‚È‚Ì -----
+#----- ã„ã‚ã‚†ã‚‹mainéƒ¨ã¿ãŸã„ãªã® -----
 
 
 print_result('output_dev.txt','/home/tamaki/M2/Tensorflow/mine2018_4to7/Data/my_nmt/text8_nmt_dev.ans')
