@@ -170,6 +170,8 @@ def is_correct_cloze(line):
         return True
     elif left+right>1:
         print(line)
+    else:
+        print(line)
     return False
 
 
@@ -177,17 +179,17 @@ def is_correct_cloze(line):
 def check_cloze(ref, ans):
     ref=re.sub(r'.*{', '', ref)
     ref=re.sub(r'}.*', '', ref)
-    
+
     ans=re.sub(r'.*{', '', ans)
     ans=re.sub(r'}.*', '', ans)
-    
+
     return ref==ans
 
 
 def check_sent(ref, ans):
     ref=re.sub(r'{.*}', '', ref)
     ans=re.sub(r'{.*}', '', ans)
-    
+
     return ref==ans
 
 
@@ -197,15 +199,21 @@ def count_correct_num(ref_path, ans_path):
     cloze_correct_num=0
     sent_correct_num=0
     line_num=0
+
     with open(ref_path) as f_ref:
-        with open(ans_path, 'w') as f_ans:
+        with open(ans_path) as f_ans:
             for ref_line in f_ref:
                 line_num+=1
                 ans_line=f_ans.readline()
+                ref_line=re.sub(r'[^a-z{}<> ]', '', ref_line)
+                ans_line=re.sub(r'[^a-z{}<> ]', '', ans_line)
+                '''
+                if line_num <5:
+                    print(ref_line)
+                    print(ans_line)
+                '''
                 if is_correct_cloze(ref_line):
                     cloze_sent_num+=1
-                    ref_line=re.sub(r'[^a-z{}<> ]', '', ref_line)
-                    ans_line=re.sub(r'[^a-z{}<> ]', '', ans_line)
                     if ref_line == ans_line:
                         all_correct_num+=1
                         cloze_correct_num+=1
@@ -224,7 +232,7 @@ def count_correct_num(ref_path, ans_path):
     all_correct_num：予測と教師データが完全一致している数
     cloze_correct_num：空所内で予測と教師データが完全一致している数
     sent_correct_num：空所内で予測と教師データが完全一致している数
-    
+
     '''
     return line_num, cloze_sent_num, all_correct_num, cloze_correct_num, sent_correct_num
 
@@ -232,15 +240,22 @@ def count_correct_num(ref_path, ans_path):
 
 def print_result(ref_path, ans_path):
     print('file: ',ref_path)
-    BLEU=_bleu(ref_path, ans_path)
-    line, num_cloze, all, cloze, sent =count_correct_num(ref_path, ans_path)
-    print('file: ',ref_path)
-    print('BLEU: ',BLEU)
-    print('acc(all): ',1.0*all/line)
-    print('acc(cloze): ',1.0*cloze/line)
-    print('acc(sent): ',1.0*sent/line)
-    print('num: ',line)
-    print('cloze miss: ',line - num_cloze)
+    #BLEU=_bleu(ref_path, ans_path)
+    line, num_cloze, allOK, cloze, sent =count_correct_num(ref_path, ans_path)
+    print('\nfile: ',ref_path)
+    #print('BLEU: ',BLEU)
+
+    print('  acc(all): ', '{0:.2f}'.format(1.0*allOK/line*100),' %')
+    print('acc(cloze): ', '{0:.2f}'.format(1.0*cloze/line*100),' %')
+    print(' acc(sent): ', '{0:.2f}'.format(1.0*sent/line*100),' %')
+
+    print('  all: ', allOK)
+    print('cloze: ',cloze)
+    print(' sent: ',sent)
+    print('  num: ',line)
+    print(' miss: ',line - num_cloze)
+
+
 
 #return なし
 
@@ -249,7 +264,6 @@ def print_result(ref_path, ans_path):
 
 
 print_result('output_dev.txt','/home/tamaki/M2/Tensorflow/mine2018_4to7/Data/my_nmt/text8_nmt_dev.ans')
+print('\n\n')
 
 print_result('output_infer.txt','/home/tamaki/M2/Tensorflow/mine2018_4to7/Data/my_nmt/center_nmt.ans')
-
-
