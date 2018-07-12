@@ -1,0 +1,57 @@
+tamaki@tamaki-ubuntu:~/M2/Tensorflow/nmt/text8_output$ python3 calc_BLEU_acc.py 
+file:  output_dev.txt
+{ } <unk> <unk> and mikhail gorbachev december eight one nine eight seven rfc and collapse and <unk> } <unk>
+
+file:  output_dev.txt
+  acc(all):  2.40  %
+acc(cloze):  5.60  %
+ acc(sent):  30.60  %
+  all:  24
+cloze:  56
+ sent:  306
+  num:  1000
+ miss:  1
+
+
+
+file:  output_infer.txt
+what do you think of mr owen s proposal for cutting costs in the factory i will his idea but i don t i it t i idea them i it t i it t i it t i it t i it t i it t i it t i it t i it t i it t i
+
+file:  output_infer.txt
+  acc(all):  0.00  %
+acc(cloze):  0.93  %
+ acc(sent):  47.84  %
+  all:  0
+cloze:  3
+ sent:  155
+  num:  324
+ miss:  1
+tamaki@tamaki-ubuntu:~/M2/Tensorflow/nmt/text8_output$ python3 calc_BLEU_acc_change_unk.py 
+file:  output_dev.txt changed to unk
+{ } <unk> <unk> and mikhail gorbachev december eight one nine eight seven rfc and collapse and <unk> } <unk>
+
+file:  output_dev.txt changed to unk
+  acc(all):  4.30  %
+acc(cloze):  7.40  %
+ acc(sent):  52.70  %
+  all:  43
+cloze:  74
+ sent:  527
+  num:  1000
+ miss:  1
+
+
+
+file:  output_infer.txt changed to unk
+what do you think of mr owen s proposal for cutting costs in the factory i will his idea but i don t i it t i idea them i it t i it t i it t i it t i it t i it t i it t i it t i it t i it t i
+
+file:  output_infer.txt changed to unk
+  acc(all):  0.00  %
+acc(cloze):  1.23  %
+ acc(sent):  54.32  %
+  all:  0
+cloze:  4
+ sent:  176
+  num:  324
+ miss:  1
+
