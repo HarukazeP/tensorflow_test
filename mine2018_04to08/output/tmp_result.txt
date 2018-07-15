@@ -135,3 +135,15 @@ cloze:  3
   num:  324
  miss:  2
 
+
+
+
+
+file:  output_infer.txt
+model:  hi it s me i m partement i m late i m running { in } the direction of the ticket gate i ll be with you in a minute
+  ans:  hi it s me i m sorry i m late i m running { in } the direction of the ticket gate i ll be with you in a minute
+model:  the fans waited outside the door in the hope { of } mist sight of the movie star
+  ans:  the fans waited outside the door in the hope { of } catching sight of the movie star
+model:  familia up or we ll be late don t worry i ll be ready { in } two minutes
+  ans:  hurry up or we ll be late don t worry i ll be ready { in } two minutes
+
