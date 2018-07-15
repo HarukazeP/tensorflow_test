@@ -9,9 +9,9 @@ sys	1m6.028s
 
 
 time python3 -m nmt.nmt \
-	    --out_dir=text8_output \
+	    --out_dir=text8_output_ep100_2 \
 	    --inference_input_file=/home/tamaki/M2/Tensorflow/mine2018_4to7/Data/my_nmt/center_nmt.cloze \
-	    --inference_output_file=text8_output/output_infer.txt
+	    --inference_output_file=text8_output_ep100_2/output_infer.txt
       
       
       
