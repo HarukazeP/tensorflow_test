@@ -1,0 +1,66 @@
+tamaki@tamaki-ubuntu:~/M2/Tensorflow/nmt/text8_output_ep100_2$ python3 check_top10words.py 
+
+
+file:  /home/tamaki/M2/Tensorflow/mine2018_4to7/Data/my_nmt/text8_nmt.ans
+('the', 4982)
+('of', 2829)
+('and', 1996)
+('one', 1869)
+('in', 1771)
+('a', 1510)
+('to', 1439)
+('zero', 1118)
+('nine', 1109)
+('two', 895)
+
+
+file:  /home/tamaki/M2/Tensorflow/mine2018_4to7/Data/my_nmt/text8_nmt_dev.ans
+('the', 99)
+('of', 69)
+('in', 44)
+('a', 34)
+('and', 34)
+('one', 34)
+('to', 31)
+('nine', 30)
+('zero', 24)
+('s', 15)
+
+
+file:  output_dev.txt
+('<unk>', 235)
+('the', 191)
+('and', 83)
+('of', 72)
+('to', 49)
+('one', 33)
+('nine', 29)
+('is', 28)
+('zero', 26)
+('a', 24)
+
+
+file:  /home/tamaki/M2/Tensorflow/mine2018_4to7/Data/my_nmt/center_nmt.ans
+('to', 14)
+('have', 13)
+('been', 10)
+('of', 9)
+('i', 9)
+('would', 8)
+('in', 7)
+('on', 7)
+('it', 6)
+('had', 6)
+
+
+file:  output_infer.txt
+('to', 38)
+('of', 29)
+('the', 28)
+('<unk>', 23)
+('in', 13)
+('is', 10)
+('as', 9)
+('be', 9)
+('a', 8)
+('been', 6)
