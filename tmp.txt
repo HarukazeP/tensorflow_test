@@ -114,22 +114,50 @@ sys	100m29.108s
 
 
 
-100回しようとしてうまくいかないやつ
-# External evaluation, global step 12000
-  decoding to output ./text8_output_ep100/output_dev.
-  done, num sentences 1000, num translations per input 1, time 11s, Mon Jul  9 22:24:52 2018.
-  bleu dev: 63.3
-  saving hparams to ./text8_output_ep100/hparams
-# External evaluation, global step 12000
-  decoding to output ./text8_output_ep100/output_test.
-  done, num sentences 324, num translations per input 1, time 5s, Mon Jul  9 22:24:57 2018.
-  bleu test: 42.1
-  saving hparams to ./text8_output_ep100/hparams
-# Best bleu, step 12000 lr 1 step-time 2.32s wps 1.84K ppl 12593200116810555326464.00 gN 22796165.78 dev ppl 2.89, dev bleu 63.3, test ppl 2.75, test bleu 42.1, Mon Jul  9 22:24:57 2018
+  loaded infer model parameters from ./text8_output_ep100_2/translate.ckpt-100000, time 0.07s
+# External evaluation, global step 100000
+  decoding to output ./text8_output_ep100_2/output_dev.
+  done, num sentences 1000, num translations per input 1, time 12s, Sat Jul 14 11:46:25 2018.
+  bleu dev: 67.9
+  saving hparams to ./text8_output_ep100_2/hparams
+# External evaluation, global step 100000
+  decoding to output ./text8_output_ep100_2/output_test.
+  done, num sentences 324, num translations per input 1, time 5s, Sat Jul 14 11:46:32 2018.
+  bleu test: 75.0
+  saving hparams to ./text8_output_ep100_2/hparams
+# Final, step 100000 lr 1 step-time 2.25s wps 1.91K ppl 1.31 gN 3.42 dev ppl 4.42, dev bleu 67.9, test ppl 5.70, test bleu 75.0, Sat Jul 14 11:46:32 2018
+# Done training!, time 233127s, Sat Jul 14 11:46:32 2018.
+# Start evaluating saved best models.
+2018-07-14 11:46:32.561498: W tensorflow/core/kernels/lookup_util.cc:362] Table trying to initialize from file /home/tamaki/M2/Tensorflow/mine2018_4to7/Data/my_nmt/enwiki_vocab30000.cloze is already initialized.
+2018-07-14 11:46:32.561498: W tensorflow/core/kernels/lookup_util.cc:362] Table trying to initialize from file /home/tamaki/M2/Tensorflow/mine2018_4to7/Data/my_nmt/enwiki_vocab30000.cloze is already initialized.
+  loaded infer model parameters from ./text8_output_ep100_2/best_bleu/translate.ckpt-92000, time 0.07s
+  # 62
+    src: zero six three if n is prime { } n one but the converse
+    ref: zero six three if n is prime { then } n one but the converse
+    nmt: zero six three if n is prime { <unk> } n one but the converse
+2018-07-14 11:46:32.695926: W tensorflow/core/kernels/lookup_util.cc:362] Table trying to initialize from file /home/tamaki/M2/Tensorflow/mine2018_4to7/Data/my_nmt/enwiki_vocab30000.cloze is already initialized.
+  loaded eval model parameters from ./text8_output_ep100_2/best_bleu/translate.ckpt-92000, time 0.07s
+  eval dev: perplexity 4.54, time 8s, Sat Jul 14 11:46:41 2018.
+  eval test: perplexity 6.75, time 3s, Sat Jul 14 11:46:44 2018.
+2018-07-14 11:46:44.216029: W tensorflow/core/kernels/lookup_util.cc:362] Table trying to initialize from file /home/tamaki/M2/Tensorflow/mine2018_4to7/Data/my_nmt/enwiki_vocab30000.cloze is already initialized.
+2018-07-14 11:46:44.216029: W tensorflow/core/kernels/lookup_util.cc:362] Table trying to initialize from file /home/tamaki/M2/Tensorflow/mine2018_4to7/Data/my_nmt/enwiki_vocab30000.cloze is already initialized.
+  loaded infer model parameters from ./text8_output_ep100_2/best_bleu/translate.ckpt-92000, time 0.08s
+# External evaluation, global step 92000
+  decoding to output ./text8_output_ep100_2/output_dev.
+  done, num sentences 1000, num translations per input 1, time 12s, Sat Jul 14 11:46:56 2018.
+  bleu dev: 68.3
+  saving hparams to ./text8_output_ep100_2/hparams
+# External evaluation, global step 92000
+  decoding to output ./text8_output_ep100_2/output_test.
+  done, num sentences 324, num translations per input 1, time 5s, Sat Jul 14 11:47:02 2018.
+  bleu test: 75.0
+  saving hparams to ./text8_output_ep100_2/hparams
+# Best bleu, step 92000 lr 1 step-time 2.25s wps 1.91K ppl 1.31 gN 3.42 dev ppl 4.54, dev bleu 68.3, test ppl 6.75, test bleu 75.0, Sat Jul 14 11:47:02 2018
 
-real	476m32.279s
-user	3314m53.272s
-sys	100m44.904s
+real	3886m16.611s
+user	26982m35.516s
+sys	841m0.836s
+
 
 
 
