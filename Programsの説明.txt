@@ -32,24 +32,10 @@ http://tatzyr.hatenablog.com/entry/2015/10/24/162102 このサイトにあった
 
 
 -----2018_from04to07ディレクトリ内----------------------------------------
+出力いろいろはoutputディレクトリに
 
-original.py
-kerasのチュートリアルプログラムlstm_text_generation.py そのまま
-https://github.com/fchollet/keras/tree/master/examples より
-
-
-original_time.py
-original.py に時間表示を追加
-
-
-
-
-
-
-
-
-
-
+memo.txt
+この期間は自作したり，他人のプログラムを一部変えたりとかしてないのでその旨などを書いてる
 
 
 
