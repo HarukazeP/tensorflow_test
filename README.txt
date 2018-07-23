@@ -28,7 +28,9 @@ tmp.txt
 
 
 
-
+seq2seq_translation_tutorial_mine.py
+tendorflowじゃなくてPytrochのやつ
+サンプルプログラムのコメント部分を日本語にしただけ
 
 
 
