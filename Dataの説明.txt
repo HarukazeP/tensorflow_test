@@ -8,11 +8,19 @@ kerasのチュートリアルで使用されているコーパス
 
 
 
----- 以下，gitにはアップロードしてないもの ----
+---- 以下，gitにはアップロードしてないけど関連するファイル ----
 
 text8_nmt_tmp_nmt_ans.txt　と　text8_nmt_tmp_nmt_cloze.txt
 text8コーパスからnew_make_data_at_server.pyで作成したtensrflowのチュートリアルプログラム用のデータ
 1,059,810行
 
+
+text8_nmt.ans　と　text8_nmt.cloze
+text8_nmt_tmp_nmt_ans.txt とかの先頭5万行
+
+
+enwiki_vocab30000.cloze
+wikipedia全体に対してtext8コーパスと同様を処理をしたファイルに現れる英単語上位30000件
+および、seq2seqモデルでの未知語を表す<unk>、他に<s>や</s>、{と}を足した語彙を表すファイル
 
 
