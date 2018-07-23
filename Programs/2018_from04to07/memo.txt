@@ -1,0 +1,30 @@
+この期間に動かしたのはtensorflowのチュートリアルにあったプログラムのみ
+
+2018/3/30が最終更新日だったときの
+公式： https://www.tensorflow.org/versions/master/tutorials/seq2seq#iwslt_english-vietnamese
+git： https://github.com/tensorflow/nmt/tree/master/nmt
+
+入出力ファイルを自分のものに入れ替えてやってみただけ
+公式の記述にならって，自分のデータでの実行結果は↓の通り
+
+  time python3 -m nmt.nmt \
+  --attention=scaled_luong \
+  --src=cloze --tgt=ans \
+  --vocab_prefix=/home/tamaki/M2/Tensorflow/mine2018_4to7/Data/my_nmt/enwiki_vocab30000  \
+  --train_prefix=/home/tamaki/M2/Tensorflow/mine2018_4to7/Data/my_nmt/text8_nmt \
+  --dev_prefix=/home/tamaki/M2/Tensorflow/mine2018_4to7/Data/my_nmt/text8_nmt_dev  \
+  --test_prefix=/home/tamaki/M2/Tensorflow/mine2018_4to7/Data/my_nmt/center_nmt \
+  --out_dir=./text8_output_ep100 \
+  --share_vocab=True \
+  --num_train_steps=1000000 \
+  --steps_per_stats=100 \
+  --num_layers=2 \
+  --num_units=128 \
+  --dropout=0.2 \
+  --metrics=bleu
+  
+  
+time python3 -m nmt.nmt \
+  --out_dir=text8_output_ep100 \
+  --inference_input_file=/home/tamaki/M2/Tensorflow/mine2018_4to7/Data/my_nmt/center_nmt.cloze \
+  --inference_output_file=text8_output_ep100_2/output_infer.txt
