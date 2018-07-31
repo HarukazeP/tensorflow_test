@@ -1,4 +1,4 @@
-keras_test ( https://github.com/HarukazeP/keras_test ) の続きみたいな感じ
+keras_test ( https://github.com/tamakiHaru/keras_test ) の続きみたいな感じ
 
 tensorflow使ってRNNの勉強というか練習する過程のいろいろ（2018/4～2018/3）
 研究用あぷろだ代わりのリポジトリ
