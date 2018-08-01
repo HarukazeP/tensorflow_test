@@ -1,17 +1,29 @@
 ---- このディレクトリ内 ----
 
-nietzsche.txt
-kerasのチュートリアルで使用されているコーパス
-ニーチェの作品らしい
+--- < seq2seqチュートリアル(nmt)関係 > ---
+center.ans　と　center.cloze
+センターの問題文そのまま
+324行
+.ansは空所補充語
+.clozeは空所あいたまま
 
+center_nmt.ans　と　center_nmt.cloze
+センターの問題文にtext8コーパスと同様の前処置したもの
+
+
+text8_nmt_dev.ans　と　text8_nmt_dev.cloze
+new_make_data_at_server.pyで作成した検証データ
+1000行
 
 
 
 
 ---- 以下，gitにはアップロードしてないけど関連するファイル ----
 
+
+--- < seq2seqチュートリアル(nmt)関係 > ---
 text8_nmt_tmp_nmt_ans.txt　と　text8_nmt_tmp_nmt_cloze.txt
-text8コーパスからnew_make_data_at_server.pyで作成したtensrflowのチュートリアルプログラム用のデータ
+text8コーパスからnew_make_data_at_server.pyで作成したtensrflowのseq2seqチュートリアル(nmt)プログラム用のデータ
 1,059,810行
 
 
