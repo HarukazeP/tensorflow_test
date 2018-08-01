@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 '''
-seq2seqの結果からBLEUとかaccとか計算
+空所に入る語の分布確認
 '''
 
 from __future__ import print_function
