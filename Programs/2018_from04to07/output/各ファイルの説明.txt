@@ -1,1 +1,27 @@
 output内の各ファイルの説明
+
+--- < seq2seqチュートリアル(nmt)の出力 > ---
+
+output_dev.txt
+検証データに対するモデルの予測
+
+
+output_infer.txt
+テストデータに対するモデルの予測
+
+
+
+--- < 自作プログラムの出力 > ---
+
+tmp_result.txt
+calc_BLEU_acc.py や calc_BLEU_acc_change_unk.py の出力結果
+
+
+tmp_part_result.txt
+calc_part_acc.py や calc_part_acc_change_unk.py の出力結果
+
+
+top10words.txt
+check_top10words.py の出力結果
+
+
