@@ -1,0 +1,45 @@
+file:  /home/tamaki/M2/Tensorflow/mine2018_4to7/Data/my_nmt/tmp/output_dev_top.txt
+72
+3
+2
+BLEU:      66.67
+acc:       0.03
+part_acc:  0.04
+file:  /home/tamaki/M2/Tensorflow/mine2018_4to7/Data/my_nmt/tmp/output_dev_end.txt
+0
+0
+0
+BLEU:      0.00
+acc:       0.00
+part_acc:  0.00
+file:  /home/tamaki/M2/Tensorflow/mine2018_4to7/Data/my_nmt/tmp/output_dev_other.txt
+928
+137
+74
+BLEU:      68.19
+acc:       0.08
+part_acc:  0.15
+
+
+
+file:  /home/tamaki/M2/Tensorflow/mine2018_4to7/Data/my_nmt/tmp/output_infer_top.txt
+10
+0
+0
+BLEU:      82.41
+acc:       0.00
+part_acc:  0.00
+file:  /home/tamaki/M2/Tensorflow/mine2018_4to7/Data/my_nmt/tmp/output_infer_end.txt
+0
+0
+0
+BLEU:      0.00
+acc:       0.00
+part_acc:  0.00
+file:  /home/tamaki/M2/Tensorflow/mine2018_4to7/Data/my_nmt/tmp/output_infer_other.txt
+314
+10
+3
+BLEU:      74.72
+acc:       0.01
+part_acc:  0.03
