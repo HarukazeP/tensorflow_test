@@ -289,7 +289,7 @@ def devide_file_and_print(ref_path, ans_path):
                 if ans_line[0]=='{':
                     f_ref_top.write(ref_line)
                     f_ans_top.write(ans_line)
-                elif ans_line[-1]=='}':
+                elif ans_line[-2]=='}':
                     f_ref_end.write(ref_line)
                     f_ans_end.write(ans_line)
                 else:
