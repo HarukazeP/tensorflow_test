@@ -25,3 +25,12 @@ top10words.txt
 check_top10words.py の出力結果
 
 
+
+tmp_part_result.txt
+distance_from_cloze.py の出力結果
+
+
+tmp_result_by_position.txt
+calc_all_by_position.py の出力結果
+
+
