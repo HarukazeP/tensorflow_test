@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
-"""
+'''
 もともとは英語でコメント書かれていたやつを日本語にしたり
+変数ｍ理買えたりとか
 
 #TODO いわゆるmain部的な整理を合同ゼミ後
 
@@ -8,7 +9,7 @@
 入力データは
 ./data/xxx-yyy.txt
 xxxが翻訳前，yyy翻後の言語
-"""
+'''
 
 from __future__ import unicode_literals, print_function, division
 from io import open
@@ -240,46 +241,58 @@ class AttnDecoderRNN(nn.Module):
 
 
 ###########################
-# 3.あああ
+# 3.入力データ変換
 ###########################
 
 
-
+#単語列をID列に
 def indexesFromSentence(lang, sentence):
     return [lang.word2index[word] for word in sentence.split(' ')]
 
-
+#単語列からモデルの入力へのテンソルに
 def tensorFromSentence(lang, sentence):
     indexes = indexesFromSentence(lang, sentence)
     indexes.append(EOS_token)
     return torch.tensor(indexes, dtype=torch.long, device=device).view(-1, 1)
 
-
+#入力と出力のペアからテンソルに
 def tensorsFromPair(pair):
     input_tensor = tensorFromSentence(input_lang, pair[0])
     target_tensor = tensorFromSentence(output_lang, pair[1])
     return (input_tensor, target_tensor)
 
 
+
+
+###########################
+# 4.モデルの学習
+###########################
+
 '''
 モデルの訓練
 
-訓練するためには入力センテンスをエンコーダを通して実行し、そして総ての出力と最新の隠れ状態を追跡します。それからデコーダはその最初の入力として <SOS> トークンが、そしてその最初の隠れ状態としてエンコーダの最後の隠れ状態が与えられます。
-
-“Teacher forcing” は次の入力としてデコーダの推測を使用する代わりに、実際のターゲット出力を各次の入力として使用する概念です。"teacher forcing" の使用はそれをより速く収束させますが、訓練されたネットワークが (不当に) 利用された (= exploit) とき、不安定さを示すかもしれません。
-
-teacher-forced ネットワークの出力を観察することができます、それは首尾一貫した文法により読みますが正しい翻訳からは遠いところを彷徨います - 直感的にはそれは出力文法を表わすことを学習してひとたび教師が最初の 2, 3 の単語をそれに伝えれば、意味を「拾い上げる」ことができます、しかしそれはどのようにセンテンスを作成するかをそもそも翻訳から適切に学習していません。
+“Teacher forcing” は(seq2seqのでの)次の入力としてデコーダの推測を使用する代わりに、実際のターゲット出力を各次の入力として使用する概念です。
 
 PyTorch autograd が与えてくれる自由度ゆえに、単純な if ステートメントで "teacher forcing" を使用するか否かをランダムに選択することができます。それを更に使用するためには teacher_forcing_ratio を上向きに調整してください。
-
-
 '''
 
 
 
-
+#teacher forcingを使用する割合
 teacher_forcing_ratio = 0.5
 
+'''
+引数
+input_tensor:      入力テンソル
+target_tensor:     教師テンソル
+encoder:           エンコーダのクラス
+decoder:           デコーダのクラス
+encoder_optimizer: エンコーダの最適化クラス
+decoder_optimizer: デコーダの最適化クラス
+criterion:         誤差の計算手法クラス
+max_length:        入力および教師データの最大長(最大単語数)
+
+'''
 
 def train(input_tensor, target_tensor, encoder, decoder, encoder_optimizer, decoder_optimizer, criterion, max_length=MAX_LENGTH):
     encoder_hidden = encoder.initHidden()
@@ -293,12 +306,15 @@ def train(input_tensor, target_tensor, encoder, decoder, encoder_optimizer, deco
     encoder_outputs = torch.zeros(max_length, encoder.hidden_dim, device=device)
 
     loss = 0
-
+    
+    #エンコーダの準備
     for ei in range(input_length):
         encoder_output, encoder_hidden = encoder(
             input_tensor[ei], encoder_hidden)
         encoder_outputs[ei] = encoder_output[0, 0]
 
+
+    #デコーダの準備
     decoder_input = torch.tensor([[SOS_token]], device=device)
 
     decoder_hidden = encoder_hidden
@@ -306,7 +322,7 @@ def train(input_tensor, target_tensor, encoder, decoder, encoder_optimizer, deco
     use_teacher_forcing = True if random.random() < teacher_forcing_ratio else False
 
     if use_teacher_forcing:
-        # Teacher forcing: Feed the target as the next input
+        # teacher forcing使用
         for di in range(target_length):
             decoder_output, decoder_hidden, decoder_attention = decoder(
                 decoder_input, decoder_hidden, encoder_outputs)
@@ -314,11 +330,11 @@ def train(input_tensor, target_tensor, encoder, decoder, encoder_optimizer, deco
             decoder_input = target_tensor[di]  # Teacher forcing
 
     else:
-        # Without teacher forcing: use its own predictions as the next input
+        # teacher forchingを使わずデコーダの予測を使用
         for di in range(target_length):
             decoder_output, decoder_hidden, decoder_attention = decoder(
                 decoder_input, decoder_hidden, encoder_outputs)
-            topv, topi = decoder_output.topk(1)
+            topv, topi = decoder_output.topk(1)  #確率が最大の1語の単語，配列の何番目か
             decoder_input = topi.squeeze().detach()  # detach from history as input
 
             loss += criterion(decoder_output, target_tensor[di])
