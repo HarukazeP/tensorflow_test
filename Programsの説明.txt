@@ -19,10 +19,9 @@ pytorchのみ
 出力いろいろはoutputディレクトリに
 
 
-seq2seq_translation_tutorial_mine.py
-pytorchのseq2seqチュートリアルプログラムの一部変更
-コメントの日本語化とグラフの画像保存とか
-
+seq2seq_attention.py
+attentionつきseq2seqでセンターの空所補充するやつ
+pytorchのseq2seqチュートリアルプログラムから改変
 
 
 
