@@ -1,12 +1,9 @@
 # -*- coding: utf-8 -*-
 '''
 もともとは英語でコメント書かれていたやつを日本語にしたり
-変数ｍ理買えたりとか
+変数名変えたりとか
 
-#TODO いわゆるmain部的な整理を合同ゼミ後
-
-
-入力データは
+入力データファイルは
 ./data/xxx-yyy.txt
 xxxが翻訳前，yyy翻後の言語
 '''
@@ -23,6 +20,19 @@ import torch
 import torch.nn as nn
 from torch import optim
 import torch.nn.functional as F
+
+import time
+import math
+
+import matplotlib.pyplot as plt
+plt.switch_backend('agg')
+import matplotlib.ticker as ticker
+import numpy as np
+
+#TODO
+#いわゆるmain部的な整理を合同ゼミ後
+#タブをスペースに置換
+
 
 
 
@@ -66,6 +76,8 @@ class Lang:
             self.n_words += 1
         else:
             self.word2count[word] += 1
+
+
 
 #半角カナとか特殊記号とかを正規化
 # Ａ→A，Ⅲ→III，①→1とかそういうの
@@ -234,7 +246,6 @@ class AttnDecoderRNN(nn.Module):
 
 
 
-#TODO　ここから下読み込んで理解する
 
 #次は学習データの準備
 
@@ -282,6 +293,8 @@ PyTorch autograd が与えてくれる自由度ゆえに、単純な if ステ�
 teacher_forcing_ratio = 0.5
 
 '''
+学習1回分のクラス
+
 引数
 input_tensor:      入力テンソル
 target_tensor:     教師テンソル
@@ -293,13 +306,13 @@ criterion:         誤差の計算手法クラス
 max_length:        入力および教師データの最大長(最大単語数)
 
 '''
-
 def train(input_tensor, target_tensor, encoder, decoder, encoder_optimizer, decoder_optimizer, criterion, max_length=MAX_LENGTH):
     encoder_hidden = encoder.initHidden()
 
     encoder_optimizer.zero_grad()
     decoder_optimizer.zero_grad()
 
+    #入出力の長さを計算
     input_length = input_tensor.size(0)
     target_length = target_tensor.size(0)
 
@@ -336,45 +349,45 @@ def train(input_tensor, target_tensor, encoder, decoder, encoder_optimizer, deco
                 decoder_input, decoder_hidden, encoder_outputs)
             topv, topi = decoder_output.topk(1)  #確率が最大の1語の単語，配列の何番目か
             decoder_input = topi.squeeze().detach()  # detach from history as input
+            #TODO このdetach()の処理よく分からない
 
             loss += criterion(decoder_output, target_tensor[di])
             if decoder_input.item() == EOS_token:
                 break
 
     loss.backward()
+    #↑lossはdouble型ではなくVariableクラスになっている
+    #backwardメソッドを呼ぶことで逆伝搬がスタート，直前のノードに微分値をセット
 
+    #エンコーダおよびデコーダの学習（パラメータの更新）
     encoder_optimizer.step()
     decoder_optimizer.step()
-
+    
+    #↑ではlossを全入力に対する和で計算してるので割って平均lossを返す
     return loss.item() / target_length
 
 
-#残り時間とかの見積もり
 
 
-import time
-import math
 
 
+#秒を分秒に変換
 def asMinutes(s):
     m = math.floor(s / 60)
     s -= m * 60
     return '%dm %ds' % (m, s)
 
-
+#経過時間と残り時間の算出
 def timeSince(since, percent):
     now = time.time()
-    s = now - since
-    es = s / (percent)
-    rs = es - s
+    s = now - since       #経過時間
+    es = s / (percent)    #終了までにかかる総時間
+    rs = es - s           #終了までの残り時間
     return '%s (- %s)' % (asMinutes(s), asMinutes(rs))
 
 
-'''
-学習のループとlossや時間の表示とか
-このplotしてるのはクロスエントロピー誤差のこと？
-'''
 
+#学習をn_iters回，残り時間の算出をlossグラフの描画も
 def trainIters(encoder, decoder, n_iters, print_every=1000, plot_every=100, learning_rate=0.01):
     start = time.time()
     plot_losses = []
@@ -383,44 +396,41 @@ def trainIters(encoder, decoder, n_iters, print_every=1000, plot_every=100, lear
 
     encoder_optimizer = optim.SGD(encoder.parameters(), lr=learning_rate)
     decoder_optimizer = optim.SGD(decoder.parameters(), lr=learning_rate)
-    training_pairs = [tensorsFromPair(random.choice(pairs))
-                      for i in range(n_iters)]
+    
+    #pairsはグローバル変数
+    #リスト内包表記により(input, target)がn_iters個並ぶ配列
+    #(input, target)のペアはpairsからランダムに選ばれる
+    #TODO この書き方だと全データ毎回学習してるわけではない？
+    training_pairs = [tensorsFromPair(random.choice(pairs)) for i in range(n_iters)]
     criterion = nn.NLLLoss()
 
     for iter in range(1, n_iters + 1):
         training_pair = training_pairs[iter - 1]
         input_tensor = training_pair[0]
         target_tensor = training_pair[1]
-
+        
+        #学習1データ1回分
         loss = train(input_tensor, target_tensor, encoder,
                      decoder, encoder_optimizer, decoder_optimizer, criterion)
         print_loss_total += loss
         plot_loss_total += loss
-
+        
+        #画面にlossと時間表示
         if iter % print_every == 0:
             print_loss_avg = print_loss_total / print_every
             print_loss_total = 0
             print('%s (%d %d%%) %.4f' % (timeSince(start, iter / n_iters),
                                          iter, iter / n_iters * 100, print_loss_avg))
-
+        #lossグラフ記録
         if iter % plot_every == 0:
             plot_loss_avg = plot_loss_total / plot_every
             plot_losses.append(plot_loss_avg)
             plot_loss_total = 0
-
+    #lossグラフ描画
     showPlot(plot_losses)
 
 
-
-#結果のプロット
-
-
-import matplotlib.pyplot as plt
-plt.switch_backend('agg')
-import matplotlib.ticker as ticker
-import numpy as np
-
-
+#グラフの描画（画像ファイル保存）
 def showPlot(points):
     plt.figure()
     fig, ax = plt.subplots()
@@ -428,19 +438,20 @@ def showPlot(points):
     loc = ticker.MultipleLocator(base=0.2)
     ax.yaxis.set_major_locator(loc)
     plt.plot(points)
-    plt.savefig('loss_'+today_str+'.png')
+    plt.savefig(today_str+'_loss.png')
 
 
-'''
-評価
 
-評価は殆ど訓練と同じですが、ターゲットがないので各ステップについてデコーダの予測を自身に戻して供給します。それが単語を予測するたびにそれを出力文字列に追加してそして EOS トークンを予測する場合にそこで停止します。デコーダの attention 出力もまた後で表示するためにストアします。
+###########################
+# 5.モデルによる予測
+###########################
 
-訓練セットからのランダムなセンテンスを評価して何某かの主観的な質の判断を行なうために入力、ターゲット、そして出力をプリントアウトすることができます :
-'''
 
+# 1データに対する予測
 def evaluate(encoder, decoder, sentence, max_length=MAX_LENGTH):
     with torch.no_grad():
+        #no_grad()の間はパラメータが固定される（更新されない）
+        #以下はほぼtrainと同じ
         input_tensor = tensorFromSentence(input_lang, sentence)
         input_length = input_tensor.size()[0]
         encoder_hidden = encoder.initHidden()
@@ -466,15 +477,18 @@ def evaluate(encoder, decoder, sentence, max_length=MAX_LENGTH):
             topv, topi = decoder_output.data.topk(1)
             if topi.item() == EOS_token:
                 decoded_words.append('<EOS>')
+                #EOSならば終了
                 break
             else:
                 decoded_words.append(output_lang.index2word[topi.item()])
 
             decoder_input = topi.squeeze().detach()
+            #TODO ここのdrtachの意味
 
+        #返り値は予測した単語列とattentionの重み？
         return decoded_words, decoder_attentions[:di + 1]
 
-
+#ランダムにn個のデータ予測
 def evaluateRandomly(encoder, decoder, n=10):
     for i in range(n):
         pair = random.choice(pairs)
@@ -493,43 +507,14 @@ encoder1 = EncoderRNN(input_lang.n_words, hidden_dim).to(device)
 attn_decoder1 = AttnDecoderRNN(hidden_dim, output_lang.n_words, dropout_p=0.1).to(device)
 
 trainIters(encoder1, attn_decoder1, 75000, print_every=5000)
-#↑いわゆるlossは(n_iters=75000)*(earning_rate=0.01)のことっぽい
-
-#ここで学習完了
-
-
+#↑いわゆるepochは(n_iters=75000)*(earning_rate=0.01)のことっぽい
 
 evaluateRandomly(encoder1, attn_decoder1)
 
-'''
-↑
-学習データからランダムに10個，予測みたいな
 
 
-> quel imbecile tu es !
-= you re such an idiot !
-< you re such an idiot ! <eos>
 
-こいうの10個
-
-'''
-
-'''
-attentionの可視化の，シンプルな例
-引数かえれば他の入力もできる
-
-'''
-
-output_words, attentions = evaluate(
-    encoder1, attn_decoder1, "je suis trop froid .")
-plt.matshow(attentions.numpy())
-
-
-'''
-↓こっちの方が，軸のラベルとかいろいろついてるやつ
-
-'''
-
+#attentionの重みの対応グラフの描画
 def showAttention(input_sentence, output_words, attentions):
     # Set up figure with colorbar
     fig = plt.figure()
@@ -546,7 +531,9 @@ def showAttention(input_sentence, output_words, attentions):
     ax.xaxis.set_major_locator(ticker.MultipleLocator(1))
     ax.yaxis.set_major_locator(ticker.MultipleLocator(1))
 
-    plt.show()
+    #plt.show()
+    plt.savefig(today_str+'_attention.png')
+    #これでちゃんと保存されてる？
 
 
 def evaluateAndShowAttention(input_sentence):
@@ -568,5 +555,5 @@ evaluateAndShowAttention("je ne crains pas de mourir .")
 evaluateAndShowAttention("c est un jeune directeur plein de talent .")
 
 
-
+#TODO 正解率の算出とか自分で追加必要
 
