@@ -39,8 +39,8 @@ import numpy as np
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 #自分で定義したグローバル関数とか
-data_path='./data/wiki_tail20.txt'
-file_path='./data/'
+data_path='./pytorch_data/ans-cloze.txt' #text8から作った20行の少量データ
+file_path='./pytorch_data/'
 today1=datetime.datetime.today()
 today_str=file_path + today1.strftime('%m_%d_%H%M')
 
@@ -146,7 +146,7 @@ def prepareData(lang1, lang2, reverse=False):
 
 
 #データの一例の確認
-input_lang, output_lang, pairs = prepareData('eng', 'fra', True)
+input_lang, output_lang, pairs = prepareData('ans', 'cloze', True)
 print(random.choice(pairs))
 
 
@@ -546,14 +546,18 @@ def evaluateAndShowAttention(input_sentence):
 
 
 #↓いろいろ可視化の例
-evaluateAndShowAttention("elle a cinq ans de moins que moi .")
+#センターからいくつか
+evaluateAndShowAttention("something s wrong with the car we must have a { } tire")
+#something s wrong with the car we must have a { flat } tire
 
-evaluateAndShowAttention("elle est trop petit .")
+evaluateAndShowAttention("taro is now devoting all his time and energy { } english")
+#taro is now devoting all his time and energy { to studying } english
 
-evaluateAndShowAttention("je ne crains pas de mourir .")
+evaluateAndShowAttention("hurry up or we ll be late don t worry i ll be ready { } two minutes")
+#hurry up or we ll be late don t worry i ll be ready { in } two minutes
 
-evaluateAndShowAttention("c est un jeune directeur plein de talent .")
-
+evaluateAndShowAttention("robin suddenly began to feel nervous { } the interview")
+#robin suddenly began to feel nervous { during } the interview
 
 #TODO 正解率の算出とか自分で追加必要
 
