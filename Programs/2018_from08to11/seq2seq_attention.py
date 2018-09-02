@@ -1,12 +1,34 @@
 # -*- coding: utf-8 -*-
+
 '''
-もともとは英語でコメント書かれていたやつを日本語にしたり
-変数名変えたりとか
+pytorchのseq2seqチュートリアルを改変
 
 入力データファイルは
-./data/xxx-yyy.txt
+xxx-yyy.txt
 xxxが翻訳前，yyy翻後の言語
+
+動かしていたバージョン
+python   : 2.7.12
+pythorch : 2.0.4
+
+
+#TODO まだここ編集途中
+プログラム全体の構成
+    ・グローバル変数一覧
+    ・関数群
+    ・main部
+
+プログラム全体の流れ
+    0.いろいろ前準備
+    1.学習データの前処理
+    2.fasttextのロードと辞書の作成
+    3.モデルの定義
+    4.モデルの学習
+    5.val_loss最小モデルのロード
+    6.テストの実行
+    7.結果まとめの出力
 '''
+
 
 from __future__ import unicode_literals, print_function, division
 from io import open
@@ -35,6 +57,11 @@ import numpy as np
 
 
 
+#----- グローバル変数一覧 -----
+MAX_LENGTH = 40
+hidden_dim = 256
+
+
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -43,24 +70,39 @@ data_path='./pytorch_data/ans-cloze.txt' #text8から作った20行の少量デ�
 file_path='./pytorch_data/'
 today1=datetime.datetime.today()
 today_str=file_path + today1.strftime('%m_%d_%H%M')
+SOS_token = 0
+EOS_token = 1
+UNK_token = 2
+
+
+
+
+#----- 関数群 -----
+
+
+
+
+
+
+
 
 
 ###########################
 # 1.データの準備
 ###########################
 
-SOS_token = 0
-EOS_token = 1
+
+#TODO 入出力同じ語彙で管理？
+#TODO 語彙はあらかじめ与える？
 
 #seq2seqモデルで用いる語彙に関するクラス
 class Lang:
-    #nameは言語の種類というか区別用
     def __init__(self, name):
-        self.name = name
-        self.word2index = {}
-        self.word2count = {}
-        self.index2word = {0: "SOS", 1: "EOS"}
-        self.n_words = 2  # Count SOS and EOS
+        self.name = name  #本来は翻訳なので言語ごとに語彙を管理してる
+        self.word2index = {"<UNK>": 2}
+        self.word2count = {"<UNK>": 1}
+        self.index2word = {0: "SOS", 1: "EOS", 2: "<UNK>"}
+        self.n_words = 3  # SOS と EOS と UNK
     
     #文から単語を語彙へ
     def addSentence(self, sentence):
@@ -76,7 +118,12 @@ class Lang:
             self.n_words += 1
         else:
             self.word2count[word] += 1
-
+    
+    def check_word2index(self, word):
+    	if word in self.word2index:
+    		return word2index[word]
+    	else:
+    		return word2index["<UNK>"]
 
 
 #半角カナとか特殊記号とかを正規化
@@ -125,9 +172,7 @@ def readLangs(lang1, lang2, reverse=False):
 
 
 
-#↓自分で変更したやつ
-#一応センターの最長が36だったから
-MAX_LENGTH = 40
+
 
 
 #データの読み込みから語彙のカウントまで
@@ -145,9 +190,7 @@ def prepareData(lang1, lang2, reverse=False):
     return input_lang, output_lang, pairs
 
 
-#データの一例の確認
-input_lang, output_lang, pairs = prepareData('ans', 'cloze', True)
-print(random.choice(pairs))
+
 
 
 
@@ -258,7 +301,7 @@ class AttnDecoderRNN(nn.Module):
 
 #単語列をID列に
 def indexesFromSentence(lang, sentence):
-    return [lang.word2index[word] for word in sentence.split(' ')]
+    return [lang.check_word2index(word) for word in sentence.split(' ')]
 
 #単語列からモデルの入力へのテンソルに
 def tensorFromSentence(lang, sentence):
@@ -286,11 +329,6 @@ def tensorsFromPair(pair):
 
 PyTorch autograd が与えてくれる自由度ゆえに、単純な if ステートメントで "teacher forcing" を使用するか否かをランダムに選択することができます。それを更に使用するためには teacher_forcing_ratio を上向きに調整してください。
 '''
-
-
-
-#teacher forcingを使用する割合
-teacher_forcing_ratio = 0.5
 
 '''
 学習1回分のクラス
@@ -331,6 +369,9 @@ def train(input_tensor, target_tensor, encoder, decoder, encoder_optimizer, deco
     decoder_input = torch.tensor([[SOS_token]], device=device)
 
     decoder_hidden = encoder_hidden
+    
+    #teacher forcingを使用する割合
+    teacher_forcing_ratio = 0.5
 
     use_teacher_forcing = True if random.random() < teacher_forcing_ratio else False
 
@@ -409,13 +450,14 @@ def trainIters(encoder, decoder, n_iters, print_every=1000, plot_every=100, lear
         input_tensor = training_pair[0]
         target_tensor = training_pair[1]
         
-        #学習1データ1回分
+        #学習1データ1回分？
         loss = train(input_tensor, target_tensor, encoder,
                      decoder, encoder_optimizer, decoder_optimizer, criterion)
         print_loss_total += loss
         plot_loss_total += loss
         
         #画面にlossと時間表示
+        #経過時間 (- 残り時間) (現在のiter 進行度) loss
         if iter % print_every == 0:
             print_loss_avg = print_loss_total / print_every
             print_loss_total = 0
@@ -502,14 +544,8 @@ def evaluateRandomly(encoder, decoder, n=10):
 
 
 
-hidden_dim = 256
-encoder1 = EncoderRNN(input_lang.n_words, hidden_dim).to(device)
-attn_decoder1 = AttnDecoderRNN(hidden_dim, output_lang.n_words, dropout_p=0.1).to(device)
 
-trainIters(encoder1, attn_decoder1, 75000, print_every=5000)
-#↑いわゆるepochは(n_iters=75000)*(earning_rate=0.01)のことっぽい
 
-evaluateRandomly(encoder1, attn_decoder1)
 
 
 
@@ -536,28 +572,55 @@ def showAttention(input_sentence, output_words, attentions):
     #これでちゃんと保存されてる？
 
 
-def evaluateAndShowAttention(input_sentence):
+def evaluateAndShowAttention(encoder, decoder, input_sentence):
     output_words, attentions = evaluate(
-        encoder1, attn_decoder1, input_sentence)
+        encoder, decoder, input_sentence)
     print('input =', input_sentence)
     print('output =', ' '.join(output_words))
     showAttention(input_sentence, output_words, attentions)
 
 
 
-#↓いろいろ可視化の例
-#センターからいくつか
-evaluateAndShowAttention("something s wrong with the car we must have a { } tire")
-#something s wrong with the car we must have a { flat } tire
 
-evaluateAndShowAttention("taro is now devoting all his time and energy { } english")
-#taro is now devoting all his time and energy { to studying } english
 
-evaluateAndShowAttention("hurry up or we ll be late don t worry i ll be ready { } two minutes")
-#hurry up or we ll be late don t worry i ll be ready { in } two minutes
+#----- main部 -----
+if __name__ == '__main__':
+    # 1.データ読み込み
+    input_lang, output_lang, pairs = prepareData('ans', 'cloze', True)
 
-evaluateAndShowAttention("robin suddenly began to feel nervous { } the interview")
-#robin suddenly began to feel nervous { during } the interview
+    #データの一例確認
+    print(random.choice(pairs))
 
-#TODO 正解率の算出とか自分で追加必要
+
+    # 2.モデル定義
+    my_encoder = EncoderRNN(input_lang.n_words, hidden_dim).to(device)
+    my_decoder = AttnDecoderRNN(hidden_dim, output_lang.n_words, dropout_p=0.1).to(device)
+
+
+    # 3.学習
+    trainIters(my_encoder, my_decoder, 75000, print_every=5000)
+    #↑いわゆるepochは(n_iters=75000)*(earning_rate=0.01)のことっぽい
+
+
+    # 4.評価
+    evaluateRandomly(my_encoder, my_decoder)
+
+
+
+
+    #↓いろいろ可視化の例
+    #センターからいくつか
+    evaluateAndShowAttention(my_encoder, my_decoder, "something s wrong with the car we must have a { } tire")
+    #something s wrong with the car we must have a { flat } tire
+
+    evaluateAndShowAttention(my_encoder, my_decoder, "taro is now devoting all his time and energy { } english")
+    #taro is now devoting all his time and energy { to studying } english
+
+    evaluateAndShowAttention(my_encoder, my_decoder, "hurry up or we ll be late don t worry i ll be ready { } two minutes")
+    #hurry up or we ll be late don t worry i ll be ready { in } two minutes
+
+    evaluateAndShowAttention(my_encoder, my_decoder, "robin suddenly began to feel nervous { } the interview")
+    #robin suddenly began to feel nervous { during } the interview
+
+    #TODO 正解率の算出とか自分で追加必要
 
