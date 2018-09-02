@@ -103,12 +103,12 @@ class Lang:
         self.word2count = {"<UNK>": 1}
         self.index2word = {0: "SOS", 1: "EOS", 2: "<UNK>"}
         self.n_words = 3  # SOS と EOS と UNK
-    
+
     #文から単語を語彙へ
     def addSentence(self, sentence):
         for word in sentence.split(' '):
             self.addWord(word)
-    
+
     #語彙のカウント
     def addWord(self, word):
         if word not in self.word2index:
@@ -118,12 +118,12 @@ class Lang:
             self.n_words += 1
         else:
             self.word2count[word] += 1
-    
+
     def check_word2index(self, word):
     	if word in self.word2index:
-    		return word2index[word]
+    		return self.word2index[word]
     	else:
-    		return word2index["<UNK>"]
+    		return self.word2index["<UNK>"]
 
 
 #半角カナとか特殊記号とかを正規化
@@ -140,7 +140,7 @@ def normalizeString(s):
     s = unicodeToAscii(s.lower().strip())
     s = re.sub(r'[^a-zA-Z{}]', ' ', s)
     s = re.sub(r'[ ]+', ' ', s)
-    
+
     return s
 
 
@@ -186,7 +186,7 @@ def prepareData(lang1, lang2, reverse=False):
     print("Counted words:")
     print(input_lang.name, input_lang.n_words)
     print(output_lang.name, output_lang.n_words)
-    
+
     return input_lang, output_lang, pairs
 
 
@@ -357,7 +357,7 @@ def train(input_tensor, target_tensor, encoder, decoder, encoder_optimizer, deco
     encoder_outputs = torch.zeros(max_length, encoder.hidden_dim, device=device)
 
     loss = 0
-    
+
     #エンコーダの準備
     for ei in range(input_length):
         encoder_output, encoder_hidden = encoder(
@@ -369,7 +369,7 @@ def train(input_tensor, target_tensor, encoder, decoder, encoder_optimizer, deco
     decoder_input = torch.tensor([[SOS_token]], device=device)
 
     decoder_hidden = encoder_hidden
-    
+
     #teacher forcingを使用する割合
     teacher_forcing_ratio = 0.5
 
@@ -403,7 +403,7 @@ def train(input_tensor, target_tensor, encoder, decoder, encoder_optimizer, deco
     #エンコーダおよびデコーダの学習（パラメータの更新）
     encoder_optimizer.step()
     decoder_optimizer.step()
-    
+
     #↑ではlossを全入力に対する和で計算してるので割って平均lossを返す
     return loss.item() / target_length
 
@@ -437,7 +437,7 @@ def trainIters(encoder, decoder, n_iters, print_every=1000, plot_every=100, lear
 
     encoder_optimizer = optim.SGD(encoder.parameters(), lr=learning_rate)
     decoder_optimizer = optim.SGD(decoder.parameters(), lr=learning_rate)
-    
+
     #pairsはグローバル変数
     #リスト内包表記により(input, target)がn_iters個並ぶ配列
     #(input, target)のペアはpairsからランダムに選ばれる
@@ -449,13 +449,13 @@ def trainIters(encoder, decoder, n_iters, print_every=1000, plot_every=100, lear
         training_pair = training_pairs[iter - 1]
         input_tensor = training_pair[0]
         target_tensor = training_pair[1]
-        
+
         #学習1データ1回分？
         loss = train(input_tensor, target_tensor, encoder,
                      decoder, encoder_optimizer, decoder_optimizer, criterion)
         print_loss_total += loss
         plot_loss_total += loss
-        
+
         #画面にlossと時間表示
         #経過時間 (- 残り時間) (現在のiter 進行度) loss
         if iter % print_every == 0:
@@ -598,7 +598,7 @@ if __name__ == '__main__':
 
 
     # 3.学習
-    trainIters(my_encoder, my_decoder, 75000, print_every=5000)
+    trainIters(my_encoder, my_decoder, 10000, print_every=5000)
     #↑いわゆるepochは(n_iters=75000)*(earning_rate=0.01)のことっぽい
 
 
@@ -623,4 +623,3 @@ if __name__ == '__main__':
     #robin suddenly began to feel nervous { during } the interview
 
     #TODO 正解率の算出とか自分で追加必要
-
