@@ -120,10 +120,15 @@ class Lang:
             self.word2count[word] += 1
 
     def check_word2index(self, word):
-    	if word in self.word2index:
-    		return self.word2index[word]
-    	else:
-    		return self.word2index["<UNK>"]
+        if word in self.word2index:
+            return self.word2index[word]
+        else:
+            return self.word2index["<UNK>"]
+
+
+
+
+
 
 
 #半角カナとか特殊記号とかを正規化
@@ -138,12 +143,23 @@ def unicodeToAscii(s):
 #strip()は文頭文末の改行や空白を取り除いてくれる
 def normalizeString(s):
     s = unicodeToAscii(s.lower().strip())
-    s = re.sub(r'[^a-zA-Z{}]', ' ', s)
+    #text8コーパスと同等の前処理
+    s=s.replace('0', ' zero ')
+    s=s.replace('1', ' one ')
+    s=s.replace('2', ' two ')
+    s=s.replace('3', ' three ')
+    s=s.replace('4', ' four ')
+    s=s.replace('5', ' five ')
+    s=s.replace('6', ' six ')
+    s=s.replace('7', ' seven ')
+    s=s.replace('8', ' eight ')
+    s=s.replace('9', ' nine ')
+    s = re.sub(r'[^a-z{}]', ' ', s)
     s = re.sub(r'[ ]+', ' ', s)
 
     return s
 
-
+'''
 #ファイルからデータ読み込み
 #引数reverseは翻訳の向きを変更，英→仏から仏→英へみたいな
 def readLangs(lang1, lang2, reverse=False):
@@ -167,14 +183,9 @@ def readLangs(lang1, lang2, reverse=False):
         output_lang = Lang(lang2)
 
     return input_lang, output_lang, pairs
+'''
 
-
-
-
-
-
-
-
+'''
 #データの読み込みから語彙のカウントまで
 def prepareData(lang1, lang2, reverse=False):
     input_lang, output_lang, pairs = readLangs(lang1, lang2, reverse)
@@ -183,11 +194,34 @@ def prepareData(lang1, lang2, reverse=False):
     for pair in pairs:
         input_lang.addSentence(pair[0])
         output_lang.addSentence(pair[1])
-    print("Counted words:")
+    print("Counted words:")    
     print(input_lang.name, input_lang.n_words)
     print(output_lang.name, output_lang.n_words)
 
     return input_lang, output_lang, pairs
+'''
+
+
+#与えた語彙読み込み(自作)
+def readVocab(file):
+    vocab = Lang()
+    print("Reading vocab...")
+    with open(file, encoding='utf-8') as f:
+        for line in f:
+            vocab.addSentence(normalizeString(line))
+    print("Vocab: %s" % vocab.n_words)
+    
+    return vocab
+
+#入出力データ読み込み用
+def readData(input_file, target_file):
+    pairs=[]
+    with open(input_file, encoding='utf-8') as input:
+        with open(target_file, encoding='utf-8') as target:
+            for line1, line2 in zip(input, target):
+                pairs.append([normalizeString(line1), normalizeString(line2)])
+    
+    return pairs
 
 
 
@@ -429,7 +463,7 @@ def timeSince(since, percent):
 
 
 #学習をn_iters回，残り時間の算出をlossグラフの描画も
-def trainIters(encoder, decoder, n_iters, print_every=1000, plot_every=100, learning_rate=0.01):
+def trainIters(encoder, decoder, pairs, n_iters, print_every=1000, plot_every=100, learning_rate=0.01):
     start = time.time()
     plot_losses = []
     print_loss_total = 0  # Reset every print_every
@@ -438,10 +472,10 @@ def trainIters(encoder, decoder, n_iters, print_every=1000, plot_every=100, lear
     encoder_optimizer = optim.SGD(encoder.parameters(), lr=learning_rate)
     decoder_optimizer = optim.SGD(decoder.parameters(), lr=learning_rate)
 
-    #pairsはグローバル変数
     #リスト内包表記により(input, target)がn_iters個並ぶ配列
-    #(input, target)のペアはpairsからランダムに選ばれる
+    #[input, target]のペアはpairsからランダムに選ばれる
     #TODO この書き方だと全データ毎回学習してるわけではない？
+    
     training_pairs = [tensorsFromPair(random.choice(pairs)) for i in range(n_iters)]
     criterion = nn.NLLLoss()
 
@@ -566,10 +600,10 @@ def showAttention(input_sentence, output_words, attentions):
     # Show label at every tick
     ax.xaxis.set_major_locator(ticker.MultipleLocator(1))
     ax.yaxis.set_major_locator(ticker.MultipleLocator(1))
-
-    #plt.show()
-    plt.savefig(today_str+'_attention.png')
-    #これでちゃんと保存されてる？
+    if len(input_sentence)>10:
+        plt.savefig(today_str + input_sentence[:10] + '_attn.png')
+    else:
+        plt.savefig(today_str + input_sentence + '_attn.png')
 
 
 def evaluateAndShowAttention(encoder, decoder, input_sentence):
@@ -586,11 +620,14 @@ def evaluateAndShowAttention(encoder, decoder, input_sentence):
 #----- main部 -----
 if __name__ == '__main__':
     # 1.データ読み込み
-    input_lang, output_lang, pairs = prepareData('ans', 'cloze', True)
-
-    #データの一例確認
-    print(random.choice(pairs))
-
+    #TODO まだ途中
+    vocab_path='aaa.txt'
+    vocab = readVocab(vocab_path)
+    
+    cloze_path='bbb.txt'
+    ans_path='ccc.txt'
+    
+    pairs=readData(cloze_path, ans_path)
 
     # 2.モデル定義
     my_encoder = EncoderRNN(input_lang.n_words, hidden_dim).to(device)
@@ -598,8 +635,8 @@ if __name__ == '__main__':
 
 
     # 3.学習
-    trainIters(my_encoder, my_decoder, 10000, print_every=5000)
-    #↑いわゆるepochは(n_iters=75000)*(earning_rate=0.01)のことっぽい
+    trainIters(my_encoder, my_decoder, pairs, n_iters=10000, print_every=5000, plot_every=100)
+    #↑lossグラフの横軸はn_iters / plot_every
 
 
     # 4.評価
