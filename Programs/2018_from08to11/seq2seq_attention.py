@@ -61,30 +61,22 @@ import numpy as np
 MAX_LENGTH = 40
 hidden_dim = 256
 
-
-
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
 #自分で定義したグローバル関数とか
-data_path='./pytorch_data/ans-cloze.txt' #text8から作った20行の少量データ
 file_path='./pytorch_data/'
 today1=datetime.datetime.today()
-today_str=file_path + today1.strftime('%m_%d_%H%M')
+today_str=today1.strftime('%m_%d_%H%M')
+save_path=file_path + today_str
 SOS_token = 0
 EOS_token = 1
 UNK_token = 2
 
 
+#事前処理いろいろ
+print('Start: '+today_str)
+my_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 #----- 関数群 -----
-
-
-
-
-
-
-
 
 
 ###########################
@@ -97,10 +89,9 @@ UNK_token = 2
 
 #seq2seqモデルで用いる語彙に関するクラス
 class Lang:
-    def __init__(self, name):
-        self.name = name  #本来は翻訳なので言語ごとに語彙を管理してる
+    def __init__(self):
         self.word2index = {"<UNK>": 2}
-        self.word2count = {"<UNK>": 1}
+        self.word2count = {"<UNK>": 0}
         self.index2word = {0: "SOS", 1: "EOS", 2: "<UNK>"}
         self.n_words = 3  # SOS と EOS と UNK
 
@@ -159,68 +150,29 @@ def normalizeString(s):
 
     return s
 
-'''
-#ファイルからデータ読み込み
-#引数reverseは翻訳の向きを変更，英→仏から仏→英へみたいな
-def readLangs(lang1, lang2, reverse=False):
-    print("Reading lines...")
-
-    #データを一括読み込みし行ごとに分割
-    #データの末尾の改行は削除
-    lines = open(data_path, encoding='utf-8').\
-        read().strip().split('\n')
-
-    #入力データと教師データのペアの作成
-    pairs = [[normalizeString(s) for s in l.split('\t')] for l in lines]
-
-    #語彙の作成
-    if reverse:
-        pairs = [list(reversed(p)) for p in pairs]
-        input_lang = Lang(lang2)
-        output_lang = Lang(lang1)
-    else:
-        input_lang = Lang(lang1)
-        output_lang = Lang(lang2)
-
-    return input_lang, output_lang, pairs
-'''
-
-'''
-#データの読み込みから語彙のカウントまで
-def prepareData(lang1, lang2, reverse=False):
-    input_lang, output_lang, pairs = readLangs(lang1, lang2, reverse)
-    print("Read %s sentence pairs" % len(pairs))
-    print("Counting words...")
-    for pair in pairs:
-        input_lang.addSentence(pair[0])
-        output_lang.addSentence(pair[1])
-    print("Counted words:")    
-    print(input_lang.name, input_lang.n_words)
-    print(output_lang.name, output_lang.n_words)
-
-    return input_lang, output_lang, pairs
-'''
-
-
 #与えた語彙読み込み(自作)
 def readVocab(file):
-    vocab = Lang()
+    lang = Lang()
     print("Reading vocab...")
     with open(file, encoding='utf-8') as f:
         for line in f:
-            vocab.addSentence(normalizeString(line))
-    print("Vocab: %s" % vocab.n_words)
-    
-    return vocab
+            lang.addSentence(normalizeString(line))
+    print("Vocab: %s" % lang.n_words)
+
+    return lang
 
 #入出力データ読み込み用
 def readData(input_file, target_file):
+    print("Reading train data...")
     pairs=[]
+    i=0
     with open(input_file, encoding='utf-8') as input:
         with open(target_file, encoding='utf-8') as target:
             for line1, line2 in zip(input, target):
+                i+=1
                 pairs.append([normalizeString(line1), normalizeString(line2)])
-    
+    print("Train data: %s" % i)
+
     return pairs
 
 
@@ -258,7 +210,7 @@ class EncoderRNN(nn.Module):
         return output, hidden
 
     def initHidden(self):
-        return torch.zeros(1, 1, self.hidden_dim, device=device)
+        return torch.zeros(1, 1, self.hidden_dim, device=my_device)
 
 '''
 もしembeddingの初期値与えたかったら
@@ -317,7 +269,7 @@ class AttnDecoderRNN(nn.Module):
         return output, hidden, attn_weights
 
     def initHidden(self):
-        return torch.zeros(1, 1, self.hidden_dim, device=device)
+        return torch.zeros(1, 1, self.hidden_dim, device=my_device)
 
 
 
@@ -341,12 +293,12 @@ def indexesFromSentence(lang, sentence):
 def tensorFromSentence(lang, sentence):
     indexes = indexesFromSentence(lang, sentence)
     indexes.append(EOS_token)
-    return torch.tensor(indexes, dtype=torch.long, device=device).view(-1, 1)
+    return torch.tensor(indexes, dtype=torch.long, device=my_device).view(-1, 1)
 
 #入力と出力のペアからテンソルに
-def tensorsFromPair(pair):
-    input_tensor = tensorFromSentence(input_lang, pair[0])
-    target_tensor = tensorFromSentence(output_lang, pair[1])
+def tensorsFromPair(lang, pair):
+    input_tensor = tensorFromSentence(lang, pair[0])
+    target_tensor = tensorFromSentence(lang, pair[1])
     return (input_tensor, target_tensor)
 
 
@@ -388,7 +340,7 @@ def train(input_tensor, target_tensor, encoder, decoder, encoder_optimizer, deco
     input_length = input_tensor.size(0)
     target_length = target_tensor.size(0)
 
-    encoder_outputs = torch.zeros(max_length, encoder.hidden_dim, device=device)
+    encoder_outputs = torch.zeros(max_length, encoder.hidden_dim, device=my_device)
 
     loss = 0
 
@@ -400,7 +352,7 @@ def train(input_tensor, target_tensor, encoder, decoder, encoder_optimizer, deco
 
 
     #デコーダの準備
-    decoder_input = torch.tensor([[SOS_token]], device=device)
+    decoder_input = torch.tensor([[SOS_token]], device=my_device)
 
     decoder_hidden = encoder_hidden
 
@@ -463,7 +415,8 @@ def timeSince(since, percent):
 
 
 #学習をn_iters回，残り時間の算出をlossグラフの描画も
-def trainIters(encoder, decoder, pairs, n_iters, print_every=1000, plot_every=100, learning_rate=0.01):
+def trainIters(lang, encoder, decoder, pairs, n_iters, print_every=1000, plot_every=100, learning_rate=0.01):
+    print("Training...")
     start = time.time()
     plot_losses = []
     print_loss_total = 0  # Reset every print_every
@@ -475,8 +428,8 @@ def trainIters(encoder, decoder, pairs, n_iters, print_every=1000, plot_every=10
     #リスト内包表記により(input, target)がn_iters個並ぶ配列
     #[input, target]のペアはpairsからランダムに選ばれる
     #TODO この書き方だと全データ毎回学習してるわけではない？
-    
-    training_pairs = [tensorsFromPair(random.choice(pairs)) for i in range(n_iters)]
+
+    training_pairs = [tensorsFromPair(lang, random.choice(pairs)) for i in range(n_iters)]
     criterion = nn.NLLLoss()
 
     for iter in range(1, n_iters + 1):
@@ -514,7 +467,7 @@ def showPlot(points):
     loc = ticker.MultipleLocator(base=0.2)
     ax.yaxis.set_major_locator(loc)
     plt.plot(points)
-    plt.savefig(today_str+'_loss.png')
+    plt.savefig(save_path+'_loss.png')
 
 
 
@@ -524,22 +477,22 @@ def showPlot(points):
 
 
 # 1データに対する予測
-def evaluate(encoder, decoder, sentence, max_length=MAX_LENGTH):
+def evaluate(lang, encoder, decoder, sentence, max_length=MAX_LENGTH):
     with torch.no_grad():
         #no_grad()の間はパラメータが固定される（更新されない）
         #以下はほぼtrainと同じ
-        input_tensor = tensorFromSentence(input_lang, sentence)
+        input_tensor = tensorFromSentence(lang, sentence)
         input_length = input_tensor.size()[0]
         encoder_hidden = encoder.initHidden()
 
-        encoder_outputs = torch.zeros(max_length, encoder.hidden_dim, device=device)
+        encoder_outputs = torch.zeros(max_length, encoder.hidden_dim, device=my_device)
 
         for ei in range(input_length):
-            encoder_output, encoder_hidden = encoder(input_tensor[ei],
-                                                     encoder_hidden)
+            encoder_output, encoder_hidden = encoder(
+                input_tensor[ei], encoder_hidden)
             encoder_outputs[ei] += encoder_output[0, 0]
 
-        decoder_input = torch.tensor([[SOS_token]], device=device)  # SOS
+        decoder_input = torch.tensor([[SOS_token]], device=my_device)  # SOS
 
         decoder_hidden = encoder_hidden
 
@@ -556,7 +509,7 @@ def evaluate(encoder, decoder, sentence, max_length=MAX_LENGTH):
                 #EOSならば終了
                 break
             else:
-                decoded_words.append(output_lang.index2word[topi.item()])
+                decoded_words.append(lang.index2word[topi.item()])
 
             decoder_input = topi.squeeze().detach()
             #TODO ここのdrtachの意味
@@ -565,22 +518,15 @@ def evaluate(encoder, decoder, sentence, max_length=MAX_LENGTH):
         return decoded_words, decoder_attentions[:di + 1]
 
 #ランダムにn個のデータ予測
-def evaluateRandomly(encoder, decoder, n=10):
+def evaluateRandomly(lang, encoder, decoder, n=3):
     for i in range(n):
         pair = random.choice(pairs)
-        print('>', pair[0])
-        print('=', pair[1])
-        output_words, attentions = evaluate(encoder, decoder, pair[0])
+        print('cloze:', pair[0])
+        print('ans  :', pair[1])
+        output_words, attentions = evaluate(lang, encoder, decoder, pair[0])
         output_sentence = ' '.join(output_words)
-        print('<', output_sentence)
+        print('pred :', output_sentence)
         print('')
-
-
-
-
-
-
-
 
 
 
@@ -601,16 +547,16 @@ def showAttention(input_sentence, output_words, attentions):
     ax.xaxis.set_major_locator(ticker.MultipleLocator(1))
     ax.yaxis.set_major_locator(ticker.MultipleLocator(1))
     if len(input_sentence)>10:
-        plt.savefig(today_str + input_sentence[:10] + '_attn.png')
+        plt.savefig(save_path + input_sentence[:10] + '_attn.png')
     else:
-        plt.savefig(today_str + input_sentence + '_attn.png')
+        plt.savefig(save_path + input_sentence + '_attn.png')
 
 
-def evaluateAndShowAttention(encoder, decoder, input_sentence):
+def evaluateAndShowAttention(lang, encoder, decoder, input_sentence):
     output_words, attentions = evaluate(
-        encoder, decoder, input_sentence)
-    print('input =', input_sentence)
-    print('output =', ' '.join(output_words))
+        lang, encoder, decoder, input_sentence)
+    print('input  :', input_sentence)
+    print('output :', ' '.join(output_words))
     showAttention(input_sentence, output_words, attentions)
 
 
@@ -621,42 +567,44 @@ def evaluateAndShowAttention(encoder, decoder, input_sentence):
 if __name__ == '__main__':
     # 1.データ読み込み
     #TODO まだ途中
-    vocab_path='aaa.txt'
+    vocab_path=file_path+'enwiki_vocab30000.txt'
     vocab = readVocab(vocab_path)
-    
-    cloze_path='bbb.txt'
-    ans_path='ccc.txt'
-    
+
+    cloze_path=file_path+'tmp_cloze.txt'
+    ans_path=file_path+'tmp_ans.txt'
+
     pairs=readData(cloze_path, ans_path)
 
     # 2.モデル定義
-    my_encoder = EncoderRNN(input_lang.n_words, hidden_dim).to(device)
-    my_decoder = AttnDecoderRNN(hidden_dim, output_lang.n_words, dropout_p=0.1).to(device)
+    my_encoder = EncoderRNN(vocab.n_words, hidden_dim).to(my_device)
+    my_decoder = AttnDecoderRNN(hidden_dim, vocab.n_words, dropout_p=0.1).to(my_device)
 
 
     # 3.学習
-    trainIters(my_encoder, my_decoder, pairs, n_iters=10000, print_every=5000, plot_every=100)
-    #↑lossグラフの横軸はn_iters / plot_every
+    trainIters(vocab, my_encoder, my_decoder, pairs, n_iters=300, print_every=100, plot_every=100)
+    #↑lossグラフの横軸は n_iters / plot_every
 
 
     # 4.評価
-    evaluateRandomly(my_encoder, my_decoder)
+    evaluateRandomly(vocab, my_encoder, my_decoder)
 
 
 
 
     #↓いろいろ可視化の例
     #センターからいくつか
-    evaluateAndShowAttention(my_encoder, my_decoder, "something s wrong with the car we must have a { } tire")
+    evaluateAndShowAttention(vocab, my_encoder, my_decoder, "something s wrong with the car we must have a { } tire")
     #something s wrong with the car we must have a { flat } tire
 
-    evaluateAndShowAttention(my_encoder, my_decoder, "taro is now devoting all his time and energy { } english")
+
+    '''
+    evaluateAndShowAttention(vocab, my_encoder, my_decoder, "taro is now devoting all his time and energy { } english")
     #taro is now devoting all his time and energy { to studying } english
 
-    evaluateAndShowAttention(my_encoder, my_decoder, "hurry up or we ll be late don t worry i ll be ready { } two minutes")
+    evaluateAndShowAttention(vocab, my_encoder, my_decoder, "hurry up or we ll be late don t worry i ll be ready { } two minutes")
     #hurry up or we ll be late don t worry i ll be ready { in } two minutes
 
-    evaluateAndShowAttention(my_encoder, my_decoder, "robin suddenly began to feel nervous { } the interview")
+    evaluateAndShowAttention(vocab, my_encoder, my_decoder, "robin suddenly began to feel nervous { } the interview")
     #robin suddenly began to feel nervous { during } the interview
-
+    '''
     #TODO 正解率の算出とか自分で追加必要
