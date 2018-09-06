@@ -19,9 +19,23 @@ pytorchのみ
 出力いろいろはoutputディレクトリに
 
 
-seq2seq_attention.py
-attentionつきseq2seqでセンターの空所補充するやつ
-pytorchのseq2seqチュートリアルプログラムから改変
+seq2seq_attention_with_vocab.py
+pytorchのseq2seqチュートリアルから改変
+語彙をあらかじめ与える形式に変更
+
+
+seq2seq_attention_batch_ERROR.py
+seq2seq_attention_with_vocab.py　を改変しようとしたが未解決
+ミニバッチ学習をしようとしたがエラー残ったまま
+
+
+seq2seq_attention_dataloder_ERROR.py
+seq2seq_attention_with_vocab.py　を改変しようとしたが未解決
+seq2seq_attention_batch_ERROR.py　とは別の方法でミニバッチ学習をしようとしたがエラー残ったまま
+
+seq2seq_attention_allData.py
+
+
 
 
 
