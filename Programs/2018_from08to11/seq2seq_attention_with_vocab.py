@@ -2,8 +2,6 @@
 
 '''
 pytorchのseq2seqチュートリアルを改変
-学習データを二つのファイルから入力する形式に変更
-語彙をあらかじめ与える形式に変更
 
 入力データファイルは
 xxx-yyy.txt
@@ -44,7 +42,6 @@ import torch
 import torch.nn as nn
 from torch import optim
 import torch.nn.functional as F
-from torch.utils.data import TensorDataset, DataLoader
 
 import time
 import math
@@ -53,7 +50,6 @@ import matplotlib.pyplot as plt
 plt.switch_backend('agg')
 import matplotlib.ticker as ticker
 import numpy as np
-
 
 #TODO
 #いわゆるmain部的な整理を合同ゼミ後
@@ -70,10 +66,9 @@ file_path='./pytorch_data/'
 today1=datetime.datetime.today()
 today_str=today1.strftime('%m_%d_%H%M')
 save_path=file_path + today_str
-PAD_token = 0
-SOS_token = 1
-EOS_token = 2
-UNK_token = 3
+SOS_token = 0
+EOS_token = 1
+UNK_token = 2
 
 
 #事前処理いろいろ
@@ -95,10 +90,10 @@ my_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 #seq2seqモデルで用いる語彙に関するクラス
 class Lang:
     def __init__(self):
-        self.word2index = {"<UNK>": 3}
+        self.word2index = {"<UNK>": 2}
         self.word2count = {"<UNK>": 0}
-        self.index2word = {0: "PAD", 1: "SOS",2: "EOS", 3: "<UNK>"}
-        self.n_words = 4  # PAD と SOS と EOS と <UNK>
+        self.index2word = {0: "SOS", 1: "EOS", 2: "<UNK>"}
+        self.n_words = 3  # SOS と EOS と UNK
 
     #文から単語を語彙へ
     def addSentence(self, sentence):
@@ -166,36 +161,19 @@ def readVocab(file):
 
     return lang
 
-
-#単語列からモデルの入力へのテンソルに，パディングも行う
-def indeiesFromSentence(lang, sentence):
-    sent_list=sentence.split(' ')
-    length = len(sent_list)
-    indexes = [lang.check_word2index(word) for word in sent_list]
-    return indexes + [EOS_token] + [0] * (MAX_LENGTH - length - 1)
-
-
-
 #入出力データ読み込み用
-def readData(lang, input_file, target_file):
+def readData(input_file, target_file):
     print("Reading train data...")
-    inputs=[]
-    target=[]
+    pairs=[]
     i=0
-    with open(input_file, encoding='utf-8') as f_in:
-        for line in f_in:
-            inputs.append(indeiesFromSentence(lang, normalizeString(line)))
-    with open(target_file, encoding='utf-8') as f_tg:
-        for line in f_tg:
-            target.append(indeiesFromSentence(lang, normalizeString(line)))
-            i+=1
-
+    with open(input_file, encoding='utf-8') as input:
+        with open(target_file, encoding='utf-8') as target:
+            for line1, line2 in zip(input, target):
+                i+=1
+                pairs.append([normalizeString(line1), normalizeString(line2)])
     print("Train data: %s" % i)
-    input_tensor=torch.tensor(inputs, dtype=torch.long, device=my_device).view(-1, 1)
-    target_tensor=torch.tensor(target, dtype=torch.long, device=my_device).view(-1, 1)
 
-    return TensorDataset(input_tensor, target_tensor)
-
+    return pairs
 
 
 
@@ -298,9 +276,45 @@ class AttnDecoderRNN(nn.Module):
 
 
 
+#次は学習データの準備
+
+
+
+###########################
+# 3.入力データ変換
+###########################
+
+
+#単語列をID列に
+def indexesFromSentence(lang, sentence):
+    return [lang.check_word2index(word) for word in sentence.split(' ')]
+
+#単語列からモデルの入力へのテンソルに
+def tensorFromSentence(lang, sentence):
+    indexes = indexesFromSentence(lang, sentence)
+    indexes.append(EOS_token)
+    return torch.tensor(indexes, dtype=torch.long, device=my_device).view(-1, 1)
+
+#入力と出力のペアからテンソルに
+def tensorsFromPair(lang, pair):
+    input_tensor = tensorFromSentence(lang, pair[0])
+    target_tensor = tensorFromSentence(lang, pair[1])
+    return (input_tensor, target_tensor)
+
+
+
+
 ###########################
 # 4.モデルの学習
 ###########################
+
+'''
+モデルの訓練
+
+“Teacher forcing” は(seq2seqのでの)次の入力としてデコーダの推測を使用する代わりに、実際のターゲット出力を各次の入力として使用する概念です。
+
+PyTorch autograd が与えてくれる自由度ゆえに、単純な if ステートメントで "teacher forcing" を使用するか否かをランダムに選択することができます。それを更に使用するためには teacher_forcing_ratio を上向きに調整してください。
+'''
 
 '''
 学習1回分のクラス
@@ -316,16 +330,7 @@ criterion:         誤差の計算手法クラス
 max_length:        入力および教師データの最大長(最大単語数)
 
 '''
-
-
-
-
-
-
-
-
-def batch_train(input_tensor, target_tensor, encoder, decoder, encoder_optimizer, decoder_optimizer, criterion, max_length=MAX_LENGTH):
-
+def train(input_tensor, target_tensor, encoder, decoder, encoder_optimizer, decoder_optimizer, criterion, max_length=MAX_LENGTH):
     encoder_hidden = encoder.initHidden()
 
     encoder_optimizer.zero_grad()
@@ -352,7 +357,6 @@ def batch_train(input_tensor, target_tensor, encoder, decoder, encoder_optimizer
     decoder_hidden = encoder_hidden
 
     #teacher forcingを使用する割合
-    #デコーダの推測を使用する代わりに実際のターゲット出力を各次の入力として使用する。
     teacher_forcing_ratio = 0.5
 
     use_teacher_forcing = True if random.random() < teacher_forcing_ratio else False
@@ -394,19 +398,6 @@ def batch_train(input_tensor, target_tensor, encoder, decoder, encoder_optimizer
 
 
 
-def train(dataloder, encoder, decoder, encoder_optimizer, decoder_optimizer, criterion):
-    loss=0
-    i=0
-    for inputs, target in dataloder:
-        i+=1
-        print('batch '+str(i))
-        #inputs, target = Variable(inputs), Variable(target)
-        loss += batch_train(inputs, target, encoder, decoder, encoder_optimizer, decoder_optimizer, criterion)
-
-
-    return loss #TODO ここ計算必要
-
-
 #秒を分秒に変換
 def asMinutes(s):
     m = math.floor(s / 60)
@@ -424,7 +415,7 @@ def timeSince(since, percent):
 
 
 #学習をn_iters回，残り時間の算出をlossグラフの描画も
-def trainIters(lang, encoder, decoder, data, n_iters, batch=64, print_every=1000, plot_every=100, learning_rate=0.01):
+def trainIters(lang, encoder, decoder, pairs, n_iters, print_every=1000, plot_every=100, learning_rate=0.01):
     print("Training...")
     start = time.time()
     plot_losses = []
@@ -434,20 +425,27 @@ def trainIters(lang, encoder, decoder, data, n_iters, batch=64, print_every=1000
     encoder_optimizer = optim.SGD(encoder.parameters(), lr=learning_rate)
     decoder_optimizer = optim.SGD(decoder.parameters(), lr=learning_rate)
 
-    criterion = nn.NLLLoss(ignore_index=0)
-    dataloder = DataLoader(data, batch_size=batch, shuffle=True)
+    #リスト内包表記により(input, target)がn_iters個並ぶ配列
+    #[input, target]のペアはpairsからランダムに選ばれる
+    #TODO この書き方だと全データ毎回学習してるわけではない？
+
+    training_pairs = [tensorsFromPair(lang, random.choice(pairs)) for i in range(n_iters)]
+    criterion = nn.NLLLoss()
 
     for iter in range(1, n_iters + 1):
+        training_pair = training_pairs[iter - 1]
+        input_tensor = training_pair[0]
+        target_tensor = training_pair[1]
 
-        #学習1回分
-        loss = train(dataloder, encoder, decoder, encoder_optimizer, decoder_optimizer, criterion)
-
+        #学習1データ1回分？
+        loss = train(input_tensor, target_tensor, encoder,
+                     decoder, encoder_optimizer, decoder_optimizer, criterion)
         print_loss_total += loss
         plot_loss_total += loss
 
         #画面にlossと時間表示
         #経過時間 (- 残り時間) (現在のiter 進行度) loss
-        if ((iter % print_every == 0) or (iter==1)):
+        if iter % print_every == 0:
             print_loss_avg = print_loss_total / print_every
             print_loss_total = 0
             print('%s (%d %d%%) %.4f' % (timeSince(start, iter / n_iters),
@@ -483,7 +481,7 @@ def evaluate(lang, encoder, decoder, sentence, max_length=MAX_LENGTH):
     with torch.no_grad():
         #no_grad()の間はパラメータが固定される（更新されない）
         #以下はほぼtrainと同じ
-        input_tensor = indeiesFromSentence(lang, sentence)
+        input_tensor = tensorFromSentence(lang, sentence)
         input_length = input_tensor.size()[0]
         encoder_hidden = encoder.initHidden()
 
@@ -520,9 +518,9 @@ def evaluate(lang, encoder, decoder, sentence, max_length=MAX_LENGTH):
         return decoded_words, decoder_attentions[:di + 1]
 
 #ランダムにn個のデータ予測
-def evaluateRandomly(lang, data, encoder, decoder, n=3):
+def evaluateRandomly(lang, encoder, decoder, n=3):
     for i in range(n):
-        pair = random.choice(dat)
+        pair = random.choice(pairs)
         print('cloze:', pair[0])
         print('ans  :', pair[1])
         output_words, attentions = evaluate(lang, encoder, decoder, pair[0])
@@ -575,7 +573,7 @@ if __name__ == '__main__':
     cloze_path=file_path+'tmp_cloze.txt'
     ans_path=file_path+'tmp_ans.txt'
 
-    train_data=readData(vocab, cloze_path, ans_path)
+    pairs=readData(cloze_path, ans_path)
 
     # 2.モデル定義
     my_encoder = EncoderRNN(vocab.n_words, hidden_dim).to(my_device)
@@ -583,12 +581,12 @@ if __name__ == '__main__':
 
 
     # 3.学習
-    trainIters(vocab, my_encoder, my_decoder, train_data, batch=20, n_iters=3, print_every=1, plot_every=1)
+    trainIters(vocab, my_encoder, my_decoder, pairs, n_iters=300, print_every=100, plot_every=100)
     #↑lossグラフの横軸は n_iters / plot_every
 
 
     # 4.評価
-    evaluateRandomly(vocab, train_data, my_encoder, my_decoder)
+    evaluateRandomly(vocab, my_encoder, my_decoder)
 
 
 
