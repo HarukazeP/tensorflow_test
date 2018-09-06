@@ -3,30 +3,17 @@
 '''
 pytorchのseq2seqチュートリアルを改変
 
-入力データファイルは
-xxx-yyy.txt
-xxxが翻訳前，yyy翻後の言語
 
 動かしていたバージョン
-python   : 2.7.12
+python   : 3.5.2
 pythorch : 2.0.4
 
 
 #TODO まだここ編集途中
 プログラム全体の構成
-    ・グローバル変数一覧
-    ・関数群
-    ・main部
 
 プログラム全体の流れ
-    0.いろいろ前準備
-    1.学習データの前処理
-    2.fasttextのロードと辞書の作成
-    3.モデルの定義
-    4.モデルの学習
-    5.val_loss最小モデルのロード
-    6.テストの実行
-    7.結果まとめの出力
+
 '''
 
 
@@ -330,7 +317,7 @@ criterion:         誤差の計算手法クラス
 max_length:        入力および教師データの最大長(最大単語数)
 
 '''
-def train(input_tensor, target_tensor, encoder, decoder, encoder_optimizer, decoder_optimizer, criterion, max_length=MAX_LENGTH):
+def train_onedata(input_tensor, target_tensor, encoder, decoder, encoder_optimizer, decoder_optimizer, criterion, max_length=MAX_LENGTH):
     encoder_hidden = encoder.initHidden()
 
     encoder_optimizer.zero_grad()
@@ -390,12 +377,24 @@ def train(input_tensor, target_tensor, encoder, decoder, encoder_optimizer, deco
     encoder_optimizer.step()
     decoder_optimizer.step()
 
-    #↑ではlossを全入力に対する和で計算してるので割って平均lossを返す
+    #出力が可変長なのでlossも1ノードあたりに正規化
     return loss.item() / target_length
 
+#全データに対して学習1回分
+def train(training_pairs, encoder, decoder, encoder_optimizer, decoder_optimizer, criterion, max_length=MAX_LENGTH):
+    random.shuffle(training_pairs)
+    loss=0
+    tmp=0
+    for pair in training_pairs:
+        input_tensor = pair[0]
+        target_tensor = pair[1]
+        tmp+=1
+        loss += train_onedata(input_tensor, target_tensor, encoder,
+                     decoder, encoder_optimizer, decoder_optimizer, criterion)
+        print(tmp)
 
 
-
+    return 1.0*loss/tmp
 
 
 #秒を分秒に変換
@@ -415,7 +414,7 @@ def timeSince(since, percent):
 
 
 #学習をn_iters回，残り時間の算出をlossグラフの描画も
-def trainIters(lang, encoder, decoder, pairs, n_iters, print_every=1000, plot_every=100, learning_rate=0.01):
+def trainIters(lang, encoder, decoder, pairs, n_iters, print_every=10, learning_rate=0.01):
     print("Training...")
     start = time.time()
     plot_losses = []
@@ -428,33 +427,27 @@ def trainIters(lang, encoder, decoder, pairs, n_iters, print_every=1000, plot_ev
     #リスト内包表記により(input, target)がn_iters個並ぶ配列
     #[input, target]のペアはpairsからランダムに選ばれる
     #TODO この書き方だと全データ毎回学習してるわけではない？
-
-    training_pairs = [tensorsFromPair(lang, random.choice(pairs)) for i in range(n_iters)]
+    training_pairs = [tensorsFromPair(lang, p) for p in pairs]
     criterion = nn.NLLLoss()
 
     for iter in range(1, n_iters + 1):
-        training_pair = training_pairs[iter - 1]
-        input_tensor = training_pair[0]
-        target_tensor = training_pair[1]
 
-        #学習1データ1回分？
-        loss = train(input_tensor, target_tensor, encoder,
-                     decoder, encoder_optimizer, decoder_optimizer, criterion)
+        loss = train(training_pairs, encoder, decoder, encoder_optimizer, decoder_optimizer, criterion)
+
         print_loss_total += loss
         plot_loss_total += loss
 
         #画面にlossと時間表示
         #経過時間 (- 残り時間) (現在のiter 進行度) loss
-        if iter % print_every == 0:
+        if (iter % print_every == 0) or (iter == 1):
             print_loss_avg = print_loss_total / print_every
             print_loss_total = 0
             print('%s (%d %d%%) %.4f' % (timeSince(start, iter / n_iters),
                                          iter, iter / n_iters * 100, print_loss_avg))
         #lossグラフ記録
-        if iter % plot_every == 0:
-            plot_loss_avg = plot_loss_total / plot_every
-            plot_losses.append(plot_loss_avg)
-            plot_loss_total = 0
+        plot_loss_avg = plot_loss_total
+        plot_losses.append(plot_loss_avg)
+        plot_loss_total = 0
     #lossグラフ描画
     showPlot(plot_losses)
 
@@ -581,8 +574,8 @@ if __name__ == '__main__':
 
 
     # 3.学習
-    trainIters(vocab, my_encoder, my_decoder, pairs, n_iters=300, print_every=100, plot_every=100)
-    #↑lossグラフの横軸は n_iters / plot_every
+    trainIters(vocab, my_encoder, my_decoder, pairs, n_iters=3)
+    #↑lossグラフの横軸は n_iters
 
 
     # 4.評価
