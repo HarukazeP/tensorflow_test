@@ -167,8 +167,8 @@ def readVocab(file):
 
 #単語列からモデルの入力へのテンソルに，パディングも行う
 def indeiesFromSentence(lang, sentence):
-	sent_list=sentence.split(' ')
-	length = len(sent_list)
+    sent_list=sentence.split(' ')
+    length = len(sent_list)
     indexes = [lang.check_word2index(word) for word in sent_list]
     return indexes + [EOS_token] + [0] * (MAX_LENGTH - length - 1)
 
@@ -181,12 +181,12 @@ def readData(lang, input_file, target_file):
     target=[]
     i=0
     with open(input_file, encoding='utf-8') as f_in:
-    	for line in f_in:
-    		input.append(indeiesFromSentence(lang, normalizeString(line)))
+        for line in f_in:
+            input.append(indeiesFromSentence(lang, normalizeString(line)))
     with open(target_file, encoding='utf-8') as f_tg:
-    	for line in f_tg:
-    		target.append(indeiesFromSentence(lang, normalizeString(line)))
-    		i+=1
+        for line in f_tg:
+            target.append(indeiesFromSentence(lang, normalizeString(line)))
+            i+=1
 
     print("Train data: %s" % i)
 
@@ -391,13 +391,13 @@ def batch_train(input_tensor, target_tensor, encoder, decoder, encoder_optimizer
 
 
 def train(dataloder, encoder, decoder, encoder_optimizer, decoder_optimizer, criterion):
-	loss=0
-	for input, target in dataloder:
-		input, target = Variable(input), Variable(target)
-		loss += batch_train(input, target, encoder, decoder, encoder_optimizer, decoder_optimizer, criterion)
-	
-	
-	return loss #TODO ここ計算必要
+    loss=0
+    for input, target in dataloder:
+        input, target = Variable(input), Variable(target)
+        loss += batch_train(input, target, encoder, decoder, encoder_optimizer, decoder_optimizer, criterion)
+    
+    
+    return loss #TODO ここ計算必要
 
 
 #秒を分秒に変換
@@ -428,8 +428,8 @@ def trainIters(lang, encoder, decoder, data, n_iters, batch=64, print_every=1000
     decoder_optimizer = optim.SGD(decoder.parameters(), lr=learning_rate)
 
     criterion = nn.NLLLoss(ignore_index=0)
-	dataloder = DataLoader(data, batch_size=batch, shuffle=True)
-	
+    dataloder = DataLoader(data, batch_size=batch, shuffle=True)
+    
     for iter in range(1, n_iters + 1):
 
         #学習1回分
