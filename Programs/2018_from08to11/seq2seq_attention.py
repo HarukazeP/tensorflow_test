@@ -177,20 +177,22 @@ def indeiesFromSentence(lang, sentence):
 #入出力データ読み込み用
 def readData(lang, input_file, target_file):
     print("Reading train data...")
-    input=[]
+    inputs=[]
     target=[]
     i=0
     with open(input_file, encoding='utf-8') as f_in:
         for line in f_in:
-            input.append(indeiesFromSentence(lang, normalizeString(line)))
+            inputs.append(indeiesFromSentence(lang, normalizeString(line)))
     with open(target_file, encoding='utf-8') as f_tg:
         for line in f_tg:
             target.append(indeiesFromSentence(lang, normalizeString(line)))
             i+=1
 
     print("Train data: %s" % i)
+    input_tensor=torch.tensor(inputs, dtype=torch.long, device=my_device).view(-1, 1)
+    target_tensor=torch.tensor(target, dtype=torch.long, device=my_device).view(-1, 1)
 
-    return TensorDataset(input, target)
+    return TensorDataset(input_tensor, target_tensor)
 
 
 
@@ -321,7 +323,7 @@ max_length:        入力および教師データの最大長(最大単語数)
 
 
 def batch_train(input_tensor, target_tensor, encoder, decoder, encoder_optimizer, decoder_optimizer, criterion, max_length=MAX_LENGTH):
-    
+
     encoder_hidden = encoder.initHidden()
 
     encoder_optimizer.zero_grad()
@@ -392,11 +394,14 @@ def batch_train(input_tensor, target_tensor, encoder, decoder, encoder_optimizer
 
 def train(dataloder, encoder, decoder, encoder_optimizer, decoder_optimizer, criterion):
     loss=0
-    for input, target in dataloder:
-        input, target = Variable(input), Variable(target)
-        loss += batch_train(input, target, encoder, decoder, encoder_optimizer, decoder_optimizer, criterion)
-    
-    
+    i=0
+    for inputs, target in dataloder:
+        i+=1
+        print('batch '+str(i))
+        #inputs, target = Variable(inputs), Variable(target)
+        loss += batch_train(inputs, target, encoder, decoder, encoder_optimizer, decoder_optimizer, criterion)
+
+
     return loss #TODO ここ計算必要
 
 
@@ -429,12 +434,12 @@ def trainIters(lang, encoder, decoder, data, n_iters, batch=64, print_every=1000
 
     criterion = nn.NLLLoss(ignore_index=0)
     dataloder = DataLoader(data, batch_size=batch, shuffle=True)
-    
+
     for iter in range(1, n_iters + 1):
 
         #学習1回分
         loss = train(dataloder, encoder, decoder, encoder_optimizer, decoder_optimizer, criterion)
-        
+
         print_loss_total += loss
         plot_loss_total += loss
 
@@ -568,7 +573,7 @@ if __name__ == '__main__':
     cloze_path=file_path+'tmp_cloze.txt'
     ans_path=file_path+'tmp_ans.txt'
 
-    train_data=readData(cloze_path, ans_path)
+    train_data=readData(vocab, cloze_path, ans_path)
 
     # 2.モデル定義
     my_encoder = EncoderRNN(vocab.n_words, hidden_dim).to(my_device)
@@ -576,7 +581,7 @@ if __name__ == '__main__':
 
 
     # 3.学習
-    trainIters(vocab, my_encoder, my_decoder, train_data, batch=5, n_iters=300, print_every=100, plot_every=100)
+    trainIters(vocab, my_encoder, my_decoder, train_data, batch=20, n_iters=3, print_every=1, plot_every=1)
     #↑lossグラフの横軸は n_iters / plot_every
 
 
