@@ -292,8 +292,8 @@ def indexesFromSentence(lang, sentence):
 
 #単語列からモデルの入力へのテンソルに
 def tensorFromSentence(lang, sentence):
-	sent_list=sentence.split(' ')
-	length= len(sent_list)
+    sent_list=sentence.split(' ')
+    length= len(sent_list)
     indexes = [lang.check_word2index(word) for word in sent_list]
     return indexes + [EOS_token] + [0] * (MAX_LENGTH - length - 1), length + 1
 
@@ -309,7 +309,7 @@ def tensorsFromPair(lang, pair):
 #引用0
 def generate_batch(pairs, batch_size=200, shuffle=True):
     if shuffle:
-    	random.shuffle(pairs)
+        random.shuffle(pairs)
     
     for i in range(len(pairs) // batch_size):
         batch_pairs = pairs[batch_size*i:batch_size*(i+1)]
@@ -570,7 +570,7 @@ def trainIters(lang, encoder, decoder, pairs, n_iters, print_every=1000, plot_ev
     criterion = nn.NLLLoss(ignore_index=PAD_token)
 
     for iter in range(1, n_iters + 1):
-		total_loss = 0
+        total_loss = 0
         #学習1データ1回分？
         
         for input_batch, input_lens, target_batch, target_lens in generate_batch(train_pairs, batch_size=batch_size):
