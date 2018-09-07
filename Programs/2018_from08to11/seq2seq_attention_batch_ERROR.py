@@ -1,12 +1,18 @@
 # -*- coding: utf-8 -*-
 
 '''
-pytorchのseq2seqチュートリアルを改変
-ミニバッチ学習をするため、↓このサイトを参考にしてたが理解不足で実装できていない
-http://takoroy-ai.hatenadiary.jp/entry/2018/07/02/224216
-おそらくテンソルの次元とかその調整あたりが原因？
 ### 注意！エラー残ったままで正常に動かない ###
 このままではダメというメモ的な
+
+pytorchのseq2seqチュートリアルを改変
+seq2seq_attention_with_vocab.py　から変更
+ミニバッチ学習をするため、↓このサイトを参考に実装しようとしたが理解不足で実装できていない
+http://takoroy-ai.hatenadiary.jp/entry/2018/07/02/224216
+
+File "seq2seq_attention_batch_retry.py", line 380, in forward
+    drop_encoder_outputs.transpose(0, 1)  # (b, ml, 2h)
+RuntimeError: invalid argument 2: wrong matrix size, batch1: 1x20, batch2: 24x512 at /pytorch/aten/src/TH/generic/THTensorMath.c:2275
+
 
 '''
 
@@ -32,15 +38,19 @@ plt.switch_backend('agg')
 import matplotlib.ticker as ticker
 import numpy as np
 
-#TODO
-#いわゆるmain部的な整理を合同ゼミ後
-#タブをスペースに置換
+
 
 
 
 #----- グローバル変数一覧 -----
 MAX_LENGTH = 40
 hidden_dim = 256
+
+emb_size = 100
+hidden_size = 256
+attn_size = 128
+
+
 
 #自分で定義したグローバル関数とか
 file_path='../../../pytorch_data/'
@@ -66,15 +76,12 @@ my_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 ###########################
 
 
-#TODO 入出力同じ語彙で管理？
-#TODO 語彙はあらかじめ与える？
-
 #seq2seqモデルで用いる語彙に関するクラス
 class Lang:
     def __init__(self):
         self.word2index = {"<UNK>": 3}
         self.word2count = {"<UNK>": 0}
-        self.index2word = {{0: "PAD", 1: "SOS", 2: "EOS", 3: "<UNK>"}
+        self.index2word = {0: "PAD", 1: "SOS", 2: "EOS", 3: "<UNK>"}
         self.n_words = 4  # PAD と SOS と EOS と UNK
 
     #文から単語を語彙へ
@@ -173,7 +180,8 @@ def readData(input_file, target_file):
 
 #エンコーダのクラス
 #nn.Moduleクラスを継承
-class EncoderRNN(nn.Module):
+#これはチュートリアルのやつそのまま
+class oldEncoderRNN(nn.Module):
     def __init__(self, input_dim, hidden_dim):
         #__init__(～～)はクラスを呼び出した時に自動で呼び出されるやつ
         super(EncoderRNN, self).__init__()
@@ -200,16 +208,13 @@ class EncoderRNN(nn.Module):
 embed = nn.Embedding(num_embeddings, embedding_dim)
 # pretrained_weight is a numpy matrix of shape (num_embeddings, embedding_dim)
 embed.weight.data.copy_(torch.from_numpy(pretrained_weight))
-
-
-
 '''
 
 
 
-
 #attentionつきデコーダのクラス
-class AttnDecoderRNN(nn.Module):
+#これはチュートリアルのやつそのまま
+class oldAttnDecoderRNN(nn.Module):
     def __init__(self, hidden_dim, output_dim, dropout_p=0.1, max_length=MAX_LENGTH):
         super(AttnDecoderRNN, self).__init__()
         self.hidden_dim = hidden_dim
@@ -255,21 +260,208 @@ class AttnDecoderRNN(nn.Module):
 
 
 
+#以下引用したエンコーダおよびデコーダに加筆
+class EncoderRNN(nn.Module):
+    def __init__(self, input_size, emb_size, hid_size, pad_token=0):
+        super(EncoderRNN, self).__init__()
+        self.embedding_size = emb_size
+        self.hidden_size = hid_size
+
+        self.embedding = nn.Embedding(input_size, emb_size, padding_idx=pad_token)
+        self.lstm = nn.LSTM(input_size=emb_size,
+                            hidden_size=hid_size,
+                            bidirectional=True)
+        self.linear_h = nn.Linear(hid_size * 2, hid_size)
+        self.linear_c = nn.Linear(hid_size * 2, hid_size)
+        #チュートリアルではGRUだったものをLSTMに変更
+        #LSTMなので入力はinputとhiddenで2つ?、出力はoutputと(hidden_h, hidden_c)で2つ
+        #さらにbidirectionalなので出力は次元数が2倍になる
+        #TODO pytorchの公式ドキュメント見る
+
+    def forward(self, input_batch, input_lens):
+        """
+        :param input_batch: (s, b)
+        :param input_lens: (b)
+
+        :returns (s, b, 2h), ((1, b, h), (1, b, h))
+        s:英文の長さ
+        b:バッチサイズ
+        h:隠れ層の次元数、2hはその2倍
+        """
+
+        batch_size = input_batch.shape[1]
+        #ここbatch_size =input_lenでいいのでは？
+
+        embedded = self.embedding(input_batch)  # (s, b) -> (s, b, h)
+        output, (hidden_h, hidden_c) = self.lstm(embedded)
+
+        hidden_h = hidden_h.transpose(1, 0)  # (2, b, h) -> (b, 2, h)
+        hidden_h = hidden_h.reshape(batch_size, -1)  # (b, 2, h) -> (b, 2h)
+        hidden_h = F.dropout(hidden_h, p=0.5, training=self.training)
+        hidden_h = self.linear_h(hidden_h)  # (b, 2h) -> (b, h)
+        hidden_h = F.relu(hidden_h)
+        hidden_h = hidden_h.unsqueeze(0)  # (b, h) -> (1, b, h)
+
+        hidden_c = hidden_c.transpose(1, 0)
+        hidden_c = hidden_c.reshape(batch_size, -1)  # (b, 2, h) -> (b, 2h)
+        hidden_c = F.dropout(hidden_c, p=0.5, training=self.training)
+        hidden_c = self.linear_c(hidden_c)
+        hidden_c = F.relu(hidden_c)
+        hidden_c = hidden_c.unsqueeze(0)  # (b, h) -> (1, b, h)
+
+        return output, (hidden_h, hidden_c)  # (s, b, 2h), ((1, b, h), (1, b, h))
+
+
+class DecoderRNN(nn.Module):
+    def __init__(self, emb_size, hidden_size, output_size, pad_token=0):
+        super(DecoderRNN, self).__init__()
+
+        self.embedding = nn.Embedding(output_size, emb_size, padding_idx=pad_token)
+        self.lstm = nn.LSTMCell(emb_size, hidden_size)
+        self.out_w = nn.Linear(hidden_size, output_size)
+
+    def forward(self, input, hidden):
+        """
+        :param input: (b)
+        :param hidden: ((b,h), (b,h))
+        :return: (b,o), (b,h)
+        """
+
+        embedded = self.embedding(input)  # (b) -> (b,e)
+        decoder_output, hidden = self.lstm(embedded, hidden)  # (b,e),((b,h),(b,h)) -> (b,h),((b,h),(b,h))
+        output = self.out_w(decoder_output)  # (b,h) -> (b,o)
+        output = F.log_softmax(output, dim=1)
+
+        return output, hidden  # (b,o), (b,h)
+
+
+class AttnDecoderRNN1(nn.Module):
+    def __init__(self, emb_size, hidden_size, output_size, max_length=20):
+        super(AttnDecoderRNN1, self).__init__()
+        self.hidden_size = hidden_size
+        self.output_size = output_size
+        self.max_length = max_length
+
+        self.embedding = nn.Embedding(output_size, emb_size)
+        self.attn = nn.Linear(emb_size+2*hidden_size, max_length)
+        self.attn_combine = nn.Linear(emb_size+2*hidden_size, hidden_size)
+
+        self.lstm = nn.LSTMCell(hidden_size, hidden_size)
+        self.out = nn.Linear(hidden_size, output_size)
+
+    def forward(self, input, hidden, encoder_outputs):
+        """
+        :param input: (b)
+        :param hidden: ((b, h), (b, h))
+        :param encoder_outputs: (il, b, 2h)
+        :return: (b,o), ((b,h),(b,h)), (b,il)
+        """
+        input_length = encoder_outputs.shape[0]
+        #padding
+        encoder_outputs = torch.cat([
+            encoder_outputs,
+            torch.zeros(
+                self.max_length - input_length,
+                encoder_outputs.shape[1],
+                encoder_outputs.shape[2],
+                device=my_device
+            )
+        ], dim=0)  # (il,b,2h), (ml-il,b,2h) -> (ml,b,2h)
+        drop_encoder_outputs = F.dropout(encoder_outputs, p=0.1, training=self.training)
+
+        # embedding
+        embedded = self.embedding(input)  # (b) -> (b,e)
+        embedded = F.dropout(embedded, p=0.5, training=self.training)
+
+        emb_hidden = torch.cat([embedded, hidden[0], hidden[1]], dim=1)  # (b,e),((b,h),(b,h)) -> (b,e+2h)
+
+        attn_weights = self.attn(emb_hidden)  # (b,e+2h) -> (b,ml)
+        attn_weights = F.softmax(attn_weights, dim=1)
+
+        attn_applied = torch.bmm(
+            attn_weights.unsqueeze(1),  # (b, 1, ml)
+            drop_encoder_outputs.transpose(0, 1)  # (b, ml, 2h)
+        )  # -> (b, 1, 2h)
+
+        attn_applied = F.dropout(attn_applied, p=0.1, training=self.training)
+        output = torch.cat((embedded, attn_applied.squeeze(1)), 1)  # ((b,e),(b,2h)) -> (b,e+2h)
+        output = self.attn_combine(output)  # (b,e+2h) -> (b,h)
+        output = F.dropout(output, p=0.5, training=self.training)
+
+        output = F.relu(output)
+        hidden = self.lstm(output, hidden)  # (b,h),((b,h),(b,h)) -> (b,h)((b,h),(b,h))
+
+        output = F.log_softmax(self.out(hidden[0]), dim=1)  # (b,h) -> (b,o)
+        return output, hidden, attn_weights  # (b,o),(b,h),(b,il)
+
+
+class AttnDecoderRNN2(nn.Module):
+    def __init__(self, emb_size, hidden_size, attn_size, output_size, pad_token=0):
+        super(AttnDecoderRNN2, self).__init__()
+        self.hidden_size = hidden_size
+        self.output_size = output_size
+
+        self.embedding = nn.Embedding(output_size, emb_size, padding_idx=pad_token)
+        self.lstm = nn.LSTMCell(emb_size, hidden_size)
+
+        self.score_w = nn.Linear(2*hidden_size, 2*hidden_size)
+        self.attn_w = nn.Linear(4*hidden_size, attn_size)
+        self.out_w = nn.Linear(attn_size, output_size)
+
+    def forward(self, input, hidden, encoder_outputs):
+        """
+        :param: input: (b)
+        :param: hidden: ((b,h),(b,h))
+        :param: encoder_outputs: (il,b,2h)
+
+        :return: (b,o), ((b,h),(b,h)), (b,il)
+        """
+
+        embedded = self.embedding(input)  # (b) -> (b,e)
+        embedded = F.dropout(embedded, p=0.5, training=self.training)
+
+        hidden = self.lstm(embedded, hidden)  # (b,e),((b,h),(b,h)) -> ((b,h),(b,h))
+        decoder_output = torch.cat(hidden, dim=1)  # ((b,h),(b,h)) -> (b,2h)
+        decoder_output = F.dropout(decoder_output, p=0.5, training=self.training)
+
+        # score
+        score = self.score_w(decoder_output)  # (b,2h) -> (b,2h)
+        scores = torch.bmm(
+            encoder_outputs.transpose(0, 1),  # (b,il,2h)
+            score.unsqueeze(2)  # (b,2h,1)
+        )  # (b,il,1)
+        attn_weights = F.softmax(scores, dim=1)  # (b,il,1)
+
+        # context
+        context = torch.bmm(
+            attn_weights.transpose(1, 2),  # (b,1,il)
+            encoder_outputs.transpose(0, 1)  # (b,il,2h)
+        )  # (b,1,2h)
+        context = context.squeeze(1)  # (b,1,2h) -> (b,2h)
+
+        concat = torch.cat((context, decoder_output), dim=1)  # ((b,2h),(b,2h)) -> (b,4h)
+        #concat = F.dropout(concat, p=0.5, training=self.training)
+
+        attentional = self.attn_w(concat)  # (b,4h) -> (b,a)
+        attentional = F.tanh(attentional)
+        #attentional = F.dropout(attentional, p=0.5, training=self.training)
+
+        output = self.out_w(attentional)  # (b,a) -> (b,o)
+        output = F.log_softmax(output, dim=1)
+
+        return output, hidden, attn_weights.squeeze(2)  # (b,o), ((b,h),(b,h)), (b,il)
+
+
+
+
 
 
 
 #次は学習データの準備
 
-
-
 ###########################
 # 3.入力データ変換
 ###########################
-
-
-#単語列をID列に
-def indexesFromSentence(lang, sentence):
-    return [lang.check_word2index(word) for word in sentence.split(' ')]
 
 #単語列からモデルの入力へのテンソルに
 def tensorFromSentence(lang, sentence):
@@ -278,17 +470,9 @@ def tensorFromSentence(lang, sentence):
     indexes = [lang.check_word2index(word) for word in sent_list]
     return indexes + [EOS_token] + [0] * (MAX_LENGTH - length - 1), length + 1
 
-'''
-#入力と出力のペアからテンソルに
-def tensorsFromPair(lang, pair):
-    input_tensor = tensorFromSentence(lang, pair[0])
-    target_tensor = tensorFromSentence(lang, pair[1])
-    return (input_tensor, target_tensor)
-'''
-
 
 #引用0
-def generate_batch(pairs, batch_size=200, shuffle=True):
+def generate_batch(lang, pairs, batch_size=200, shuffle=True):
     if shuffle:
         random.shuffle(pairs)
 
@@ -300,16 +484,16 @@ def generate_batch(pairs, batch_size=200, shuffle=True):
         input_lens = []
         target_lens = []
         for input_seq, target_seq in batch_pairs:
-            input_seq, input_length = tensorFromSentence(input_lang, input_seq)
-            target_seq, target_length = tensorFromSentence(output_lang, target_seq)
+            input_seq, input_length = tensorFromSentence(lang, input_seq)
+            target_seq, target_length = tensorFromSentence(lang, target_seq)
 
             input_batch.append(input_seq)
             target_batch.append(target_seq)
             input_lens.append(input_length)
             target_lens.append(target_length)
 
-        input_batch = torch.tensor(input_batch, dtype=torch.long, device=device)
-        target_batch = torch.tensor(target_batch, dtype=torch.long, device=device)
+        input_batch = torch.tensor(input_batch, dtype=torch.long, device=my_device)
+        target_batch = torch.tensor(target_batch, dtype=torch.long, device=my_device)
         input_lens = torch.tensor(input_lens)
         target_lens = torch.tensor(target_lens)
 
@@ -339,7 +523,7 @@ def batch_train(input_batch, input_lens, target_batch, target_lens,
 
     encoder_outputs, encoder_hidden = encoder(input_batch, input_lens)  # (s, b, 2h), ((1, b, h), (1, b, h))
 
-    decoder_input = torch.tensor([[SOS_token] * batch_size], device=device)  # (1, b)
+    decoder_input = torch.tensor([[SOS_token] * batch_size], device=my_device)  # (1, b)
     decoder_inputs = torch.cat([decoder_input, target_batch], dim=0)  # (1,b), (n,b) -> (n+1, b)
     decoder_hidden = (encoder_hidden[0].squeeze(0), encoder_hidden[1].squeeze(0))
 
@@ -372,7 +556,8 @@ def batch_train(input_batch, input_lens, target_batch, target_lens,
 
 
 #引用２
-def batch_evaluation(input_batch, input_lens, target_batch, target_lens, encoder, decoder, criterion):
+#一部変更
+def batch_evaluation(lang, input_batch, input_lens, target_batch, target_lens, encoder, decoder, criterion):
     with torch.no_grad():
 
         batch_size = input_batch.shape[1]
@@ -382,10 +567,10 @@ def batch_evaluation(input_batch, input_lens, target_batch, target_lens, encoder
         loss = 0
 
         encoder_outputs, encoder_hidden = encoder(input_batch, input_lens)  # (s, b, 2h), ((1, b, h), (1, b, h))
-        decoder_input = torch.tensor([SOS_token] * batch_size, device=device)  # (b)
+        decoder_input = torch.tensor([SOS_token] * batch_size, device=my_device)  # (b)
         decoder_hidden = (encoder_hidden[0].squeeze(0), encoder_hidden[1].squeeze(0))
-        decoded_outputs = torch.zeros(target_length, batch_size, output_lang.n_words, device=device)
-        decoded_words = torch.zeros(batch_size, target_length, device=device)
+        decoded_outputs = torch.zeros(target_length, batch_size, lang.n_words, device=my_device)
+        decoded_words = torch.zeros(batch_size, target_length, device=my_device)
 
         for di in range(target_length):
             decoder_output, decoder_hidden, _ = decoder(
@@ -397,7 +582,7 @@ def batch_evaluation(input_batch, input_lens, target_batch, target_lens, encoder
             _, topi = decoder_output.topk(1)  # (b,odim) -> (b,1)
             decoded_words[:, di] = topi[:, 0]  # (b)
             decoder_input = topi.squeeze(1)
-
+        '''
         bleu = 0
         for bi in range(batch_size):
             try:
@@ -405,22 +590,14 @@ def batch_evaluation(input_batch, input_lens, target_batch, target_lens, encoder
             except:
                 end_idx = target_length
             score = compute_bleu(
-                [[[output_lang.index2word[i] for i in target_batch[:, bi].tolist() if i > 2]]],
-                [[output_lang.index2word[j] for j in decoded_words[bi, :].tolist()[:end_idx]]]
+                [[[lang.index2word[i] for i in target_batch[:, bi].tolist() if i > 2]]],
+                [[lang.index2word[j] for j in decoded_words[bi, :].tolist()[:end_idx]]]
             )
             bleu += score
+        '''
 
-        return loss.item() / target_length, bleu / float(batch_size)
-
-
-
-
-
-
-
-
-
-
+        #return loss.item() / target_length, bleu / float(batch_size)
+        return loss.item() / target_length
 
 
 
@@ -438,85 +615,6 @@ def batch_evaluation(input_batch, input_lens, target_batch, target_lens, encoder
 
 PyTorch autograd が与えてくれる自由度ゆえに、単純な if ステートメントで "teacher forcing" を使用するか否かをランダムに選択することができます。それを更に使用するためには teacher_forcing_ratio を上向きに調整してください。
 '''
-
-'''
-学習1回分のクラス
-
-引数
-input_tensor:      入力テンソル
-target_tensor:     教師テンソル
-encoder:           エンコーダのクラス
-decoder:           デコーダのクラス
-encoder_optimizer: エンコーダの最適化クラス
-decoder_optimizer: デコーダの最適化クラス
-criterion:         誤差の計算手法クラス
-max_length:        入力および教師データの最大長(最大単語数)
-
-'''
-def train(input_tensor, target_tensor, encoder, decoder, encoder_optimizer, decoder_optimizer, criterion, max_length=MAX_LENGTH):
-    encoder_hidden = encoder.initHidden()
-
-    encoder_optimizer.zero_grad()
-    decoder_optimizer.zero_grad()
-
-    #入出力の長さを計算
-    input_length = input_tensor.size(0)
-    target_length = target_tensor.size(0)
-
-    encoder_outputs = torch.zeros(max_length, encoder.hidden_dim, device=my_device)
-
-    loss = 0
-
-    #エンコーダの準備
-    for ei in range(input_length):
-        encoder_output, encoder_hidden = encoder(
-            input_tensor[ei], encoder_hidden)
-        encoder_outputs[ei] = encoder_output[0, 0]
-
-
-    #デコーダの準備
-    decoder_input = torch.tensor([[SOS_token]], device=my_device)
-
-    decoder_hidden = encoder_hidden
-
-    #teacher forcingを使用する割合
-    teacher_forcing_ratio = 0.5
-
-    use_teacher_forcing = True if random.random() < teacher_forcing_ratio else False
-
-    if use_teacher_forcing:
-        # teacher forcing使用
-        for di in range(target_length):
-            decoder_output, decoder_hidden, decoder_attention = decoder(
-                decoder_input, decoder_hidden, encoder_outputs)
-            loss += criterion(decoder_output, target_tensor[di])
-            decoder_input = target_tensor[di]  # Teacher forcing
-
-    else:
-        # teacher forchingを使わずデコーダの予測を使用
-        for di in range(target_length):
-            decoder_output, decoder_hidden, decoder_attention = decoder(
-                decoder_input, decoder_hidden, encoder_outputs)
-            topv, topi = decoder_output.topk(1)  #確率が最大の1語の単語，配列の何番目か
-            decoder_input = topi.squeeze().detach()  # detach from history as input
-            #TODO このdetach()の処理よく分からない
-
-            loss += criterion(decoder_output, target_tensor[di])
-            if decoder_input.item() == EOS_token:
-                break
-
-    loss.backward()
-    #↑lossはdouble型ではなくVariableクラスになっている
-    #backwardメソッドを呼ぶことで逆伝搬がスタート，直前のノードに微分値をセット
-
-    #エンコーダおよびデコーダの学習（パラメータの更新）
-    encoder_optimizer.step()
-    decoder_optimizer.step()
-
-    #↑ではlossを全入力に対する和で計算してるので割って平均lossを返す
-    return loss.item() / target_length
-
-
 
 
 
@@ -536,50 +634,6 @@ def timeSince(since, percent):
     return '%s (- %s)' % (asMinutes(s), asMinutes(rs))
 
 
-
-#学習をn_iters回，残り時間の算出をlossグラフの描画も
-def trainIters(lang, encoder, decoder, pairs, n_iters, print_every=1000, plot_every=100, learning_rate=0.01):
-    print("Training...")
-    start = time.time()
-    plot_losses = []
-    print_loss_total = 0  # Reset every print_every
-    plot_loss_total = 0  # Reset every plot_every
-
-    encoder_optimizer = optim.SGD(encoder.parameters(), lr=learning_rate)
-    decoder_optimizer = optim.SGD(decoder.parameters(), lr=learning_rate)
-
-    criterion = nn.NLLLoss(ignore_index=PAD_token)
-
-    for iter in range(1, n_iters + 1):
-        total_loss = 0
-        #学習1データ1回分？
-
-        for input_batch, input_lens, target_batch, target_lens in generate_batch(train_pairs, batch_size=batch_size):
-            loss = batch_train(input_batch, input_lens, target_batch, target_lens, encoder,
-                        decoder, optimizer, criterion, teacher_forcing)
-            total_loss += loss
-            train_loss = total_loss / (len(train_pairs) / batch_size)
-
-
-        print_loss_total += train_loss
-        plot_loss_total += train_loss
-
-        #画面にlossと時間表示
-        #経過時間 (- 残り時間) (現在のiter 進行度) loss
-        if iter % print_every == 0:
-            print_loss_avg = print_loss_total / print_every
-            print_loss_total = 0
-            print('%s (%d %d%%) %.4f' % (timeSince(start, iter / n_iters),
-                                         iter, iter / n_iters * 100, print_loss_avg))
-        #lossグラフ記録
-        if iter % plot_every == 0:
-            plot_loss_avg = plot_loss_total / plot_every
-            plot_losses.append(plot_loss_avg)
-            plot_loss_total = 0
-    #lossグラフ描画
-    showPlot(plot_losses)
-
-
 #グラフの描画（画像ファイル保存）
 def showPlot(points):
     plt.figure()
@@ -591,60 +645,112 @@ def showPlot(points):
     plt.savefig(save_path+'_loss.png')
 
 
+#これ追加分
+#一部加筆 or 削除
+def trainIters(lang, train_pairs, encoder, decoder, n_iter=30, batch_size=200, teacher_forcing=0.5, print_every=10):
+    print("Training...")
+    start = time.time()
+    plot_losses = []
+    print_loss_total = 0  # Reset every print_every
+    plot_loss_total = 0  # Reset every plot_every
+
+    optimizer = optim.Adam([p for p in encoder.parameters()] + [p for p in decoder.parameters()])
+    criterion = nn.NLLLoss(ignore_index=PAD_token)
+
+    #validation_bleus = []
+
+    for iter in range(1, n_iter + 1):
+        total_loss = 0
+        #学習
+        for input_batch, input_lens, target_batch, target_lens in generate_batch(lang, train_pairs, batch_size=batch_size):
+            loss = batch_train(input_batch, input_lens, target_batch, target_lens, encoder,
+                        decoder, optimizer, criterion, teacher_forcing)
+            total_loss += loss
+        train_loss = total_loss / (len(train_pairs) / batch_size)
+
+        print_loss_total += train_loss
+        plot_loss_total += train_loss
+
+        '''
+        #学習データでの予測精度計算
+        for input_batch, input_lens, target_batch, target_lens in generate_batch(train_pairs, batch_size=batch_size, shuffle=False):
+            loss, bleu = batch_evaluation(lang, input_batch, input_lens, target_batch, target_lens, encoder, decoder, criterion)
+            total_bleu += bleu
+        train_bleu = total_bleu / (len(train_pairs) / batch_size)
+
+        total_loss = 0
+        total_bleu = 0
+
+        #検証データでの予測精度計算
+        for input_batch, input_lens, target_batch, target_lens in generate_batch(lang, test_pairs, batch_size=batch_size, shuffle=False):
+            loss, bleu = batch_evaluation(lang, input_batch, input_lens, target_batch, target_lens, encoder, decoder, criterion)
+            total_loss += loss
+            total_bleu += bleu
+        validation_loss = total_loss / (len(test_pairs) / batch_size)
+        validation_bleu = total_bleu / (len(test_pairs) / batch_size)
+        '''
+        #画面にlossと時間表示
+        #経過時間 (- 残り時間) (現在のiter 進行度) loss
+        if (iter % print_every == 0) or (iter==1):
+            print_loss_avg = print_loss_total / print_every
+            print_loss_total = 0
+            print('%s (%d %d%%) %.4f' % (timeSince(start, iter / n_iter),
+                                         iter, iter / n_iter * 100, print_loss_avg))
+        #lossグラフ記録
+        plot_loss_avg = plot_loss_total / plot_every
+        plot_losses.append(plot_loss_avg)
+        plot_loss_total = 0
+    #lossグラフ描画
+    showPlot(plot_losses)
+
+    return train_loss
+
 
 ###########################
 # 5.モデルによる予測
 ###########################
-
-
-# 1データに対する予測
-def evaluate(lang, encoder, decoder, sentence, max_length=MAX_LENGTH):
+def inference(lang, encoder, decoder, sentence, max_length=MAX_LENGTH):
     with torch.no_grad():
-        #no_grad()の間はパラメータが固定される（更新されない）
-        #以下はほぼtrainと同じ
-        input_tensor = tensorFromSentence(lang, sentence)
-        input_length = input_tensor.size()[0]
-        encoder_hidden = encoder.initHidden()
+        input_indxs, input_length = tensorFromSentence(lang, sentence)
+        input_batch = torch.tensor([input_indxs], dtype=torch.long, device=my_device)  # (1, s)
+        input_length = torch.tensor([input_length])  # (1)
 
-        encoder_outputs = torch.zeros(max_length, encoder.hidden_dim, device=my_device)
+        encoder_outputs, encoder_hidden = encoder(input_batch.transpose(0, 1), input_length)
 
-        for ei in range(input_length):
-            encoder_output, encoder_hidden = encoder(
-                input_tensor[ei], encoder_hidden)
-            encoder_outputs[ei] += encoder_output[0, 0]
+        decoder_input = torch.tensor([SOS_token], device=my_device)  # (1)
 
-        decoder_input = torch.tensor([[SOS_token]], device=my_device)  # SOS
-
-        decoder_hidden = encoder_hidden
+        decoder_hidden = (encoder_hidden[0].squeeze(0), encoder_hidden[1].squeeze(0))
 
         decoded_words = []
-        decoder_attentions = torch.zeros(max_length, max_length)
+        attentions = []
 
         for di in range(max_length):
-            decoder_output, decoder_hidden, decoder_attention = decoder(
-                decoder_input, decoder_hidden, encoder_outputs)
-            decoder_attentions[di] = decoder_attention.data
-            topv, topi = decoder_output.data.topk(1)
+            decoder_output, decoder_hidden, attention = decoder(
+                decoder_input, decoder_hidden, encoder_outputs)  # (1,odim), ((1,h),(1,h)), (l,1)
+            attentions.append(attention)
+            _, topi = decoder_output.topk(1)  # (1, 1)
             if topi.item() == EOS_token:
                 decoded_words.append('<EOS>')
-                #EOSならば終了
                 break
             else:
                 decoded_words.append(lang.index2word[topi.item()])
 
-            decoder_input = topi.squeeze().detach()
-            #TODO ここのdrtachの意味
+            decoder_input = topi[0]
 
-        #返り値は予測した単語列とattentionの重み？
-        return decoded_words, decoder_attentions[:di + 1]
+        attentions = torch.cat(attentions, dim=0)  # (l, n)
+
+        return decoded_words, attentions.squeeze(0).cpu().numpy()
+
+
+
 
 #ランダムにn個のデータ予測
-def evaluateRandomly(lang, encoder, decoder, n=3):
+def evaluateRandomly(lang, train_pairs, encoder, decoder, n=3):
     for i in range(n):
-        pair = random.choice(pairs)
+        pair = random.choice(train_pairs)
         print('cloze:', pair[0])
         print('ans  :', pair[1])
-        output_words, attentions = evaluate(lang, encoder, decoder, pair[0])
+        output_words, attentions = inference(lang, encoder, decoder, pair[0])
         output_sentence = ' '.join(output_words)
         print('pred :', output_sentence)
         print('')
@@ -674,7 +780,7 @@ def showAttention(input_sentence, output_words, attentions):
 
 
 def evaluateAndShowAttention(lang, encoder, decoder, input_sentence):
-    output_words, attentions = evaluate(
+    output_words, attentions = inference(
         lang, encoder, decoder, input_sentence)
     print('input  :', input_sentence)
     print('output :', ' '.join(output_words))
@@ -687,7 +793,6 @@ def evaluateAndShowAttention(lang, encoder, decoder, input_sentence):
 #----- main部 -----
 if __name__ == '__main__':
     # 1.データ読み込み
-    #TODO まだ途中
     vocab_path=file_path+'enwiki_vocab30000.txt'
     vocab = readVocab(vocab_path)
 
@@ -697,13 +802,16 @@ if __name__ == '__main__':
     pairs=readData(cloze_path, ans_path)
 
     # 2.モデル定義
-    my_encoder = EncoderRNN(vocab.n_words, hidden_dim).to(my_device)
-    my_decoder = AttnDecoderRNN(hidden_dim, vocab.n_words, dropout_p=0.1).to(my_device)
+    my_encoder = EncoderRNN(vocab.n_words, emb_size, hidden_size).to(my_device)
+    my_decoder = AttnDecoderRNN1(emb_size, hidden_size, vocab.n_words).to(my_device)
+
 
 
     # 3.学習
-    trainIters(vocab, my_encoder, my_decoder, pairs, n_iters=300, print_every=100, plot_every=100)
-    #↑lossグラフの横軸は n_iters / plot_every
+    #trainIters(vocab, my_encoder, my_decoder, pairs, n_iter=300, print_every=100, plot_every=100)
+    #↑lossグラフの横軸は n_iter / plot_every
+
+    trainIters(vocab, pairs, my_encoder, my_decoder, batch_size=200, n_iter=3, teacher_forcing=0.9)
 
 
     # 4.評価

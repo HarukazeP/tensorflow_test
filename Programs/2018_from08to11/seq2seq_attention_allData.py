@@ -38,10 +38,6 @@ plt.switch_backend('agg')
 import matplotlib.ticker as ticker
 import numpy as np
 
-#TODO
-#いわゆるmain部的な整理を合同ゼミ後
-#タブをスペースに置換
-
 
 
 #----- グローバル変数一覧 -----

@@ -2,6 +2,7 @@
 
 '''
 pytorchのseq2seqチュートリアルを改変
+seq2seq_attention_with_vocab.py から変更
 ミニバッチ学習をするためにTensorDataset, DataLoaderを使おうとしたが理解不足で実装できていない
 ### 注意！エラー残ったままで正常に動かない ###
 このままではダメというメモ的な
@@ -33,9 +34,7 @@ import matplotlib.ticker as ticker
 import numpy as np
 
 
-#TODO
-#いわゆるmain部的な整理を合同ゼミ後
-#タブをスペースに置換
+
 
 
 
@@ -67,8 +66,7 @@ my_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 ###########################
 
 
-#TODO 入出力同じ語彙で管理？
-#TODO 語彙はあらかじめ与える？
+\
 
 #seq2seqモデルで用いる語彙に関するクラス
 class Lang:
@@ -546,7 +544,6 @@ def evaluateAndShowAttention(lang, encoder, decoder, input_sentence):
 #----- main部 -----
 if __name__ == '__main__':
     # 1.データ読み込み
-    #TODO まだ途中
     vocab_path=file_path+'enwiki_vocab30000.txt'
     vocab = readVocab(vocab_path)
 

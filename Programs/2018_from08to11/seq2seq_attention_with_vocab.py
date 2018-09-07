@@ -31,9 +31,7 @@ plt.switch_backend('agg')
 import matplotlib.ticker as ticker
 import numpy as np
 
-#TODO
-#いわゆるmain部的な整理を合同ゼミ後
-#タブをスペースに置換
+
 
 
 
@@ -64,8 +62,7 @@ my_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 ###########################
 
 
-#TODO 入出力同じ語彙で管理？
-#TODO 語彙はあらかじめ与える？
+
 
 #seq2seqモデルで用いる語彙に関するクラス
 class Lang:
@@ -407,7 +404,7 @@ def trainIters(lang, encoder, decoder, pairs, n_iters, print_every=1000, plot_ev
 
     #リスト内包表記により(input, target)がn_iters個並ぶ配列
     #[input, target]のペアはpairsからランダムに選ばれる
-    #TODO この書き方だと全データ毎回学習してるわけではない？
+    #TODO この書き方だと全データ毎回学習してるわけではない
 
     training_pairs = [tensorsFromPair(lang, random.choice(pairs)) for i in range(n_iters)]
     criterion = nn.NLLLoss()
@@ -546,7 +543,6 @@ def evaluateAndShowAttention(lang, encoder, decoder, input_sentence):
 #----- main部 -----
 if __name__ == '__main__':
     # 1.データ読み込み
-    #TODO まだ途中
     vocab_path=file_path+'enwiki_vocab30000.txt'
     vocab = readVocab(vocab_path)
 
