@@ -42,7 +42,7 @@ MAX_LENGTH = 40
 hidden_dim = 256
 
 #自分で定義したグローバル関数とか
-file_path='./pytorch_data/'
+file_path='../../../pytorch_data/'
 today1=datetime.datetime.today()
 today_str=today1.strftime('%m_%d_%H%M')
 save_path=file_path + today_str

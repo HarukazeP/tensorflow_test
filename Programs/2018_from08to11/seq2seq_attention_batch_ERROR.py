@@ -43,7 +43,7 @@ MAX_LENGTH = 40
 hidden_dim = 256
 
 #自分で定義したグローバル関数とか
-file_path='./pytorch_data/'
+file_path='../../../pytorch_data/'
 today1=datetime.datetime.today()
 today_str=today1.strftime('%m_%d_%H%M')
 save_path=file_path + today_str
@@ -291,7 +291,7 @@ def tensorsFromPair(lang, pair):
 def generate_batch(pairs, batch_size=200, shuffle=True):
     if shuffle:
         random.shuffle(pairs)
-    
+
     for i in range(len(pairs) // batch_size):
         batch_pairs = pairs[batch_size*i:batch_size*(i+1)]
 
@@ -312,16 +312,16 @@ def generate_batch(pairs, batch_size=200, shuffle=True):
         target_batch = torch.tensor(target_batch, dtype=torch.long, device=device)
         input_lens = torch.tensor(input_lens)
         target_lens = torch.tensor(target_lens)
-        
+
         # sort
         input_lens, sorted_idxs = input_lens.sort(0, descending=True)
         input_batch = input_batch[sorted_idxs].transpose(0, 1)
         input_batch = input_batch[:input_lens.max().item()]
-        
+
         target_batch = target_batch[sorted_idxs].transpose(0, 1)
         target_batch = target_batch[:target_lens.max().item()]
         target_lens = target_lens[sorted_idxs]
-        
+
         yield input_batch, input_lens, target_batch, target_lens
 
 
@@ -338,16 +338,16 @@ def batch_train(input_batch, input_lens, target_batch, target_lens,
     target_length = target_lens.max().item()
 
     encoder_outputs, encoder_hidden = encoder(input_batch, input_lens)  # (s, b, 2h), ((1, b, h), (1, b, h))
-    
+
     decoder_input = torch.tensor([[SOS_token] * batch_size], device=device)  # (1, b)
     decoder_inputs = torch.cat([decoder_input, target_batch], dim=0)  # (1,b), (n,b) -> (n+1, b)
     decoder_hidden = (encoder_hidden[0].squeeze(0), encoder_hidden[1].squeeze(0))
-    
+
     use_teacher_forcing = True if random.random() < teacher_forcing_ratio else False
 
     if use_teacher_forcing:
         # Teacher forcing: Feed the target as the next input
-    
+
         for di in range(target_length):
             decoder_output, decoder_hidden, attention = decoder(
                 decoder_inputs[di], decoder_hidden, encoder_outputs)
@@ -362,7 +362,7 @@ def batch_train(input_batch, input_lens, target_batch, target_lens,
             loss += criterion(decoder_output, decoder_inputs[di+1])
 
             _, topi = decoder_output.topk(1)  # (b,odim) -> (b,1)
-            decoder_input = topi.squeeze(1).detach() 
+            decoder_input = topi.squeeze(1).detach()
 
     loss.backward()
 
@@ -374,30 +374,30 @@ def batch_train(input_batch, input_lens, target_batch, target_lens,
 #引用２
 def batch_evaluation(input_batch, input_lens, target_batch, target_lens, encoder, decoder, criterion):
     with torch.no_grad():
-        
+
         batch_size = input_batch.shape[1]
         target_length = target_lens.max().item()
         target_batch = target_batch[:target_length]
 
         loss = 0
-        
+
         encoder_outputs, encoder_hidden = encoder(input_batch, input_lens)  # (s, b, 2h), ((1, b, h), (1, b, h))
         decoder_input = torch.tensor([SOS_token] * batch_size, device=device)  # (b)
         decoder_hidden = (encoder_hidden[0].squeeze(0), encoder_hidden[1].squeeze(0))
         decoded_outputs = torch.zeros(target_length, batch_size, output_lang.n_words, device=device)
         decoded_words = torch.zeros(batch_size, target_length, device=device)
-        
+
         for di in range(target_length):
             decoder_output, decoder_hidden, _ = decoder(
-                decoder_input, decoder_hidden, encoder_outputs)  # (b,odim), ((b,h),(b,h)), (b,il)        
+                decoder_input, decoder_hidden, encoder_outputs)  # (b,odim), ((b,h),(b,h)), (b,il)
             decoded_outputs[di] = decoder_output
-            
+
             loss += criterion(decoder_output, target_batch[di])
-        
+
             _, topi = decoder_output.topk(1)  # (b,odim) -> (b,1)
             decoded_words[:, di] = topi[:, 0]  # (b)
             decoder_input = topi.squeeze(1)
-        
+
         bleu = 0
         for bi in range(batch_size):
             try:
@@ -553,14 +553,14 @@ def trainIters(lang, encoder, decoder, pairs, n_iters, print_every=1000, plot_ev
     for iter in range(1, n_iters + 1):
         total_loss = 0
         #学習1データ1回分？
-        
+
         for input_batch, input_lens, target_batch, target_lens in generate_batch(train_pairs, batch_size=batch_size):
             loss = batch_train(input_batch, input_lens, target_batch, target_lens, encoder,
                         decoder, optimizer, criterion, teacher_forcing)
             total_loss += loss
             train_loss = total_loss / (len(train_pairs) / batch_size)
-        
-        
+
+
         print_loss_total += train_loss
         plot_loss_total += train_loss
 
