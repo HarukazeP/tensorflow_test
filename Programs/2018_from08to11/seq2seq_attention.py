@@ -558,10 +558,10 @@ if __name__ == '__main__':
     vocab_path=file_path+'enwiki_vocab30000.txt'
     vocab = readVocab(vocab_path)
 
-    cloze_path=file_path+'tmp_cloze.txt'
-    ans_path=file_path+'tmp_ans.txt'
+    train_cloze=file_path+'tmp_cloze.txt'
+    train_ans=file_path+'tmp_ans.txt'
 
-    pairs=readData(cloze_path, ans_path)
+    train_data=readData(train_cloze, train_ans)
 
     # 2.モデル定義
     my_encoder = EncoderRNN(vocab.n_words, hidden_dim).to(my_device)
@@ -569,20 +569,39 @@ if __name__ == '__main__':
 
 
     # 3.学習
-    trainIters(vocab, my_encoder, my_decoder, pairs, n_iters=3)
-    #↑lossグラフの横軸は n_iters
+    trainIters(vocab, my_encoder, my_decoder, train_data, n_iters=3)
+    '''
+    #TODO
+    データ分割して、valデータでloss最小のモデルreturnする？
 
+    モデルの保存
+    '''
 
     # 4.評価
-    evaluateRandomly(vocab, my_encoder, my_decoder)
 
+    #学習データからランダムに予測
+    evaluateRandomly(vocab, my_encoder, my_decoder) #TODO これいる？
 
+    test_cloze=file_path+'center_cloze.txt'
+    test_ans=file_path+'center_ans.txt'     #TODO ファイル名適当に書いてるだけ
+
+    test_data=readData(test_cloze, test_ans)
+
+    '''
+    #TODO   いろいろ追加
+    テストデータ用の予測関数つくる？
+        予測結果ファイル出力したりとか
+
+    blueやaccの算出
+        完全正答率と部分一致率も
+
+    モード選択して学習〜予測or 予測のみ　とか
+        予測のみの場合はモデルのロード機能も
+        コマンドライン引数とか使って、ifで分岐とか？
+    '''
 
 
     #↓いろいろ可視化の例
     #センターからいくつか
-    evaluateAndShowAttention(vocab, my_encoder, my_decoder, "something s wrong with the car we must have a { } tire")
+    #evaluateAndShowAttention(vocab, my_encoder, my_decoder, "something s wrong with the car we must have a { } tire")
     #something s wrong with the car we must have a { flat } tire
-
-
-    #TODO 正解率の算出とか自分で追加必要
