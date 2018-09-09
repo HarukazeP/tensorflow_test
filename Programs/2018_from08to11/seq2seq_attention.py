@@ -6,7 +6,6 @@ seq2seq_attention_allData.py から変更
 ミニバッチ学習は未実装のまま
 
 #TODO 以下の予定
-テストデータでの正解率の算出
 検証データでのベストモデルの保存
 学習せず予測のみのモード選択
 
@@ -40,6 +39,8 @@ import numpy as np
 import os
 import argparse
 import collections
+from sklearn.model_selection import train_test_split
+import copy
 
 
 
@@ -56,7 +57,6 @@ SOS_token = 0
 EOS_token = 1
 UNK_token = 2
 
-
 #事前処理いろいろ
 print('Start: '+today_str)
 my_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -68,10 +68,6 @@ my_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 ###########################
 # 1.データの準備
 ###########################
-
-
-#TODO 入出力同じ語彙で管理？
-#TODO 語彙はあらかじめ与える？
 
 #seq2seqモデルで用いる語彙に関するクラス
 class Lang:
@@ -103,11 +99,6 @@ class Lang:
             return self.word2index["<UNK>"]
 
 
-
-
-
-
-
 #半角カナとか特殊記号とかを正規化
 # Ａ→A，Ⅲ→III，①→1とかそういうの
 def unicodeToAscii(s):
@@ -115,6 +106,7 @@ def unicodeToAscii(s):
         c for c in unicodedata.normalize('NFD', s)
         if unicodedata.category(c) != 'Mn'
     )
+
 
 #データの前処理
 #strip()は文頭文末の改行や空白を取り除いてくれる
@@ -136,6 +128,7 @@ def normalizeString(s):
 
     return s.strip()
 
+
 #与えた語彙読み込み(自作)
 def readVocab(file):
     lang = Lang()
@@ -146,6 +139,7 @@ def readVocab(file):
     #print("Vocab: %s" % lang.n_words)
 
     return lang
+
 
 #入出力データ読み込み用
 def readData(input_file, target_file):
@@ -162,18 +156,11 @@ def readData(input_file, target_file):
     return pairs
 
 
-
-
-
-
-
 ###########################
 # 2.モデル定義
 ###########################
 
 #クラスのこととかよく分かってないのでコメント過剰気味
-
-
 
 #エンコーダのクラス
 #nn.Moduleクラスを継承
@@ -205,11 +192,7 @@ embed = nn.Embedding(num_embeddings, embedding_dim)
 # pretrained_weight is a numpy matrix of shape (num_embeddings, embedding_dim)
 embed.weight.data.copy_(torch.from_numpy(pretrained_weight))
 
-
-
 '''
-
-
 
 
 #attentionつきデコーダのクラス
@@ -258,22 +241,14 @@ class AttnDecoderRNN(nn.Module):
         return torch.zeros(1, 1, self.hidden_dim, device=my_device)
 
 
-
-
-
-
-#次は学習データの準備
-
-
-
 ###########################
 # 3.入力データ変換
 ###########################
 
-
 #単語列をID列に
 def indexesFromSentence(lang, sentence):
     return [lang.check_word2index(word) for word in sentence.split(' ')]
+
 
 #単語列からモデルの入力へのテンソルに
 def tensorFromSentence(lang, sentence):
@@ -281,13 +256,12 @@ def tensorFromSentence(lang, sentence):
     indexes.append(EOS_token)
     return torch.tensor(indexes, dtype=torch.long, device=my_device).view(-1, 1)
 
+
 #入力と出力のペアからテンソルに
 def tensorsFromPair(lang, pair):
     input_tensor = tensorFromSentence(lang, pair[0])
     target_tensor = tensorFromSentence(lang, pair[1])
     return (input_tensor, target_tensor)
-
-
 
 
 ###########################
@@ -322,7 +296,6 @@ def train_onedata(input_tensor, target_tensor, encoder, decoder, encoder_optimiz
             input_tensor[ei], encoder_hidden)
         encoder_outputs[ei] = encoder_output[0, 0]
 
-
     #デコーダの準備
     decoder_input = torch.tensor([[SOS_token]], device=my_device)
 
@@ -340,7 +313,6 @@ def train_onedata(input_tensor, target_tensor, encoder, decoder, encoder_optimiz
                 decoder_input, decoder_hidden, encoder_outputs)
             loss += criterion(decoder_output, target_tensor[di])
             decoder_input = target_tensor[di]  # Teacher forcing
-
     else:
         # teacher forchingを使わずデコーダの予測を使用
         for di in range(target_length):
@@ -365,6 +337,41 @@ def train_onedata(input_tensor, target_tensor, encoder, decoder, encoder_optimiz
     #出力が可変長なのでlossも1ノードあたりに正規化
     return loss.item() / target_length
 
+
+#val_lossを算出1データ分、trainやevaluateとほぼ同じ
+def valid_onedata(input_tensor, target_tensor, encoder, decoder, criterion, max_length=MAX_LENGTH):
+    with torch.no_grad():
+        val_loss = 0
+
+        encoder_hidden = encoder.initHidden()
+        input_length = input_tensor.size(0)
+        encoder_outputs = torch.zeros(max_length, encoder.hidden_dim, device=my_device)
+
+        for ei in range(input_length):
+            encoder_output, encoder_hidden = encoder(
+                input_tensor[ei], encoder_hidden)
+            encoder_outputs[ei] = encoder_output[0, 0]
+
+        decoder_input = torch.tensor([[SOS_token]], device=my_device)
+
+        decoder_hidden = encoder_hidden
+        target_length = target_tensor.size(0)
+
+        for di in range(target_length):
+            decoder_output, decoder_hidden, decoder_attention = decoder(
+                decoder_input, decoder_hidden, encoder_outputs)
+            topv, topi = decoder_output.topk(1)  #確率が最大の1語の単語，配列の何番目か
+            decoder_input = topi.squeeze().detach()  # detach from history as input
+            #TODO このdetach()の処理よく分からない
+
+            val_loss += criterion(decoder_output, target_tensor[di])
+            if decoder_input.item() == EOS_token:
+                break
+
+        #出力が可変長なのでlossも1ノードあたりに正規化
+        return val_loss.item() / target_length
+
+
 #全データに対して学習1回分
 def train(training_pairs, encoder, decoder, encoder_optimizer, decoder_optimizer, criterion, max_length=MAX_LENGTH):
     random.shuffle(training_pairs)
@@ -376,10 +383,22 @@ def train(training_pairs, encoder, decoder, encoder_optimizer, decoder_optimizer
         tmp+=1
         loss += train_onedata(input_tensor, target_tensor, encoder,
                      decoder, encoder_optimizer, decoder_optimizer, criterion)
-        #print(tmp)
-
 
     return 1.0*loss/tmp
+
+
+#val_lossを算出
+def valid(valid_pairs, encoder, decoder, criterion):
+    val_loss=0
+    tmp=0
+    for pair in valid_pairs:
+        input_tensor = pair[0]
+        target_tensor = pair[1]
+        tmp+=1
+        val_loss += valid_onedata(input_tensor, target_tensor, encoder,
+                     decoder, criterion)
+
+    return 1.0*val_loss/tmp
 
 
 #秒を分秒に変換
@@ -387,6 +406,7 @@ def asMinutes(s):
     m = math.floor(s / 60)
     s -= m * 60
     return '%dm %ds' % (m, s)
+
 
 #経過時間と残り時間の算出
 def timeSince(since, percent):
@@ -397,41 +417,75 @@ def timeSince(since, percent):
     return '%s (- %s)' % (asMinutes(s), asMinutes(rs))
 
 
-
 #学習をn_iters回，残り時間の算出をlossグラフの描画も
-def trainIters(lang, encoder, decoder, pairs, n_iters, print_every=10, learning_rate=0.01):
+def trainIters(lang, encoder, decoder, train_pairs, val_pairs, n_iters, print_every=10, learning_rate=0.01):
     print("Training...")
     start = time.time()
     plot_losses = []
     print_loss_total = 0  # Reset every print_every
     plot_loss_total = 0  # Reset every plot_every
+    print_val_loss_total = 0  # Reset every print_every
+    plot_val_loss_total = 0  # Reset every plot_every
+
+    best_val_loss=100   #仮
+    best_iter=0
+
+    best_encoder_weight = copy.deepcopy(encoder.state_dict())
+    best_decoder_weight = copy.deepcopy(decoder.state_dict())
 
     encoder_optimizer = optim.SGD(encoder.parameters(), lr=learning_rate)
     decoder_optimizer = optim.SGD(decoder.parameters(), lr=learning_rate)
 
-    training_pairs = [tensorsFromPair(lang, p) for p in pairs]
+    training_pairs = [tensorsFromPair(lang, p) for p in train_pairs]
+    valid_pairs = [tensorsFromPair(lang, p) for p in val_pairs]
+
     criterion = nn.NLLLoss()
 
     for iter in range(1, n_iters + 1):
 
         loss = train(training_pairs, encoder, decoder, encoder_optimizer, decoder_optimizer, criterion)
 
+        val_loss = valid(valid_pairs, encoder, decoder, criterion)
+
         print_loss_total += loss
         plot_loss_total += loss
 
+        print_val_loss_total += val_loss
+        plot_val_loss_total += val_loss
+
         #画面にlossと時間表示
-        #経過時間 (- 残り時間) (現在のiter 進行度) loss
+        #経過時間 (- 残り時間) (現在のiter 進行度) loss val_loss
         if (iter % print_every == 0) or (iter == 1):
             print_loss_avg = print_loss_total / print_every
+            print_val_loss_avg = print_val_loss_total / print_every
             print_loss_total = 0
-            print('%s (%d %d%%) %.4f' % (timeSince(start, iter / n_iters),
-                                         iter, iter / n_iters * 100, print_loss_avg))
+            print_val_loss_total = 0
+            print('%s (%d %d%%) loss=%.4f, val_loss=%.4f' % (timeSince(start, iter / n_iters), iter, iter / n_iters * 100, print_loss_avg, print_val_loss_avg))
+
         #lossグラフ記録
         plot_loss_avg = plot_loss_total
         plot_losses.append(plot_loss_avg)
         plot_loss_total = 0
+        plot_val_loss_total = 0
+
+        #val_loss最小更新
+        if (best_val_loss > val_loss) or (iter == 1):
+            best_val_loss = val_loss
+            best_iter=iter
+            best_encoder_weight = copy.deepcopy(encoder.state_dict())
+            best_decoder_weight = copy.deepcopy(decoder.state_dict())
+
+
     #lossグラフ描画
     showPlot(plot_losses)
+    #TODO val_lossの描画も
+
+    #val_loss最小のモデルロード
+    encoder.load_state_dict(best_encoder_weight)
+    decoder.load_state_dict(best_decoder_weight)
+    print('best iter='+str(best_iter))
+
+    return encoder, decoder
 
 
 #グラフの描画（画像ファイル保存）
@@ -445,11 +499,9 @@ def showPlot(points):
     plt.savefig(save_path+'/loss.png')
 
 
-
 ###########################
 # 5.モデルによる予測
 ###########################
-
 
 # 1データに対する予測
 def evaluate(lang, encoder, decoder, sentence, max_length=MAX_LENGTH):
@@ -502,7 +554,7 @@ def showAttention(input_sentence, output_words, attentions):
     fig.colorbar(cax)
 
     # Set up axes
-    #TODO　できるならattention行列の描写方向変換
+    #TODO できるならattention行列の描写方向変換
     ax.set_xticklabels([''] + input_sentence.split(' ') +
                        ['<EOS>'], rotation=90)
     ax.set_yticklabels([''] + output_words)
@@ -516,12 +568,7 @@ def showAttention(input_sentence, output_words, attentions):
         plt.savefig(save_path + input_sentence + '_attn.png')
 
 
-
-
-
-
 #以下精度計算類
-
 
 #文章からn-gramの集合を作成
 def get_ngrams(segment, max_order):
@@ -600,7 +647,6 @@ def is_correct_cloze(line):
 def get_cloze(ref, ans):
     ref=re.sub(r'.*{ ', '', ref)
     pred_cloze=re.sub(r' }.*', '', ref)
-
     ans=re.sub(r'.*{ ', '', ans)
     ans_cloze=re.sub(r' }.*', '', ans)
 
@@ -618,7 +664,6 @@ def match(pred_cloze, ans_cloze):
             i+=1
 
     return i
-
 
 
 #精度いろいろ計算
@@ -664,7 +709,6 @@ def print_score(line, allOK, clozeOK, partOK, BLEU, miss):
     print(' miss: ',miss)
 
 
-
 #テストデータに対する予測と精度計算
 def test(lang, encoder, decoder, test_data, saveAttention=False, file_output=False):
     print("Test ...")
@@ -693,13 +737,6 @@ def test(lang, encoder, decoder, test_data, saveAttention=False, file_output=Fal
         pass
 
 
-
-
-
-
-
-
-
 #コマンドライン引数の設定いろいろ
 def get_args():
     parser = argparse.ArgumentParser()
@@ -714,7 +751,7 @@ if __name__ == '__main__':
     #コマンドライン引数読み取り
     args = get_args()
 
-    #TODO　modeによってどこまでやるか切り替え
+    #TODO modeによってどこまでやるか切り替え
     if args.mode == 'all':
         pass
     elif args.mode == 'mini':
@@ -731,9 +768,11 @@ if __name__ == '__main__':
     train_cloze=file_path+'tmp_cloze.txt'
     train_ans=file_path+'tmp_ans.txt'
 
-    train_data=readData(train_cloze, train_ans)
+    all_data=readData(train_cloze, train_ans)
     if args.mode == 'mini':
-        train_data=train_data[:20]
+        all_data=all_data[:20]
+
+    train_data, val_data = train_test_split(all_data, test_size=0.1)
 
     # 2.モデル定義
     my_encoder = EncoderRNN(vocab.n_words, hidden_dim).to(my_device)
@@ -747,7 +786,7 @@ if __name__ == '__main__':
 
 
     # 3.学習
-    trainIters(vocab, my_encoder, my_decoder, train_data, n_iters=3)
+    best_encoder, best_decoder = trainIters(vocab, my_encoder, my_decoder, train_data, val_data, n_iters=3)
     '''
     #TODO
     データ分割して、valデータでloss最小のモデルreturnする？
@@ -764,7 +803,7 @@ if __name__ == '__main__':
         test_data=test_data[:5]
 
     #テストデータに対する予測と精度の計算
-    test(vocab, my_encoder, my_decoder, test_data, saveAttention=True, file_output=False)
+    test(vocab, best_encoder, best_decoder, test_data, saveAttention=False, file_output=False)
 
     '''
     #TODO   いろいろ追加
@@ -772,7 +811,7 @@ if __name__ == '__main__':
         予測結果ファイル出力したりとか
 
 
-    モード選択して学習〜予測or 予測のみ　とか
+    モード選択して学習〜予測or 予測のみ とか
         予測のみの場合はモデルのロード機能も
         コマンドライン引数とか使って、ifで分岐とか？
     '''
