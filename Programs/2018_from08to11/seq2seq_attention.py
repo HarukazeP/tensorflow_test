@@ -38,6 +38,8 @@ plt.switch_backend('agg')
 import matplotlib.ticker as ticker
 import numpy as np
 import os
+import argparse
+import collections
 
 
 
@@ -132,7 +134,7 @@ def normalizeString(s):
     s = re.sub(r'[^a-z{}]', ' ', s)
     s = re.sub(r'[ ]+', ' ', s)
 
-    return s
+    return s.strip()
 
 #与えた語彙読み込み(自作)
 def readVocab(file):
@@ -141,13 +143,13 @@ def readVocab(file):
     with open(file, encoding='utf-8') as f:
         for line in f:
             lang.addSentence(normalizeString(line))
-    print("Vocab: %s" % lang.n_words)
+    #print("Vocab: %s" % lang.n_words)
 
     return lang
 
 #入出力データ読み込み用
 def readData(input_file, target_file):
-    print("Reading train data...")
+    print("Reading data...")
     pairs=[]
     i=0
     with open(input_file, encoding='utf-8') as input:
@@ -155,7 +157,7 @@ def readData(input_file, target_file):
             for line1, line2 in zip(input, target):
                 i+=1
                 pairs.append([normalizeString(line1), normalizeString(line2)])
-    print("Train data: %s" % i)
+    print("data: %s" % i)
 
     return pairs
 
@@ -299,21 +301,7 @@ def tensorsFromPair(lang, pair):
 
 PyTorch autograd が与えてくれる自由度ゆえに、単純な if ステートメントで "teacher forcing" を使用するか否かをランダムに選択することができます。それを更に使用するためには teacher_forcing_ratio を上向きに調整してください。
 '''
-
-'''
-学習1回分のクラス
-
-引数
-input_tensor:      入力テンソル
-target_tensor:     教師テンソル
-encoder:           エンコーダのクラス
-decoder:           デコーダのクラス
-encoder_optimizer: エンコーダの最適化クラス
-decoder_optimizer: デコーダの最適化クラス
-criterion:         誤差の計算手法クラス
-max_length:        入力および教師データの最大長(最大単語数)
-
-'''
+#学習1データ分
 def train_onedata(input_tensor, target_tensor, encoder, decoder, encoder_optimizer, decoder_optimizer, criterion, max_length=MAX_LENGTH):
     encoder_hidden = encoder.initHidden()
 
@@ -388,7 +376,7 @@ def train(training_pairs, encoder, decoder, encoder_optimizer, decoder_optimizer
         tmp+=1
         loss += train_onedata(input_tensor, target_tensor, encoder,
                      decoder, encoder_optimizer, decoder_optimizer, criterion)
-        print(tmp)
+        #print(tmp)
 
 
     return 1.0*loss/tmp
@@ -504,18 +492,6 @@ def evaluate(lang, encoder, decoder, sentence, max_length=MAX_LENGTH):
         #返り値は予測した単語列とattentionの重み？
         return decoded_words, decoder_attentions[:di + 1]
 
-#ランダムにn個のデータ予測
-def evaluateRandomly(lang, encoder, decoder, n=3):
-    for i in range(n):
-        pair = random.choice(pairs)
-        print('cloze:', pair[0])
-        print('ans  :', pair[1])
-        output_words, attentions = evaluate(lang, encoder, decoder, pair[0])
-        output_sentence = ' '.join(output_words)
-        print('pred :', output_sentence)
-        print('')
-
-
 
 #attentionの重みの対応グラフの描画
 def showAttention(input_sentence, output_words, attentions):
@@ -526,6 +502,7 @@ def showAttention(input_sentence, output_words, attentions):
     fig.colorbar(cax)
 
     # Set up axes
+    #TODO　できるならattention行列の描写方向変換
     ax.set_xticklabels([''] + input_sentence.split(' ') +
                        ['<EOS>'], rotation=90)
     ax.set_yticklabels([''] + output_words)
@@ -539,28 +516,181 @@ def showAttention(input_sentence, output_words, attentions):
         plt.savefig(save_path + input_sentence + '_attn.png')
 
 
-def evaluateAndShowAttention(lang, encoder, decoder, input_sentence):
-    output_words, attentions = evaluate(
-        lang, encoder, decoder, input_sentence)
-    print('input  :', input_sentence)
-    print('output :', ' '.join(output_words))
-    showAttention(input_sentence, output_words, attentions)
 
 
 
 
-def test(vocab, my_encoder, my_decoder, test_data, showAttention=False, output_preds=False):
-    print("Training...")
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
+#以下精度計算類
+
+
+#文章からn-gramの集合を作成
+def get_ngrams(segment, max_order):
+    ngram_counts = collections.Counter()
+    for order in range(1, max_order + 1):
+        for i in range(0, len(segment) - order + 1):
+          ngram = tuple(segment[i:i+order])
+          ngram_counts[ngram] += 1
+    return ngram_counts
+
+
+def compute_bleu(preds_sentences, ans_sentences, max_order=4,
+                 smooth=False):
+    matches_by_order = [0] * max_order
+    possible_matches_by_order = [0] * max_order
+    pred_length = 0
+    ans_length = 0
+    for (preds, ans) in zip(preds_sentences, ans_sentences):
+        pred_length += len(preds)
+        ans_length += len(ans)
+
+        merged_pred_ngram_counts = get_ngrams(preds, max_order)
+        ans_ngram_counts = get_ngrams(ans, max_order)
+
+        #2つのngram集合の積集合
+        overlap = ans_ngram_counts & merged_pred_ngram_counts
+        for ngram in overlap:
+            matches_by_order[len(ngram)-1] += overlap[ngram]
+        for order in range(1, max_order+1):
+            possible_matches = len(ans) - order + 1
+            if possible_matches > 0:
+                possible_matches_by_order[order-1] += possible_matches
+
+    precisions = [0] * max_order
+    for i in range(0, max_order):
+        if smooth:
+            precisions[i] = ((matches_by_order[i] + 1.) /
+                           (possible_matches_by_order[i] + 1.))
+        else:
+            if possible_matches_by_order[i] > 0:
+                precisions[i] = (float(matches_by_order[i]) /
+                             possible_matches_by_order[i])
+            else:
+                precisions[i] = 0.0
+
+    if min(precisions) > 0:
+        p_log_sum = sum((1. / max_order) * math.log(p) for p in precisions)
+        geo_mean = math.exp(p_log_sum)
+    else:
+        geo_mean = 0
+
+    if pred_length!=0:
+        ratio = float(ans_length) / pred_length
+        if ratio > 1.0:
+            bp = 1.
+        else:
+            bp = math.exp(1 - 1. / ratio)
+        bleu = geo_mean * bp
+    else:
+        ratio=0
+        bp=0
+        bleu=0
+
+    return bleu
+
+
+def is_correct_cloze(line):
+    left=line.count('{')
+    right=line.count('}')
+    if left*right==1:
+        return True
+
+    return False
+
+
+def get_cloze(ref, ans):
+    ref=re.sub(r'.*{ ', '', ref)
+    pred_cloze=re.sub(r' }.*', '', ref)
+
+    ans=re.sub(r'.*{ ', '', ans)
+    ans_cloze=re.sub(r' }.*', '', ans)
+
+    return pred_cloze, ans_cloze
+
+
+#部分一致判定用
+def match(pred_cloze, ans_cloze):
+    pred_set=set(pred_cloze.split(' '))
+    ans_set=set(ans_cloze.split(' '))
+    i=0
+
+    for word in pred_set:
+        if word in ans_set:
+            i+=1
+
+    return i
+
+
+
+#精度いろいろ計算
+#問題文、完全一致文、空所の完答文、空所の一部正答文、BLEU値、空所ミス文
+def calc_score(preds_sentences, ans_sentences):
+    line_num=0
+    allOK=0
+    clozeOK=0
+    partOK=0
+    miss=0
+
+    for pred, ans in zip(preds_sentences, ans_sentences):
+        if pred == ans:
+            allOK+=1
+        pred_cloze, ans_cloze =get_cloze(pred, ans)
+        tmp_ans_length=len(ans_cloze.split(' '))
+        line_num+=1
+        if is_correct_cloze(pred):
+            tmp_match=match(pred_cloze, ans_cloze)
+            if tmp_match > 0:
+                partOK+=1
+            if tmp_ans_length == tmp_match:
+                clozeOK+=1
+        else:
+            miss+=1
+
+    BLEU=compute_bleu(preds_sentences, ans_sentences)
+
+    return line_num, allOK, clozeOK, partOK, BLEU, miss
+
+
+def print_score(line, allOK, clozeOK, partOK, BLEU, miss):
+    print('BLEU: ','{0:.2f}'.format(BLEU*100.0))
+
+    print('  acc(all): ', '{0:.2f}'.format(1.0*allOK/line*100),' %')
+    print('acc(cloze): ', '{0:.2f}'.format(1.0*clozeOK/line*100),' %')
+    print(' acc(part): ', '{0:.2f}'.format(1.0*partOK/line*100),' %')
+
+    print('  all: ', allOK)
+    print('cloze: ',clozeOK)
+    print(' part: ',partOK)
+    print(' line: ',line)
+    print(' miss: ',miss)
+
+
+
+#テストデータに対する予測と精度計算
+def test(lang, encoder, decoder, test_data, saveAttention=False, file_output=False):
+    print("Test ...")
+    #input_sentence や ansは文字列であるのに対し、output_wordsはリストであることに注意
+    preds=[]
+    ans=[]
+    for pair in test_data:
+        input_sentence=pair[0]
+        ans.append(pair[1])
+        output_words, attentions = evaluate(lang, encoder, decoder, input_sentence)
+        preds.append(' '.join(output_words))
+        if saveAttention:
+            showAttention(input_sentence, output_words, attentions)
+        if file_output:
+            #TODO ここに予測文をファイル書き込み
+            #output_preds() #仮の関数名
+            pass
+    print("Calc scores ...")
+    #精度のprintとファイル出力
+    line, allOK, clozeOK, partOK, BLEU, miss = calc_score(preds, ans)
+    #TODO 今は実装してないが必要に応じてchange_unkの精度計算も作る？
+    print_score(line, allOK, clozeOK, partOK, BLEU, miss) #仮の関数名
+    if file_output:
+        #TODO ここに精度をファイル書き込み
+        #output_preds(line, allOK, clozeOK, partOK, BLEU, miss) #仮の関数名
+        pass
 
 
 
@@ -570,33 +700,30 @@ def test(vocab, my_encoder, my_decoder, test_data, showAttention=False, output_p
 
 
 
-
-
-
-
-
-
+#コマンドライン引数の設定いろいろ
+def get_args():
+    parser = argparse.ArgumentParser()
+    #miniはプログラムエラーないか確認用的な
+    parser.add_argument('--mode', choices=['all', 'mini', 'test'], default='all')
+    #TODO ほかにも引数必要に応じて追加
+    return parser.parse_args()
 
 
 #----- main部 -----
 if __name__ == '__main__':
-    
     #コマンドライン引数読み取り
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--mode', choices=['all', 'mini', 'test'], default='all')
-    args = parser.parse_args()
+    args = get_args()
+
+    #TODO　modeによってどこまでやるか切り替え
     if args.mode == 'all':
-        print(args.mode)
-        exit()
+        pass
     elif args.mode == 'mini':
-        print(args.mode)
-        exit()
+        pass
     elif args.mode == 'test':
-        print(args.mode)
-        exit()
-    else:
-        print('### select mode = all, mini, test ###')
-    
+        pass
+
+    print(args.mode)
+
     # 1.データ読み込み
     vocab_path=file_path+'enwiki_vocab30000.txt'
     vocab = readVocab(vocab_path)
@@ -605,18 +732,20 @@ if __name__ == '__main__':
     train_ans=file_path+'tmp_ans.txt'
 
     train_data=readData(train_cloze, train_ans)
+    if args.mode == 'mini':
+        train_data=train_data[:20]
 
     # 2.モデル定義
     my_encoder = EncoderRNN(vocab.n_words, hidden_dim).to(my_device)
     my_decoder = AttnDecoderRNN(hidden_dim, vocab.n_words, dropout_p=0.1).to(my_device)
-    
+
 
     #モデルとか結果とかを格納するディレクトリの作成
     if os.path.exists(save_path)==False:
         os.mkdir(save_path)
     save_path=save_path+'/'
-    
-    
+
+
     # 3.学習
     trainIters(vocab, my_encoder, my_decoder, train_data, n_iters=3)
     '''
@@ -627,39 +756,23 @@ if __name__ == '__main__':
     '''
 
     # 4.評価
-
-    #学習データからランダムに予測
-    evaluateRandomly(vocab, my_encoder, my_decoder) #TODO これいる？
-
     test_cloze=file_path+'center_cloze.txt'
     test_ans=file_path+'center_ans.txt'     #TODO ファイル名適当に書いてるだけ
 
     test_data=readData(test_cloze, test_ans)
-    
+    if args.mode == 'mini':
+        test_data=test_data[:5]
+
     #テストデータに対する予測と精度の計算
-    test(vocab, my_encoder, my_decoder, test_data, showAttention=False, output_preds=False)
+    test(vocab, my_encoder, my_decoder, test_data, saveAttention=True, file_output=False)
 
     '''
     #TODO   いろいろ追加
     テストデータ用の予測関数つくる？
         予測結果ファイル出力したりとか
 
-    blueやaccの算出
-        完全正答率と部分一致率も
 
     モード選択して学習〜予測or 予測のみ　とか
         予測のみの場合はモデルのロード機能も
         コマンドライン引数とか使って、ifで分岐とか？
     '''
-    
-    '''
-
-    
-    '''
-    
-    
-
-    #↓いろいろ可視化の例
-    #センターからいくつか
-    #evaluateAndShowAttention(vocab, my_encoder, my_decoder, "something s wrong with the car we must have a { } tire")
-    #something s wrong with the car we must have a { flat } tire
