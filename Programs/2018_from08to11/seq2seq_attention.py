@@ -37,6 +37,7 @@ import matplotlib.pyplot as plt
 plt.switch_backend('agg')
 import matplotlib.ticker as ticker
 import numpy as np
+import os
 
 
 
@@ -48,7 +49,7 @@ hidden_dim = 256
 file_path='../../../pytorch_data/'
 today1=datetime.datetime.today()
 today_str=today1.strftime('%m_%d_%H%M')
-save_path=file_path + today_str
+save_path=file_path + '/' + today_str
 SOS_token = 0
 EOS_token = 1
 UNK_token = 2
@@ -420,9 +421,6 @@ def trainIters(lang, encoder, decoder, pairs, n_iters, print_every=10, learning_
     encoder_optimizer = optim.SGD(encoder.parameters(), lr=learning_rate)
     decoder_optimizer = optim.SGD(decoder.parameters(), lr=learning_rate)
 
-    #リスト内包表記により(input, target)がn_iters個並ぶ配列
-    #[input, target]のペアはpairsからランダムに選ばれる
-    #TODO この書き方だと全データ毎回学習してるわけではない？
     training_pairs = [tensorsFromPair(lang, p) for p in pairs]
     criterion = nn.NLLLoss()
 
@@ -456,7 +454,7 @@ def showPlot(points):
     loc = ticker.MultipleLocator(base=0.2)
     ax.yaxis.set_major_locator(loc)
     plt.plot(points)
-    plt.savefig(save_path+'_loss.png')
+    plt.savefig(save_path+'/loss.png')
 
 
 
@@ -551,9 +549,54 @@ def evaluateAndShowAttention(lang, encoder, decoder, input_sentence):
 
 
 
+def test(vocab, my_encoder, my_decoder, test_data, showAttention=False, output_preds=False):
+    print("Training...")
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 #----- main部 -----
 if __name__ == '__main__':
+    
+    #コマンドライン引数読み取り
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--mode', choices=['all', 'mini', 'test'], default='all')
+    args = parser.parse_args()
+    if args.mode == 'all':
+        print(args.mode)
+        exit()
+    elif args.mode == 'mini':
+        print(args.mode)
+        exit()
+    elif args.mode == 'test':
+        print(args.mode)
+        exit()
+    else:
+        print('### select mode = all, mini, test ###')
+    
     # 1.データ読み込み
     vocab_path=file_path+'enwiki_vocab30000.txt'
     vocab = readVocab(vocab_path)
@@ -566,8 +609,14 @@ if __name__ == '__main__':
     # 2.モデル定義
     my_encoder = EncoderRNN(vocab.n_words, hidden_dim).to(my_device)
     my_decoder = AttnDecoderRNN(hidden_dim, vocab.n_words, dropout_p=0.1).to(my_device)
+    
 
-
+    #モデルとか結果とかを格納するディレクトリの作成
+    if os.path.exists(save_path)==False:
+        os.mkdir(save_path)
+    save_path=save_path+'/'
+    
+    
     # 3.学習
     trainIters(vocab, my_encoder, my_decoder, train_data, n_iters=3)
     '''
@@ -586,6 +635,9 @@ if __name__ == '__main__':
     test_ans=file_path+'center_ans.txt'     #TODO ファイル名適当に書いてるだけ
 
     test_data=readData(test_cloze, test_ans)
+    
+    #テストデータに対する予測と精度の計算
+    test(vocab, my_encoder, my_decoder, test_data, showAttention=False, output_preds=False)
 
     '''
     #TODO   いろいろ追加
@@ -599,7 +651,13 @@ if __name__ == '__main__':
         予測のみの場合はモデルのロード機能も
         コマンドライン引数とか使って、ifで分岐とか？
     '''
+    
+    '''
 
+    
+    '''
+    
+    
 
     #↓いろいろ可視化の例
     #センターからいくつか
