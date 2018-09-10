@@ -418,7 +418,7 @@ def timeSince(since, percent):
 
 
 #学習をn_iters回，残り時間の算出をlossグラフの描画も
-def trainIters(lang, encoder, decoder, train_pairs, val_pairs, n_iters, print_every=10, learning_rate=0.01):
+def trainIters(lang, encoder, decoder, train_pairs, val_pairs, n_iters, print_every=10, learning_rate=0.01, saveModel=False):
     print("Training...")
     start = time.time()
     plot_losses = []
@@ -485,6 +485,10 @@ def trainIters(lang, encoder, decoder, train_pairs, val_pairs, n_iters, print_ev
     decoder.load_state_dict(best_decoder_weight)
     print('best iter='+str(best_iter))
 
+    if saveModel:
+        torch.save(encoder.state_dict(), save_path+'encoder_'+str(best_iter)+'.pth')
+        torch.save(decoder.state_dict(), save_path+'decoder_'+str(best_iter)+'.pth')
+
     return encoder, decoder
 
 
@@ -496,7 +500,7 @@ def showPlot(points):
     loc = ticker.MultipleLocator(base=0.2)
     ax.yaxis.set_major_locator(loc)
     plt.plot(points)
-    plt.savefig(save_path+'/loss.png')
+    plt.savefig(save_path+'loss.png')
 
 
 ###########################
@@ -750,49 +754,44 @@ def get_args():
 if __name__ == '__main__':
     #コマンドライン引数読み取り
     args = get_args()
-
-    #TODO modeによってどこまでやるか切り替え
-    if args.mode == 'all':
-        pass
-    elif args.mode == 'mini':
-        pass
-    elif args.mode == 'test':
-        pass
-
     print(args.mode)
 
-    # 1.データ読み込み
+    # 1.語彙データ読み込み
     vocab_path=file_path+'enwiki_vocab30000.txt'
     vocab = readVocab(vocab_path)
-
-    train_cloze=file_path+'tmp_cloze.txt'
-    train_ans=file_path+'tmp_ans.txt'
-
-    all_data=readData(train_cloze, train_ans)
-    if args.mode == 'mini':
-        all_data=all_data[:20]
-
-    train_data, val_data = train_test_split(all_data, test_size=0.1)
 
     # 2.モデル定義
     my_encoder = EncoderRNN(vocab.n_words, hidden_dim).to(my_device)
     my_decoder = AttnDecoderRNN(hidden_dim, vocab.n_words, dropout_p=0.1).to(my_device)
 
+    #学習時
+    if not args.mode == 'test':
+        train_cloze=file_path+'tmp_cloze.txt'
+        train_ans=file_path+'tmp_ans.txt'
 
-    #モデルとか結果とかを格納するディレクトリの作成
-    if os.path.exists(save_path)==False:
-        os.mkdir(save_path)
-    save_path=save_path+'/'
+        all_data=readData(train_cloze, train_ans)
+        if args.mode == 'mini':
+            all_data=all_data[:20]
 
+        train_data, val_data = train_test_split(all_data, test_size=0.1)
 
-    # 3.学習
-    best_encoder, best_decoder = trainIters(vocab, my_encoder, my_decoder, train_data, val_data, n_iters=3)
-    '''
-    #TODO
-    データ分割して、valデータでloss最小のモデルreturnする？
+        #モデルとか結果とかを格納するディレクトリの作成
+        if os.path.exists(save_path)==False:
+            os.mkdir(save_path)
+        save_path=save_path+'/'
 
-    モデルの保存
-    '''
+        # 3.学習
+        best_encoder, best_decoder = trainIters(vocab, my_encoder, my_decoder, train_data, val_data, n_iters=3, saveModel=True)
+
+    #すでにあるモデルでテスト時
+    else:
+        #TODO モデルのディレクトリとかの引数追加してロード処理
+        '''
+        my_encoder.load_state_dict(torch.load(PATH))
+        my_decoder.load_state_dict(torch.load(PATH))
+        save_pathの変更も
+        '''
+        pass
 
     # 4.評価
     test_cloze=file_path+'center_cloze.txt'
@@ -804,14 +803,3 @@ if __name__ == '__main__':
 
     #テストデータに対する予測と精度の計算
     test(vocab, best_encoder, best_decoder, test_data, saveAttention=False, file_output=False)
-
-    '''
-    #TODO   いろいろ追加
-    テストデータ用の予測関数つくる？
-        予測結果ファイル出力したりとか
-
-
-    モード選択して学習〜予測or 予測のみ とか
-        予測のみの場合はモデルのロード機能も
-        コマンドライン引数とか使って、ifで分岐とか？
-    '''
