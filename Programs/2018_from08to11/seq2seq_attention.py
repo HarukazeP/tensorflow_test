@@ -5,10 +5,6 @@ pytorchのseq2seqチュートリアルを改変
 seq2seq_attention_allData.py から変更
 ミニバッチ学習は未実装のまま
 
-#TODO 以下の予定
-検証データでのベストモデルの保存
-学習せず予測のみのモード選択
-
 動かしていたバージョン
 python   : 3.5.2
 pythorch : 2.0.4
@@ -423,9 +419,11 @@ def trainIters(lang, encoder, decoder, train_pairs, val_pairs, n_iters, print_ev
     start = time.time()
     plot_losses = []
     print_loss_total = 0  # Reset every print_every
-    plot_loss_total = 0  # Reset every plot_every
+    plot_loss_total = 0
+
+    plot_val_losses = []
     print_val_loss_total = 0  # Reset every print_every
-    plot_val_loss_total = 0  # Reset every plot_every
+    plot_val_loss_total = 0
 
     best_val_loss=100   #仮
     best_iter=0
@@ -455,10 +453,13 @@ def trainIters(lang, encoder, decoder, train_pairs, val_pairs, n_iters, print_ev
 
         #画面にlossと時間表示
         #経過時間 (- 残り時間) (現在のiter 進行度) loss val_loss
-        if (iter % print_every == 0) or (iter == 1):
+        if iter == 1:
+            print('%s (%d %d%%) loss=%.4f, val_loss=%.4f' % (timeSince(start, iter / n_iters), iter, iter / n_iters * 100, print_loss_total, print_val_loss_total))
+
+        elif iter % print_every == 0:
             print_loss_avg = print_loss_total / print_every
-            print_val_loss_avg = print_val_loss_total / print_every
             print_loss_total = 0
+            print_val_loss_avg = print_val_loss_total / print_every
             print_val_loss_total = 0
             print('%s (%d %d%%) loss=%.4f, val_loss=%.4f' % (timeSince(start, iter / n_iters), iter, iter / n_iters * 100, print_loss_avg, print_val_loss_avg))
 
@@ -466,6 +467,9 @@ def trainIters(lang, encoder, decoder, train_pairs, val_pairs, n_iters, print_ev
         plot_loss_avg = plot_loss_total
         plot_losses.append(plot_loss_avg)
         plot_loss_total = 0
+
+        plot_val_loss_avg = plot_val_loss_total
+        plot_val_losses.append(plot_val_loss_avg)
         plot_val_loss_total = 0
 
         #val_loss最小更新
@@ -477,7 +481,8 @@ def trainIters(lang, encoder, decoder, train_pairs, val_pairs, n_iters, print_ev
 
 
     #lossグラフ描画
-    showPlot(plot_losses)
+    showPlot2(plot_losses, plot_val_losses)
+    #oldshowPlot(plot_losses)
     #TODO val_lossの描画も
 
     #val_loss最小のモデルロード
@@ -493,13 +498,23 @@ def trainIters(lang, encoder, decoder, train_pairs, val_pairs, n_iters, print_ev
 
 
 #グラフの描画（画像ファイル保存）
-def showPlot(points):
+def showPlot(loss, val_loss):
     plt.figure()
     fig, ax = plt.subplots()
     # this locator puts ticks at regular intervals
     loc = ticker.MultipleLocator(base=0.2)
     ax.yaxis.set_major_locator(loc)
-    plt.plot(points)
+    plt.plot(loss, color='blue', marker='o', label='loss')
+    plt.plot(val_loss, color='green', marker='o', label='val_loss')
+    plt.savefig(save_path+'loss.png')
+
+def showPlot2(loss, val_loss):
+    plt.plot(loss, color='blue', marker='o', label='loss')
+    plt.plot(val_loss, color='green', marker='o', label='val_loss')
+    plt.title('model loss')
+    plt.xlabel('epoch')
+    plt.ylabel('loss')
+    plt.legend()
     plt.savefig(save_path+'loss.png')
 
 
@@ -551,19 +566,18 @@ def evaluate(lang, encoder, decoder, sentence, max_length=MAX_LENGTH):
 
 #attentionの重みの対応グラフの描画
 def showAttention(input_sentence, output_words, attentions):
-    # Set up figure with colorbar
+    #TODO 描画方法は要改善
+    #目盛り間隔、軸ラベルの位置など
+
     fig = plt.figure()
     ax = fig.add_subplot(111)
-    cax = ax.matshow(attentions.numpy(), cmap='bone')
+    cax = ax.matshow(attentions.numpy().T, cmap='bone')
     fig.colorbar(cax)
 
-    # Set up axes
-    #TODO できるならattention行列の描写方向変換
-    ax.set_xticklabels([''] + input_sentence.split(' ') +
-                       ['<EOS>'], rotation=90)
-    ax.set_yticklabels([''] + output_words)
+    ax.set_yticklabels([''] + input_sentence.split(' ') +
+                       ['<EOS>'])
+    ax.set_xticklabels([''] + output_words, rotation=90)
 
-    # Show label at every tick
     ax.xaxis.set_major_locator(ticker.MultipleLocator(1))
     ax.yaxis.set_major_locator(ticker.MultipleLocator(1))
     if len(input_sentence)>10:
@@ -698,19 +712,39 @@ def calc_score(preds_sentences, ans_sentences):
 
     return line_num, allOK, clozeOK, partOK, BLEU, miss
 
+def output_preds(preds):
+    with open(save_path+'preds.txt', 'w') as f:
+        for p in preds:
+            f.write(p+'\n')
+
 
 def print_score(line, allOK, clozeOK, partOK, BLEU, miss):
-    print('BLEU: ','{0:.2f}'.format(BLEU*100.0))
-
     print('  acc(all): ', '{0:.2f}'.format(1.0*allOK/line*100),' %')
     print('acc(cloze): ', '{0:.2f}'.format(1.0*clozeOK/line*100),' %')
     print(' acc(part): ', '{0:.2f}'.format(1.0*partOK/line*100),' %')
 
+    print(' BLEU: ','{0:.2f}'.format(BLEU*100.0))
     print('  all: ', allOK)
     print('cloze: ',clozeOK)
     print(' part: ',partOK)
     print(' line: ',line)
     print(' miss: ',miss)
+
+def output_score(line, allOK, clozeOK, partOK, BLEU, miss):
+    output=''
+    output=output+'  acc(all): '+str(1.0*allOK/line*100)+' %\n'
+    output=output+'acc(cloze): '+str(1.0*clozeOK/line*100)+' %\n'
+    output=output+' acc(part): '+str(1.0*partOK/line*100)+' %\n\n'
+    output=output+'      BLEU: '+str(BLEU*100.0)+' %\n\n'
+    output=output+'       all: '+str(allOK)+'\n'
+    output=output+'     cloze: '+str(clozeOK)+'\n'
+    output=output+'      part: '+str(partOK)+'\n'
+    output=output+'      line: '+str(line)+'\n'
+    output=output+'      miss: '+str(miss)+'\n'
+
+    with open(save_path+'score.txt', 'w') as f:
+        f.write(output)
+
 
 
 #テストデータに対する予測と精度計算
@@ -727,25 +761,25 @@ def test(lang, encoder, decoder, test_data, saveAttention=False, file_output=Fal
         if saveAttention:
             showAttention(input_sentence, output_words, attentions)
         if file_output:
-            #TODO ここに予測文をファイル書き込み
-            #output_preds() #仮の関数名
-            pass
+            output_preds(preds)
     print("Calc scores ...")
     #精度のprintとファイル出力
     line, allOK, clozeOK, partOK, BLEU, miss = calc_score(preds, ans)
     #TODO 今は実装してないが必要に応じてchange_unkの精度計算も作る？
     print_score(line, allOK, clozeOK, partOK, BLEU, miss) #仮の関数名
     if file_output:
-        #TODO ここに精度をファイル書き込み
-        #output_preds(line, allOK, clozeOK, partOK, BLEU, miss) #仮の関数名
-        pass
+        output_score(line, allOK, clozeOK, partOK, BLEU, miss)
+
 
 
 #コマンドライン引数の設定いろいろ
 def get_args():
     parser = argparse.ArgumentParser()
     #miniはプログラムエラーないか確認用的な
-    parser.add_argument('--mode', choices=['all', 'mini', 'test'], default='all')
+    parser.add_argument('--mode', choices=['all', 'mini', 'test', 'mini_test'], default='all')
+    parser.add_argument('--model_dir', help='model directory path (when load model, mode=test)')
+    parser.add_argument('--encoder', help='encoder file name (when load model, mode=test)')
+    parser.add_argument('--decoder', help='decoder file name (when load model, mode=test)')
     #TODO ほかにも引数必要に応じて追加
     return parser.parse_args()
 
@@ -765,7 +799,7 @@ if __name__ == '__main__':
     my_decoder = AttnDecoderRNN(hidden_dim, vocab.n_words, dropout_p=0.1).to(my_device)
 
     #学習時
-    if not args.mode == 'test':
+    if args.mode == 'all' or args.mode == 'mini':
         train_cloze=file_path+'tmp_cloze.txt'
         train_ans=file_path+'tmp_ans.txt'
 
@@ -781,25 +815,24 @@ if __name__ == '__main__':
         save_path=save_path+'/'
 
         # 3.学習
-        best_encoder, best_decoder = trainIters(vocab, my_encoder, my_decoder, train_data, val_data, n_iters=3, saveModel=True)
+        my_encoder, my_decoder = trainIters(vocab, my_encoder, my_decoder, train_data, val_data, n_iters=3, saveModel=True)
 
     #すでにあるモデルでテスト時
     else:
-        #TODO モデルのディレクトリとかの引数追加してロード処理
-        '''
-        my_encoder.load_state_dict(torch.load(PATH))
-        my_decoder.load_state_dict(torch.load(PATH))
-        save_pathの変更も
-        '''
-        pass
+        save_path=args.model_dir+'/'
+
+        my_encoder.load_state_dict(torch.load(save_path+args.encoder))
+        my_decoder.load_state_dict(torch.load(save_path+args.decoder))
+
+        save_path=save_path+today_str
 
     # 4.評価
     test_cloze=file_path+'center_cloze.txt'
-    test_ans=file_path+'center_ans.txt'     #TODO ファイル名適当に書いてるだけ
+    test_ans=file_path+'center_ans.txt'
 
     test_data=readData(test_cloze, test_ans)
-    if args.mode == 'mini':
+    if args.mode == 'mini' or args.mode == 'mini_test':
         test_data=test_data[:5]
 
     #テストデータに対する予測と精度の計算
-    test(vocab, best_encoder, best_decoder, test_data, saveAttention=False, file_output=False)
+    test(vocab, my_encoder, my_decoder, test_data, saveAttention=True, file_output=True)
