@@ -580,7 +580,6 @@ def evaluate(lang, encoder, decoder, sentence, max_length=MAX_LENGTH):
 def evaluate_cloze(lang, encoder, decoder, input_sentence, max_length=MAX_LENGTH):
     with torch.no_grad():
         #no_grad()の間はパラメータが固定される（更新されない）
-        #以下はほぼtrainと同じ
         input_tensor = tensorFromSentence(lang, input_sentence)
         input_length = input_tensor.size()[0]
         encoder_hidden = encoder.initHidden()
@@ -649,9 +648,72 @@ def evaluate_cloze(lang, encoder, decoder, input_sentence, max_length=MAX_LENGTH
 #空所内のみを予想かつ選択肢の利用
 #evaluate_clozeの拡張
 def evaluate_choice(lang, encoder, decoder, input_sentence, choices, max_length=MAX_LENGTH):
-    pass
+    with torch.no_grad():
+        #no_grad()の間はパラメータが固定される（更新されない）
+        input_tensor = tensorFromSentence(lang, input_sentence)
+        input_length = input_tensor.size()[0]
+        encoder_hidden = encoder.initHidden()
 
+        encoder_outputs = torch.zeros(max_length, encoder.hidden_dim, device=my_device)
 
+        for ei in range(input_length):
+            encoder_output, encoder_hidden = encoder(
+                input_tensor[ei], encoder_hidden)
+            encoder_outputs[ei] += encoder_output[0, 0]
+
+        decoder_input = torch.tensor([[SOS_token]], device=my_device)  # SOS
+
+        decoder_hidden = encoder_hidden
+
+        decoded_words = []
+        decoder_attentions = torch.zeros(max_length, max_length)
+
+        tmp_list=normalizeString(input_sentence).split(' ')
+        tmp_list.append('<EOS>')
+        cloze_start=tmp_list.index('{')
+        cloze_end=tmp_list.index('}')
+        flag=0
+        cloze_words=0
+
+        for di in range(max_length):
+            decoder_output, decoder_hidden, decoder_attention = decoder(
+                decoder_input, decoder_hidden, encoder_outputs)
+            decoder_attentions[di] = decoder_attention.data
+
+            #空所が始まるまでは空所外の部分はそのまま用いる
+            #ここではEOSを考慮しなくてよい
+            if di <= cloze_start:
+                decoded_words.append(tmp_list[di])
+                decoder_input = input_tensor[di]
+
+            #空所内の予測
+            #TODO ここ変更、選択肢から選ぶ
+            elif flag == 0:
+                topv, topi = decoder_output.data.topk(1)
+                if topi.item() == EOS_token:
+                    decoded_words.append('<EOS>')
+                    #EOSならば終了
+                    break
+                else:
+                    word=lang.index2word[topi.item()]
+                    decoded_words.append(word)
+                    decoder_input = topi.squeeze().detach()
+                    if word == '}':
+                        flag=1
+                    else:
+                        cloze_words+=1
+
+            #空所後の予測
+            else:
+                word=tmp_list[di-cloze_words]
+                decoded_words.append(word)
+                if word == '<EOS>':
+                    break
+                else:
+                    decoder_input = input_tensor[di-cloze_words]
+
+        #返り値は予測した単語列とattentionの重み？
+        return decoded_words, decoder_attentions[:di + 1]
 
 
 
