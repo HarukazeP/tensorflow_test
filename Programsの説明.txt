@@ -33,8 +33,9 @@ seq2seq_attention_dataloder_ERROR.py
 seq2seq_attention_with_vocab.py　を改変しようとしたが未解決
 seq2seq_attention_batch_ERROR.py　とは別の方法でミニバッチ学習をしようとしたがエラー残ったまま
 
-seq2seq_attention_allData.py
 
+seq2seq_attention_allData.py
+seq2seq_attention_with_vocab.py
 
 
 
@@ -99,10 +100,3 @@ distance_from_cloze.py
 calc_all_by_position.py
 空所が文頭や文末にあるかごとに精度の算出
 BLEU，空所の正解率，空所の部分一致率
-
-
-
-
-
-
-
