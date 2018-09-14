@@ -1,6 +1,6 @@
 各プログラムの説明
 github上で表示される辞書順だったり作成日時順だったり
-言語はほとんどがpythonだけどオブジェクト指向に不慣れなため，c言語のような手続き型のような書き方
+言語はほとんどがpython3だけどオブジェクト指向に不慣れなため，c言語のような手続き型のような書き方
 
 
 -----2018_from04to07ディレクトリ内----------------------------------------
@@ -35,9 +35,20 @@ seq2seq_attention_batch_ERROR.py　とは別の方法でミニバッチ学習を
 
 
 seq2seq_attention_allData.py
-seq2seq_attention_with_vocab.py
+seq2seq_attention_with_vocab.py　から変更
+ランダムではなく全データを学習する形式に
+しかしミニバッチは未実装のまま、1データずつ学習する
 
 
+seq2seq_attention.py
+seq2seq_attention_allData.py　から変更
+テストおよび精度算出、val_loss最小のモデルを選択、実行時のモード選択
+上記の機能を追加
+
+
+seq2seq_attention_choices.py
+seq2seq_attention.py　から変更
+空所内のみ予想、選択肢を利用して空所予想の機能を追加
 
 
 

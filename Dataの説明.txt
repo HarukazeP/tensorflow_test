@@ -2,18 +2,37 @@
 
 --- < seq2seqチュートリアル(nmt)関係 > ---
 center.ans　と　center.cloze
-センターの問題文そのまま
+センター試験の問題文そのまま
 324行
 .ansは空所補充語
 .clozeは空所あいたまま
 
 center_nmt.ans　と　center_nmt.cloze
-センターの問題文にtext8コーパスと同様の前処置したもの
+センターの試験問題文にtext8コーパスと同様の前処置したもの
 
 
 text8_nmt_dev.ans　と　text8_nmt_dev.cloze
 new_make_data_at_server.pyで作成した検証データ
 1000行
+
+
+
+--- < pytorchでのseq2seq関係 > ---
+center_ans.txt　と　center_cloze.txt
+center.ans、center.clozeと同じ
+
+
+center_choices.txt
+センター試験の問題文の空所内に選択肢を「 ### 」区切りで入れたもの
+324行
+
+
+
+
+
+
+
+
 
 
 
@@ -34,5 +53,3 @@ text8_nmt_tmp_nmt_ans.txt とかの先頭5万行
 enwiki_vocab30000.cloze
 wikipedia全体に対してtext8コーパスと同様を処理をしたファイルに現れる英単語上位30000件
 および、seq2seqモデルでの未知語を表す<unk>、他に<s>や</s>、{と}を足した語彙を表すファイル
-
-
