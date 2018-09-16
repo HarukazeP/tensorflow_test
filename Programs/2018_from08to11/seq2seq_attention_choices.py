@@ -3,7 +3,8 @@
 '''
 pytorchのseq2seqチュートリアルを改変
 seq2seq_attention.py から変更
-テスト時に選択肢の利用を追加
+
+空所内のみの予測時に選択肢の利用を追加
 
 ミニバッチ学習は未実装のまま
 
@@ -688,7 +689,9 @@ def evaluate_choice(lang, encoder, decoder, input_sentence, choices, max_length=
 
             #空所内の予測
             #TODO ここ変更、選択肢から選ぶ
+
             elif flag == 0:
+                '''
                 topv, topi = decoder_output.data.topk(1)
                 if topi.item() == EOS_token:
                     decoded_words.append('<EOS>')
@@ -702,6 +705,7 @@ def evaluate_choice(lang, encoder, decoder, input_sentence, choices, max_length=
                         flag=1
                     else:
                         cloze_words+=1
+                '''
 
             #空所後の予測
             else:
