@@ -603,7 +603,7 @@ def evaluate_cloze(lang, encoder, decoder, input_sentence, max_length=MAX_LENGTH
         tmp_list.append('<EOS>')
         cloze_start=tmp_list.index('{')
         cloze_end=tmp_list.index('}')
-        flag=0
+        cloze_flag=0
         cloze_words=0
 
         for di in range(max_length):
@@ -618,7 +618,7 @@ def evaluate_cloze(lang, encoder, decoder, input_sentence, max_length=MAX_LENGTH
                 decoder_input = input_tensor[di]
 
             #空所内の予測
-            elif flag == 0:
+            elif cloze_flag == 0:
                 topv, topi = decoder_output.data.topk(1)
                 if topi.item() == EOS_token:
                     decoded_words.append('<EOS>')
@@ -629,7 +629,7 @@ def evaluate_cloze(lang, encoder, decoder, input_sentence, max_length=MAX_LENGTH
                     decoded_words.append(word)
                     decoder_input = topi.squeeze().detach()
                     if word == '}':
-                        flag=1
+                        cloze_flag=1
                     else:
                         cloze_words+=1
 
@@ -673,8 +673,9 @@ def evaluate_choice(lang, encoder, decoder, input_sentence, choices, max_length=
         tmp_list.append('<EOS>')
         cloze_start=tmp_list.index('{')
         cloze_end=tmp_list.index('}')
-        flag=0
+        cloze_flag=0
         cloze_words=0
+        choice_flag=0
 
         for di in range(max_length):
             decoder_output, decoder_hidden, decoder_attention = decoder(
@@ -690,8 +691,17 @@ def evaluate_choice(lang, encoder, decoder, input_sentence, choices, max_length=
             #空所内の予測
             #TODO ここ変更、選択肢から選ぶ
 
-            elif flag == 0:
+            elif cloze_flag == 0:
                 '''
+                #TODO
+                    １:選択肢4つを読み込み
+                    2:４つの先頭1語を見て、どの1語が最も確率高いか
+                    3:もし2で選んだ選択肢が2語以上、かつ他の選択肢との共通部分あるなら再度似たような処理
+
+                    選択肢4つの語の被りを見るchoice_flagが必要？
+                    まず重複を見てから？
+
+
                 topv, topi = decoder_output.data.topk(1)
                 if topi.item() == EOS_token:
                     decoded_words.append('<EOS>')
@@ -702,7 +712,7 @@ def evaluate_choice(lang, encoder, decoder, input_sentence, choices, max_length=
                     decoded_words.append(word)
                     decoder_input = topi.squeeze().detach()
                     if word == '}':
-                        flag=1
+                        cloze_flag=1
                     else:
                         cloze_words+=1
                 '''
@@ -718,36 +728,6 @@ def evaluate_choice(lang, encoder, decoder, input_sentence, choices, max_length=
 
         #返り値は予測した単語列とattentionの重み？
         return decoded_words, decoder_attentions[:di + 1]
-
-
-
-'''
-後半部分
-        for di in range(max_length):
-            decoder_output, decoder_hidden, decoder_attention = decoder(
-                decoder_input, decoder_hidden, encoder_outputs)
-            decoder_attentions[di] = decoder_attention.data
-            topv, topi = decoder_output.data.topk(1)
-            if topi.item() == EOS_token:
-                decoded_words.append('<EOS>')
-                #EOSならば終了
-                break
-            else:
-                decoded_words.append(lang.index2word[topi.item()])
-
-            decoder_input = topi.squeeze().detach()
-            #decoder_input = target_tensor[di]  # Teacher forcing
-            #TODO ここのdetachの意味
-'''
-
-
-
-
-
-
-
-
-
 
 
 #attentionの重みの対応グラフの描画
@@ -1045,11 +1025,11 @@ if __name__ == '__main__':
     test_choi=file_path+'center_choices.txt'
 
     test_data=readData(test_cloze, test_ans)
-    #choices=get_choices(test_choi)
-    choices=['', '', '', '', '', '']
+    choices=get_choices(test_choi)
+    #choices=['', '', '', '', '', '']
     if args.mode == 'mini' or args.mode == 'mini_test':
         test_data=test_data[:5]
-        #choices=choices[:5]
+        choices=choices[:5]
 
     #テストデータに対する予測と精度の計算
     #選択肢を使ったテスト
