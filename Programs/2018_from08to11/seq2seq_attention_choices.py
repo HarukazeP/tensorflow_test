@@ -428,7 +428,7 @@ def trainIters(lang, encoder, decoder, train_pairs, val_pairs, n_iters, print_ev
     print_val_loss_total = 0  # Reset every print_every
     plot_val_loss_total = 0
 
-    best_val_loss=100   #仮
+    best_val_loss=10000   #仮
     best_iter=0
 
     best_encoder_weight = copy.deepcopy(encoder.state_dict())
@@ -645,6 +645,68 @@ def evaluate_cloze(lang, encoder, decoder, input_sentence, max_length=MAX_LENGTH
         #返り値は予測した単語列とattentionの重み？
         return decoded_words, decoder_attentions[:di + 1]
 
+#前方一致の確認
+def forward_match(words, cloze_words, cloze_ct):
+    flag=1
+    if len(words) >= cloze_ct:
+        for i in range(cloze_ct):
+            #TODO range これで合ってる？
+            if not  words[i] == cloze_words[i]:
+                flag=0
+        if flag == 1:
+            return True
+
+    return False
+
+
+#TODO このあたりlenとかrangeとか境目間違えないよぅに
+
+#これまでの予測と選択肢から次の１語候補リストを作成
+def make_next_word(cloze_ct, cloze_words, choices):
+    next_word_list=[]
+
+    for words in choices:
+        if cloze_ct==0:
+            next_word_list.append(words[0])
+        else:
+            #x番目を予測するときｘ−１番目まで一致しているなら
+            if forward_match(words, cloze_words, cloze_ct):
+                if len(words) == cloze_ct:
+                    next_word_list.append('}')
+                elif len(words) > cloze_ct:
+                    next_word_list.append(words[cloze_ct+1])
+    if next_word_list:
+        #pythonではlistが空でなければTrue
+        next_word_list=list(set(next_word_list))
+    else:
+        #TODO そもそもこのケースある？
+        next_word_list.append('}')
+
+    return next_word_list
+
+
+#候補リストから確率最大の1語を返す
+def pred_next_word(next_word_list, decoder_output_data):
+    if len(next_word_list)==1:
+        max_word=next_word_list[0]
+    else:
+        pass
+
+
+    '''
+    #TODO
+    decoder_output_dataから何番目の順位なのか確認的な
+    そもそも.dataのやつはリスト？
+    '''
+
+
+    return max_word
+
+
+
+
+
+
 
 #空所内のみを予想かつ選択肢の利用
 #evaluate_clozeの拡張
@@ -675,7 +737,7 @@ def evaluate_choice(lang, encoder, decoder, input_sentence, choices, max_length=
         cloze_end=tmp_list.index('}')
         cloze_flag=0
         cloze_ct=0
-        choice_flag=0
+        cloze_words=[]
 
         for di in range(max_length):
             decoder_output, decoder_hidden, decoder_attention = decoder(
@@ -689,33 +751,28 @@ def evaluate_choice(lang, encoder, decoder, input_sentence, choices, max_length=
                 decoder_input = input_tensor[di]
 
             #空所内の予測
+            # } までdecorded_wordに格納
             #TODO ここ変更、選択肢から選ぶ
 
             elif cloze_flag == 0:
+
+                #これまでの予測と選択肢から次の１語候補リストを作成
+                next_word_list=make_next_word(cloze_ct, cloze_words, choices)
+                #候補リストから確率最大の1語を返す
+                word=pred_next_word(next_word_list, decoder_output.data)
+                cloze_words.append(word)
+                decoded_words.append(word)
+
+                #TODO decoder_inputの処理
                 '''
-                #TODO
-                    １:選択肢4つを読み込み
-                    2:４つの先頭1語を見て、どの1語が最も確率高いか
-                    3:もし2で選んだ選択肢が2語以上、かつ他の選択肢との共通部分あるなら再度似たような処理
-
-                    選択肢4つの語の被りを見るchoice_flagが必要？
-                    まず重複を見てから？
-
-
                 topv, topi = decoder_output.data.topk(1)
-                if topi.item() == EOS_token:
-                    decoded_words.append('<EOS>')
-                    #EOSならば終了
-                    break
-                else:
-                    word=lang.index2word[topi.item()]
-                    decoded_words.append(word)
-                    decoder_input = topi.squeeze().detach()
-                    if word == '}':
-                        cloze_flag=1
-                    else:
-                        cloze_ct+=1
+                decoder_input = topi.squeeze().detach()
                 '''
+
+                if word == '}':
+                    cloze_flag=1
+                else:
+                    cloze_ct+=1
 
             #空所後の予測
             else:
@@ -926,7 +983,7 @@ def score(preds, ans, file_output, file_name):
     #精度のprintとファイル出力
     line, allOK, clozeOK, partOK, BLEU, miss = calc_score(preds, ans)
     #TODO 今は実装してないが必要に応じてchange_unkの精度計算も作る？
-    print_score(line, allOK, clozeOK, partOK, BLEU, miss) #仮の関数名
+    print_score(line, allOK, clozeOK, partOK, BLEU, miss)
     if file_output:
         output_score(file_name, line, allOK, clozeOK, partOK, BLEU, miss)
 
