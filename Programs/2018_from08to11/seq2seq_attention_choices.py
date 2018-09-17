@@ -604,7 +604,7 @@ def evaluate_cloze(lang, encoder, decoder, input_sentence, max_length=MAX_LENGTH
         cloze_start=tmp_list.index('{')
         cloze_end=tmp_list.index('}')
         cloze_flag=0
-        cloze_words=0
+        cloze_ct=0
 
         for di in range(max_length):
             decoder_output, decoder_hidden, decoder_attention = decoder(
@@ -631,16 +631,16 @@ def evaluate_cloze(lang, encoder, decoder, input_sentence, max_length=MAX_LENGTH
                     if word == '}':
                         cloze_flag=1
                     else:
-                        cloze_words+=1
+                        cloze_ct+=1
 
             #空所後の予測
             else:
-                word=tmp_list[di-cloze_words]
+                word=tmp_list[di-cloze_ct]
                 decoded_words.append(word)
                 if word == '<EOS>':
                     break
                 else:
-                    decoder_input = input_tensor[di-cloze_words]
+                    decoder_input = input_tensor[di-cloze_ct]
 
         #返り値は予測した単語列とattentionの重み？
         return decoded_words, decoder_attentions[:di + 1]
@@ -674,7 +674,7 @@ def evaluate_choice(lang, encoder, decoder, input_sentence, choices, max_length=
         cloze_start=tmp_list.index('{')
         cloze_end=tmp_list.index('}')
         cloze_flag=0
-        cloze_words=0
+        cloze_ct=0
         choice_flag=0
 
         for di in range(max_length):
@@ -714,17 +714,17 @@ def evaluate_choice(lang, encoder, decoder, input_sentence, choices, max_length=
                     if word == '}':
                         cloze_flag=1
                     else:
-                        cloze_words+=1
+                        cloze_ct+=1
                 '''
 
             #空所後の予測
             else:
-                word=tmp_list[di-cloze_words]
+                word=tmp_list[di-cloze_ct]
                 decoded_words.append(word)
                 if word == '<EOS>':
                     break
                 else:
-                    decoder_input = input_tensor[di-cloze_words]
+                    decoder_input = input_tensor[di-cloze_ct]
 
         #返り値は予測した単語列とattentionの重み？
         return decoded_words, decoder_attentions[:di + 1]
@@ -946,14 +946,14 @@ def test_choices(lang, encoder, decoder, test_data, choices, saveAttention=False
         ans.append(pair[1])
         output_words, attentions = evaluate(lang, encoder, decoder, input_sentence)
         preds.append(' '.join(output_words))
-        output_cloze_words, cloze_attentions = evaluate_cloze(lang, encoder, decoder, input_sentence)
-        preds_cloze.append(' '.join(output_cloze_words))
+        output_cloze_ct, cloze_attentions = evaluate_cloze(lang, encoder, decoder, input_sentence)
+        preds_cloze.append(' '.join(output_cloze_ct))
         #output_choice_words, choice_attentions = evaluate_choice(lang, encoder, decoder, input_sentence, choi)
         #preds_choices.append(' '.join(output_choice_words))
 
         if saveAttention:
             showAttention('all', input_sentence, output_words, attentions)
-            showAttention('cloze', input_sentence, output_cloze_words, cloze_attentions)
+            showAttention('cloze', input_sentence, output_cloze_ct, cloze_attentions)
             #showAttention('choice', input_sentence, output_choice_words, choice_attentions)
         if file_output:
             output_preds(save_path+'preds.txt', preds)
