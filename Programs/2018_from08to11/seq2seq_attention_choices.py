@@ -485,8 +485,6 @@ def trainIters(lang, encoder, decoder, train_pairs, val_pairs, n_iters, print_ev
 
     #lossグラフ描画
     showPlot2(plot_losses, plot_val_losses)
-    #oldshowPlot(plot_losses)
-    #TODO val_lossの描画も
 
     #val_loss最小のモデルロード
     encoder.load_state_dict(best_encoder_weight)
@@ -650,7 +648,6 @@ def forward_match(words, cloze_words, cloze_ct):
     flag=1
     if len(words) >= cloze_ct:
         for i in range(cloze_ct):
-            #TODO range これで合ってる？
             if not  words[i] == cloze_words[i]:
                 flag=0
         if flag == 1:
@@ -658,8 +655,6 @@ def forward_match(words, cloze_words, cloze_ct):
 
     return False
 
-
-#TODO このあたりlenとかrangeとか境目間違えないよぅに
 
 #これまでの予測と選択肢から次の１語候補リストを作成
 def make_next_word(cloze_ct, cloze_words, choices):
@@ -672,11 +667,14 @@ def make_next_word(cloze_ct, cloze_words, choices):
             #x番目を予測するときｘ−１番目まで一致しているなら
             if forward_match(words, cloze_words, cloze_ct):
                 if len(words) == cloze_ct:
+                    #その選択肢が終わりの時
                     next_word_list.append('}')
                 elif len(words) > cloze_ct:
+                    #その選択肢の次の1語を格納
                     next_word_list.append(words[cloze_ct+1])
     if next_word_list:
         #pythonではlistが空でなければTrue
+        #重複を削除
         next_word_list=list(set(next_word_list))
     else:
         #TODO そもそもこのケースある？
@@ -686,26 +684,19 @@ def make_next_word(cloze_ct, cloze_words, choices):
 
 
 #候補リストから確率最大の1語を返す
-def pred_next_word(next_word_list, decoder_output_data):
+def pred_next_word(lang, next_word_list, decoder_output_data):
     if len(next_word_list)==1:
         max_word=next_word_list[0]
     else:
-        pass
-
-
-    '''
-    #TODO
-    decoder_output_dataから何番目の順位なのか確認的な
-    そもそも.dataのやつはリスト？
-    '''
-
+        max_p=decoder_output_data.min().item
+        for word in next_word_list:
+            index=lang.check_word2index(word)
+            p=decoder_output_data[0][index].item()
+            if max_p < p:
+                max_p = p
+                max_word=word
 
     return max_word
-
-
-
-
-
 
 
 #空所内のみを予想かつ選択肢の利用
@@ -752,22 +743,17 @@ def evaluate_choice(lang, encoder, decoder, input_sentence, choices, max_length=
 
             #空所内の予測
             # } までdecorded_wordに格納
-            #TODO ここ変更、選択肢から選ぶ
 
             elif cloze_flag == 0:
 
                 #これまでの予測と選択肢から次の１語候補リストを作成
                 next_word_list=make_next_word(cloze_ct, cloze_words, choices)
                 #候補リストから確率最大の1語を返す
-                word=pred_next_word(next_word_list, decoder_output.data)
+                word, word_tensor=pred_next_word(lang, next_word_list, decoder_output.data)
                 cloze_words.append(word)
                 decoded_words.append(word)
-
-                #TODO decoder_inputの処理
-                '''
-                topv, topi = decoder_output.data.topk(1)
-                decoder_input = topi.squeeze().detach()
-                '''
+                word_tensor=torch.tensor(lang.check_word2index(max_word))
+                decoder_input = word_tensor
 
                 if word == '}':
                     cloze_flag=1
