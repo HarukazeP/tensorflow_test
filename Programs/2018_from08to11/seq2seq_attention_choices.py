@@ -109,7 +109,7 @@ def unicodeToAscii(s):
 
 #データの前処理
 #strip()は文頭文末の改行や空白を取り除いてくれる
-def normalizeString(s):
+def normalizeString(s, choices=False):
     s = unicodeToAscii(s.lower().strip())
     #text8コーパスと同等の前処理
     s=s.replace('0', ' zero ')
@@ -122,7 +122,10 @@ def normalizeString(s):
     s=s.replace('7', ' seven ')
     s=s.replace('8', ' eight ')
     s=s.replace('9', ' nine ')
-    s = re.sub(r'[^a-z{}]', ' ', s)
+    if choices:
+        s = re.sub(r'[^a-z{}#]', ' ', s)
+    else:
+        s = re.sub(r'[^a-z{}]', ' ', s)
     s = re.sub(r'[ ]+', ' ', s)
 
     return s.strip()
@@ -661,17 +664,18 @@ def make_next_word(cloze_ct, cloze_words, choices):
     next_word_list=[]
 
     for words in choices:
+        words_list=words.split(' ')
         if cloze_ct==0:
-            next_word_list.append(words[0])
+            next_word_list.append(words_list[0])
         else:
             #x番目を予測するときｘ−１番目まで一致しているなら
-            if forward_match(words, cloze_words, cloze_ct):
-                if len(words) == cloze_ct:
+            if forward_match(words_list, cloze_words, cloze_ct):
+                if len(words_list) == cloze_ct:
                     #その選択肢が終わりの時
                     next_word_list.append('}')
-                elif len(words) > cloze_ct:
+                elif len(words_list) > cloze_ct:
                     #その選択肢の次の1語を格納
-                    next_word_list.append(words[cloze_ct+1])
+                    next_word_list.append(words_list[cloze_ct])
     if next_word_list:
         #pythonではlistが空でなければTrue
         #重複を削除
@@ -688,7 +692,7 @@ def pred_next_word(lang, next_word_list, decoder_output_data):
     if len(next_word_list)==1:
         max_word=next_word_list[0]
     else:
-        max_p=decoder_output_data.min().item
+        max_p=decoder_output_data.min().item()
         for word in next_word_list:
             index=lang.check_word2index(word)
             p=decoder_output_data[0][index].item()
@@ -745,14 +749,13 @@ def evaluate_choice(lang, encoder, decoder, input_sentence, choices, max_length=
             # } までdecorded_wordに格納
 
             elif cloze_flag == 0:
-
                 #これまでの予測と選択肢から次の１語候補リストを作成
                 next_word_list=make_next_word(cloze_ct, cloze_words, choices)
                 #候補リストから確率最大の1語を返す
-                word, word_tensor=pred_next_word(lang, next_word_list, decoder_output.data)
+                word=pred_next_word(lang, next_word_list, decoder_output.data)
                 cloze_words.append(word)
                 decoded_words.append(word)
-                word_tensor=torch.tensor(lang.check_word2index(max_word))
+                word_tensor=torch.tensor(lang.check_word2index(word))
                 decoder_input = word_tensor
 
                 if word == '}':
@@ -959,7 +962,7 @@ def get_choices(file_name):
     choices=[]
     with open(file_name, encoding='utf-8') as f:
         for line in f:
-            line=get_cloze(normalizeString(line))
+            line=get_cloze(normalizeString(line, choices=True))
             choices.append(line.split(' ### '))     #選択肢を区切る文字列
 
     return choices
@@ -991,21 +994,21 @@ def test_choices(lang, encoder, decoder, test_data, choices, saveAttention=False
         preds.append(' '.join(output_words))
         output_cloze_ct, cloze_attentions = evaluate_cloze(lang, encoder, decoder, input_sentence)
         preds_cloze.append(' '.join(output_cloze_ct))
-        #output_choice_words, choice_attentions = evaluate_choice(lang, encoder, decoder, input_sentence, choi)
-        #preds_choices.append(' '.join(output_choice_words))
+        output_choice_words, choice_attentions = evaluate_choice(lang, encoder, decoder, input_sentence, choi)
+        preds_choices.append(' '.join(output_choice_words))
 
         if saveAttention:
             showAttention('all', input_sentence, output_words, attentions)
             showAttention('cloze', input_sentence, output_cloze_ct, cloze_attentions)
-            #showAttention('choice', input_sentence, output_choice_words, choice_attentions)
+            showAttention('choice', input_sentence, output_choice_words, choice_attentions)
         if file_output:
             output_preds(save_path+'preds.txt', preds)
             output_preds(save_path+'preds_cloze.txt', preds_cloze)
-            #output_preds(save_path+'preds_choices.txt', preds_choices)
+            output_preds(save_path+'preds_choices.txt', preds_choices)
     print("Calc scores ...")
     score(preds, ans, file_output, save_path+'score.txt')
     score(preds_cloze, ans, file_output, save_path+'score_cloze.txt')
-    #score(preds_choices, ans, file_output, save_path+'score_choices.txt')
+    score(preds_choices, ans, file_output, save_path+'score_choices.txt')
 
 
 #コマンドライン引数の設定いろいろ
@@ -1046,9 +1049,9 @@ if __name__ == '__main__':
         train_data, val_data = train_test_split(all_data, test_size=0.1)
 
         #モデルとか結果とかを格納するディレクトリの作成
-        if os.path.exists(save_path)==False:
-            os.mkdir(save_path)
-        save_path=save_path+'/'
+        if os.path.exists(save_path+args.mode)==False:
+            os.mkdir(save_path+args.mode)
+        save_path=save_path+args.mode+'/'
 
         # 3.学習
         my_encoder, my_decoder = trainIters(vocab, my_encoder, my_decoder, train_data, val_data, n_iters=3, saveModel=True)
@@ -1069,7 +1072,7 @@ if __name__ == '__main__':
 
     test_data=readData(test_cloze, test_ans)
     choices=get_choices(test_choi)
-    #choices=['', '', '', '', '', '']
+
     if args.mode == 'mini' or args.mode == 'mini_test':
         test_data=test_data[:5]
         choices=choices[:5]
