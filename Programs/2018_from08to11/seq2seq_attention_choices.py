@@ -1040,8 +1040,10 @@ if __name__ == '__main__':
 
     #学習時
     if args.mode == 'all' or args.mode == 'mini':
-        train_cloze=file_path+'tmp_cloze.txt'
-        train_ans=file_path+'tmp_ans.txt'
+        #train_cloze=file_path+'tmp_cloze.txt'
+        #train_ans=file_path+'tmp_ans.txt'
+        train_cloze=file_path+'text8_cloze.txt'
+        train_ans=file_path+'text8_ans.txt'
 
         all_data=readData(train_cloze, train_ans)
         if args.mode == 'mini':
@@ -1055,7 +1057,7 @@ if __name__ == '__main__':
         save_path=save_path+args.mode+'/'
 
         # 3.学習
-        my_encoder, my_decoder = trainIters(vocab, my_encoder, my_decoder, train_data, val_data, n_iters=3, saveModel=True)
+        my_encoder, my_decoder = trainIters(vocab, my_encoder, my_decoder, train_data, val_data, n_iters=100, saveModel=True)
 
     #すでにあるモデルでテスト時
     else:
