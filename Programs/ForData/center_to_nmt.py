@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 '''
-ƒZƒ“ƒ^[‚ğtext8ƒR[ƒpƒX‚Æ“¯—l‚Ì‘Oˆ—
+ã‚»ãƒ³ã‚¿ãƒ¼ã‚’text8ã‚³ãƒ¼ãƒ‘ã‚¹ã¨åŒæ§˜ã®å‰å‡¦ç†
 
 '''
 
@@ -15,7 +15,7 @@ import os
 import os.path
 import subprocess
 
-#----- ƒOƒ[ƒoƒ‹•Ï”ˆê—— -----
+#----- ã‚°ãƒ­ãƒ¼ãƒãƒ«å¤‰æ•°ä¸€è¦§ -----
 my_epoch=100
 vec_size=100
 maxlen_words = 5
@@ -24,16 +24,16 @@ today_str=''
 tmp_vec_dict=dict()
 
 
-#----- ŠÖ”ŒQ -----
+#----- é–¢æ•°ç¾¤ -----
 
-#ŠÔ•\¦
+#æ™‚é–“è¡¨ç¤º
 def print_time(str1):
     today=datetime.datetime.today()
     print(str1)
     print(today)
     return today
 
-#ŠwKƒf[ƒ^‚âƒeƒXƒgƒf[ƒ^‚Ö‚Ì‘Oˆ—
+#å‰å‡¦ç†
 def preprocess_line2(before_line):
     after_line=before_line.lower()
     after_line=after_line.replace('0', ' zero ')
@@ -46,25 +46,19 @@ def preprocess_line2(before_line):
     after_line=after_line.replace('7', ' seven ')
     after_line=after_line.replace('8', ' eight ')
     after_line=after_line.replace('9', ' nine ')
-    after_line = re.sub(r'[^a-z{}\n]', ' ', after_line)
+    after_line = re.sub(r'[^a-z{}]', ' ', after_line)
     after_line = re.sub(r'[ ]+', ' ', after_line)
-    after_line = re.sub('^ ', '', after_line)
-    after_line = re.sub(' \n', '\n', after_line)
+    after_line = after_line.strip()
 
     return after_line
 
-
-
-
-
-#ŠwKƒf[ƒ^‚Ö‚Ì‘Oˆ—‚ğs‚¤
-#¬•¶š‰»CƒAƒ‹ƒtƒ@ƒxƒbƒgˆÈŠO‚Ì•¶š‚ÌíœC1–œ’PŒê‚²‚Æ‚É•ªŠ„
+#å‰å‡¦ç†ã—ã¦æ–°è¦ãƒ•ã‚¡ã‚¤ãƒ«ä½œæˆ
 def clean_line(old_path, new_path):
     print('cleaning data...')
     with open(old_path) as f_in:
         with open(new_path, 'w') as f_out:
             for line in f_in:
-                #‚±‚Ì‘Oˆ—‚Ítext8‚Æ‚©‚Ì‘Oˆ—‚Æ“¯‚¶
+                #ã“ã®å‰å‡¦ç†ã¯text8ã¨ã‹ã®å‰å‡¦ç†ã¨åŒã˜
                 line=preprocess_line2(line)
                 f_out.write(line)
     print('clean end')
@@ -76,17 +70,15 @@ def clean_line(old_path, new_path):
 
 
 
-#----- ‚¢‚í‚ä‚émain•”‚İ‚½‚¢‚È‚Ì -----
+#----- ã„ã‚ã‚†ã‚‹mainéƒ¨ã¿ãŸã„ãªã® -----
 
-#ŠJn‚ÌƒvƒŠƒ“ƒg
+#é–‹å§‹æ™‚åˆ»ã®ãƒ—ãƒªãƒ³ãƒˆ
 start_time=print_time('all start')
 
 
-#ƒf[ƒ^
+#ãƒ‡ãƒ¼ã‚¿
 n100_path='../../Data/my_nmt/center_ans.txt'
 n500_path='../../Data/my_nmt/center_cloze.txt'
 
 clean_line(n100_path, '../../Data/my_nmt/center_nmt.ans')
 clean_line(n500_path, '../../Data/my_nmt/center_nmt.cloze')
-
-
