@@ -902,6 +902,7 @@ def calc_score(preds_sentences, ans_sentences):
     miss=0
 
     for pred, ans in zip(preds_sentences, ans_sentences):
+        pred=pred.replace(' <EOS>', '')
         if pred == ans:
             allOK+=1
         pred_cloze = get_cloze(pred)
