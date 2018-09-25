@@ -17,20 +17,59 @@ tensor([-11.0001,  -2.5442,  -2.7432,  ..., -10.7662, -10.3689,
 	東大ロボが使用していた手法はKenLM（単なる統計情報？）
 	https://github.com/kpu/kenlm
 	https://arxiv.org/pdf/1601.01272.pdf
-	
+
 	つまりは言語モデルでできるとのことなので他の言語モデルもいくつか調べた
-	
+
 	RNNLM ToolKit（word2vecの人が作ったものらしい）
 	http://www.fit.vutbr.cz/~imikolov/rnnlm/
 	https://qiita.com/s_chag11/items/30cc939d159ad185f8e1
-	
+
 	attentionつきのRNNLM（↑とは別の人）
 	https://github.com/ketranm/RMN
-	
+
 	そしてこの論文に他のテストデータセット載ってた
 	https://stackoverflow.com/questions/44373470/get-the-microsoft-research-sentence-completion-challenge
 	https://dl.acm.org/citation.cfm?id=2390940.2390944
-	
-	
+
+
 	今後はこのテストデータも使う？
 	ベースラインとして自分の学習データとテストデータでKenLM，RNNLM，attentionつきRNNLMをやってみる？
+
+
+https://yidatao.github.io/2017-05-31/kenlm-ngram/
+この方法でkenLM、選択肢Bの方法ならできそうでは？
+
+
+
+--- インストール手順とか ---
+
+KenLM
+
+git clone https://github.com/kpu/kenlm
+sudo apt-get install build-essential libboost-all-dev cmake zlib1g-dev libbz2-dev liblzma-dev
+cd kenlm
+mkdir -p build
+cd build
+cmake ..
+make -j 4
+
+ここまで一応完了!
+この後モデルの学習とかいろいろ
+コマンドラインで学習後はpythonから呼び出したりとかできそう
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+a
