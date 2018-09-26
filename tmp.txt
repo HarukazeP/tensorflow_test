@@ -43,7 +43,7 @@ https://yidatao.github.io/2017-05-31/kenlm-ngram/
 
 --- インストール手順とか ---
 
-KenLM
+---- KenLM ----
 
 git clone https://github.com/kpu/kenlm
 sudo apt-get install build-essential libboost-all-dev cmake zlib1g-dev libbz2-dev liblzma-dev
@@ -52,10 +52,28 @@ mkdir -p build
 cd build
 cmake ..
 make -j 4
+ここまででインストール完了
 
-ここまで一応完了!
-この後モデルの学習とかいろいろ
-コマンドラインで学習後はpythonから呼び出したりとかできそう
+bin/lmplz -o 5 -S 80% <hoge.txt >hoge.arpa
+学習データhoge.txt から モデルhoge.arpaを作成
+
+cd ..
+sudo python3 setup.py install
+
+これでpythonからモジュールとして呼び出せる
+↓のように
+import kenlm
+model = kenlm.Model('lm/test.arpa')
+print(model.score('this is a sentence .', bos = True, eos = True))
+
+
+以下、要検討
+このeosが文の終わりを示すやつだからeos=Falseにすれば前方からの予測できるのでは？
+
+
+
+
+---- RNNLM ToolKit ----
 
 
 
@@ -63,9 +81,7 @@ make -j 4
 
 
 
-
-
-
+---- attentionつきのRNNLM ----
 
 
 
