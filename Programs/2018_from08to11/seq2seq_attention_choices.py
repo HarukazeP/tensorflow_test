@@ -1042,8 +1042,14 @@ if __name__ == '__main__':
     if args.mode == 'all' or args.mode == 'mini':
         #train_cloze=file_path+'tmp_cloze.txt'
         #train_ans=file_path+'tmp_ans.txt'
-        train_cloze=file_path+'text8_cloze.txt'
-        train_ans=file_path+'text8_ans.txt'
+
+        #text8全体
+        #train_cloze=file_path+'text8_cloze.txt'
+        #train_ans=file_path+'text8_ans.txt'
+
+        #合同ゼミ
+        train_cloze=file_path+'text8_cloze50000.txt'
+        train_ans=file_path+'text8_ans50000.txt'
 
         all_data=readData(train_cloze, train_ans)
         if args.mode == 'mini':
