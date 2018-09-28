@@ -86,9 +86,50 @@ sys	0m11.232s
 
 ---- attentionつきのRNNLM ----
 
+まずtorchのインストールから
+https://ensekitt.hatenablog.com/entry/2017/01/24/003609
+https://qiita.com/perrying/items/c53864d1bd2155a0635d
+
+git clone https://github.com/torch/distro.git ~/torch --recursive
+cd ~/torch; bash install-deps;
+
+↑わりと時間かかる（15分くらい？正確には数えてない）
+
+./install.sh
+
+↑こっちもわりと時間かかる（10分くらい？正確には数えてない）
+
+source ~/.bashrc
+
+ここからattentionつきのRNNLMのやつ
+git clone https://github.com/ketranm/RMN
+cd RMN
 
 
 
+th RM.lua -max_seq_length 80 -min_seq_length 10 -max_epochs 20 \
+-data_dir ../pytorch_data/text8.txt -print_every 200 -num_layers 1 -mem_size 15  \
+-learning_rate 1 -emb_size 128 -rnn_size 128  -nhop 1 \
+-checkpoint_dir checkpoint
 
+これでは不可
+いろいろエラー言われる
 
-a
+use gating combination
+package cunn not found!
+package cutorch not found!
+If cutorch and cunn are installed, your CUDA toolkit may be improperly configured.
+Check your CUDA toolkit installation, rebuild cutorch and cunn, and try again.
+Falling back on CPU mode
+vocab.t7 and data.t7 do not exist. Running preprocessing...
+one-time setup
+loading text file...
+/home/tamaki/torch/install/bin/luajit: ./text/TextProcessor.lua:111: bad argument #1 to 'lines' (../pytorch_data/text8.txt/train.txt: Not a directory)
+stack traceback:
+	[C]: in function 'lines'
+	./text/TextProcessor.lua:111: in function 'text_to_tensor'
+	./text/TextProcessor.lua:44: in function 'create'
+	RM.lua:89: in main chunk
+	[C]: in function 'dofile'
+	...maki/torch/install/lib/luarocks/rocks/trepl/scm-1/bin/th:150: in main chunk
+	[C]: at 0x00405d50
