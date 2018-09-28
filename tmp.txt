@@ -70,8 +70,11 @@ print(model.score('this is a sentence .', bos = True, eos = True))
 以下、要検討
 このeosが文の終わりを示すやつだからeos=Falseにすれば前方からの予測できるのでは？
 
+time bin/lmplz -o 5 -S 80% <../../pytorch_data/text8.txt >text8.arpa
 
-
+real	0m58.034s
+user	0m46.156s
+sys	0m11.232s
 
 ---- RNNLM ToolKit ----
 
