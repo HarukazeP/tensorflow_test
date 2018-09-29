@@ -22,6 +22,7 @@ tensor([-11.0001,  -2.5442,  -2.7432,  ..., -10.7662, -10.3689,
 
 	RNNLM ToolKit（word2vecの人が作ったものらしい）
 	http://www.fit.vutbr.cz/~imikolov/rnnlm/
+  https://github.com/mspandit/rnnlm
 	https://qiita.com/s_chag11/items/30cc939d159ad185f8e1
 
 	attentionつきのRNNLM（↑とは別の人）
@@ -32,14 +33,18 @@ tensor([-11.0001,  -2.5442,  -2.7432,  ..., -10.7662, -10.3689,
 	https://dl.acm.org/citation.cfm?id=2390940.2390944
 
 
-	今後はこのテストデータも使う？
+	今後はこのテストデーsタも使う？
 	ベースラインとして自分の学習データとテストデータでKenLM，RNNLM，attentionつきRNNLMをやってみる？
 
 
-https://yidatao.github.io/2017-05-31/kenlm-ngram/
-この方法でkenLM、選択肢Bの方法ならできそうでは？
+  https://yidatao.github.io/2017-05-31/kenlm-ngram/
+  この方法でkenLM、選択肢Bの方法ならできそうでは？
 
 
+
+
+RNNLM系動かすの大変そうだからpytorchのexampleのやつ改変する？
+https://github.com/pytorch/examples/tree/master/word_language_model
 
 --- インストール手順とか ---
 
@@ -85,10 +90,10 @@ sys	0m11.232s
 
 
 ---- attentionつきのRNNLM ----
+※未完了
+※以下の方法ではインストールできない
 
 まずtorchのインストールから
-https://ensekitt.hatenablog.com/entry/2017/01/24/003609
-https://qiita.com/perrying/items/c53864d1bd2155a0635d
 
 git clone https://github.com/torch/distro.git ~/torch --recursive
 cd ~/torch; bash install-deps;
@@ -99,7 +104,23 @@ cd ~/torch; bash install-deps;
 
 ↑こっちもわりと時間かかる（10分くらい？正確には数えてない）
 
+cd
 source ~/.bashrc
+sudo apt-get install luarocks
+
+export PATH="$PATH:/home/tamaki/torch/install/bin"
+
+sudo luarocks --from=https://raw.githubusercontent.com/torch/rocks/master/ install nngraph
+sudo luarocks --from=https://raw.githubusercontent.com/torch/rocks/master/ install optim
+sudo luarocks --from=https://raw.githubusercontent.com/torch/rocks/master/ install nn
+
+※以下2つうまく行かない
+sudo luarocks --from=https://raw.githubusercontent.com/torch/rocks/master/ install cunn
+sudo luarocks --from=https://raw.githubusercontent.com/torch/rocks/master/ install cutorch
+
+↑もしかしてCUDAツールキットの設定からしないといけない？
+一応今使ってるPCもNVIDIA製のGPUだからできなくもなさそうだけども
+（ lspci | grep -i nvidia でなんか表示されたらNVIDIA製のGPUあるっぽい？ ）
 
 ここからattentionつきのRNNLMのやつ
 git clone https://github.com/ketranm/RMN
