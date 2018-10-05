@@ -33,7 +33,7 @@ tensor([-11.0001,  -2.5442,  -2.7432,  ..., -10.7662, -10.3689,
 	https://dl.acm.org/citation.cfm?id=2390940.2390944
 
 
-	今後はこのテストデーsタも使う？
+	今後はこのテストデータも使う？
 	ベースラインとして自分の学習データとテストデータでKenLM，RNNLM，attentionつきRNNLMをやってみる？
 
 
@@ -122,6 +122,9 @@ sudo luarocks --from=https://raw.githubusercontent.com/torch/rocks/master/ insta
 一応今使ってるPCもNVIDIA製のGPUだからできなくもなさそうだけども
 （ lspci | grep -i nvidia でなんか表示されたらNVIDIA製のGPUあるっぽい？ ）
 
+
+
+
 ここからattentionつきのRNNLMのやつ
 git clone https://github.com/ketranm/RMN
 cd RMN
@@ -154,3 +157,7 @@ stack traceback:
 	[C]: in function 'dofile'
 	...maki/torch/install/lib/luarocks/rocks/trepl/scm-1/bin/th:150: in main chunk
 	[C]: at 0x00405d50
+
+
+ここわかりやすい
+https://www.hellocybernetics.tech/entry/2017/10/19/070522#Torch%E3%81%AE%E7%B5%B6%E5%AF%BE%E6%8A%BC%E3%81%95%E3%81%88%E3%81%A6%E3%81%8A%E3%81%8F%E9%96%A2%E6%95%B0%E3%83%A1%E3%82%BD%E3%83%83%E3%83%89
