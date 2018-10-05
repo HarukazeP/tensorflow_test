@@ -46,7 +46,8 @@ from torch.utils.data import TensorDataset, DataLoader
 
 #----- グローバル変数一覧 -----
 MAX_LENGTH = 40
-HIDDEN_DIM = 256
+HIDDEN_DIM = 128
+EMB_DIM = 100
 BATCH_SIZE = 128
 
 #自分で定義したグローバル関数とか
@@ -148,7 +149,7 @@ def readVocab(file):
 
 #入出力データ読み込み用
 def readData(input_file, target_file):
-    print("Reading data...")
+    #print("Reading data...")
     pairs=[]
     i=0
     with open(input_file, encoding='utf-8') as input:
@@ -163,7 +164,7 @@ def readData(input_file, target_file):
 
 #ペアじゃなくて単独で読み取るやつ
 def readData2(file):
-    print("Reading data...")
+    #print("Reading data...")
     data=[]
     with open(file, encoding='utf-8') as f:
         for line in f:
@@ -244,7 +245,7 @@ class AttnDecoderRNN(nn.Module):
         self.attn_combine = nn.Linear(self.embedding_dim+2*self.hidden_dim, self.hidden_dim)
 
         self.lstm = nn.LSTMCell(self.hidden_dim, self.hidden_dim)
-        self.out = nn.Linear(self.hidden_dim, self.hidden_dim)
+        self.out = nn.Linear(self.hidden_dim, self.output_dim)
 
     def forward(self, input, hidden, encoder_outputs):
         """
@@ -386,7 +387,7 @@ def batch_train(X, Y, encoder, decoder, encoder_optimizer, decoder_optimizer, cr
         '''
         decoder_input = decoder_inputs[0]
         for di in range(target_length):
-            decoder_output, decoder_hidden, attention = decoder(
+            decoder_output, decoder_hidden, decoder_attention = decoder(
                 decoder_input, decoder_hidden, encoder_outputs)
 
             loss += criterion(decoder_output, decoder_inputs[di+1])
@@ -409,35 +410,31 @@ def batch_train(X, Y, encoder, decoder, encoder_optimizer, decoder_optimizer, cr
 
 #1バッチデータあたりのバリデーション
 def batch_valid(X, Y, encoder, decoder, criterion, lang):
-     with torch.no_grad():
-        loss=0
+    with torch.no_grad():
         '''
         X : (s, b)
         Y : (s, b)
         '''
-
         batch_size = X.size(1)
         target_length = Y.size(0)
         Y = Y[:target_length]
 
-        encoder_outputs, encoder_hidden = encoder(X) #出力 (s, b, 2h), ((1, b, h), (1, b, h))
+        loss = 0
 
-        #デコーダの準備
-        decoder_input = torch.tensor([[SOS_token] * batch_size], device=my_device)  # (1, b)
-        decoder_inputs = torch.cat([decoder_input, Y], dim=0)  # (1,b), (n,b) -> (n+1, b)
-
+        encoder_outputs, encoder_hidden = encoder(X)  # (s, b, 2h), ((1, b, h), (1, b, h))
+        decoder_input = torch.tensor([SOS_token] * batch_size, device=my_device)  # (b)
         decoder_hidden = (encoder_hidden[0].squeeze(0), encoder_hidden[1].squeeze(0))
-        decoded_outputs = torch.zeros(target_length, batch_size, lang.n_words, device=device)
-        decoded_words = torch.zeros(batch_size, target_length, device=device)
+        decoded_outputs = torch.zeros(target_length, batch_size, lang.n_words, device=my_device)
+        decoded_words = torch.zeros(batch_size, target_length, device=my_device)
 
         for di in range(target_length):
             decoder_output, decoder_hidden, _ = decoder(
-                decoder_input, decoder_hidden, encoder_outputs)  # (b,outdim), ((b,h),(b,h)), (b,il)
+                decoder_input, decoder_hidden, encoder_outputs)  # (b,odim), ((b,h),(b,h)), (b,il)
             decoded_outputs[di] = decoder_output
 
-            loss += criterion(decoder_output, target_batch[di])
+            loss += criterion(decoder_output, Y[di])
 
-            _, topi = decoder_output.topk(1)  # (b,outdim) -> (b,1)
+            _, topi = decoder_output.topk(1)  # (b,odim) -> (b,1)
             decoded_words[:, di] = topi[:, 0]  # (b)
             decoder_input = topi.squeeze(1)
 
@@ -598,13 +595,13 @@ def showPlot2(loss, val_loss):
 def evaluate(lang, encoder, decoder, sentence, max_length=MAX_LENGTH):
     with torch.no_grad():
         #no_grad()の間はパラメータが固定される（更新されない）
-        input_tensor = tensorFromSentence(lang, sentence)
-        input_batch = torch.tensor([input_indxs], dtype=torch.long, device=device)  # (1, s)
-        input_length = input_tensor.size()[0]
+        input_indexes = pad_indexes(lang, sentence)
+        input_batch = torch.tensor([input_indexes], dtype=torch.long, device=my_device)  # (1, s)
+
 
         encoder_outputs, encoder_hidden = encoder(input_batch.transpose(0, 1))
 
-        decoder_input = torch.tensor([[SOS_token]], device=my_device)  # SOS
+        decoder_input = torch.tensor([SOS_token], device=my_device)  # SOS
 
         decoder_hidden = (encoder_hidden[0].squeeze(0), encoder_hidden[1].squeeze(0))
 
@@ -612,19 +609,18 @@ def evaluate(lang, encoder, decoder, sentence, max_length=MAX_LENGTH):
         decoder_attentions = []
 
         for di in range(max_length):
-            decoder_output, decoder_hidden, attention = decoder(
-                decoder_input, decoder_hidden, encoder_outputs)  # (1,outdim), ((1,h),(1,h)), (l,1)
+            decoder_output, decoder_hidden, attention = decoder(decoder_input, decoder_hidden, encoder_outputs)  # (1,outdim), ((1,h),(1,h)), (l,1)
             decoder_attentions.append(attention)
             _, topi = decoder_output.topk(1)  # (1, 1)
             if topi.item() == EOS_token:
                 decoded_words.append('<EOS>')
                 break
             else:
-                decoded_words.append(output_lang.index2word[topi.item()])
+                decoded_words.append(lang.index2word[topi.item()])
 
             decoder_input = topi[0]
 
-        attentions = torch.cat(decoder_attentions, dim=0)  # (l, n)
+        decoder_attentions = torch.cat(decoder_attentions, dim=0)  # (l, n)
 
         #返り値は予測した単語列とattentionの重み？
         return decoded_words, decoder_attentions.squeeze(0)
@@ -641,22 +637,22 @@ def evaluate(lang, encoder, decoder, sentence, max_length=MAX_LENGTH):
 '''
 #空所内のみを予想
 #evaluate()の拡張
-def evaluate_cloze(lang, encoder, decoder, input_sentence, max_length=MAX_LENGTH):
+def evaluate_cloze(lang, encoder, decoder, sentence, max_length=MAX_LENGTH):
     with torch.no_grad():
-        input_tensor = tensorFromSentence(lang, sentence)
-        input_batch = torch.tensor([input_indxs], dtype=torch.long, device=device)  # (1, s)
-        input_length = input_tensor.size()[0]
+        input_indexes = pad_indexes(lang, sentence)
+        input_batch = torch.tensor([input_indexes], dtype=torch.long, device=my_device)  # (1, s)
+
 
         encoder_outputs, encoder_hidden = encoder(input_batch.transpose(0, 1))
 
-        decoder_input = torch.tensor([[SOS_token]], device=my_device)  # SOS
+        decoder_input = torch.tensor([SOS_token], device=my_device)  # SOS
 
         decoder_hidden = (encoder_hidden[0].squeeze(0), encoder_hidden[1].squeeze(0))
 
         decoded_words = []
         decoder_attentions = []
 
-        tmp_list=normalizeString(input_sentence).split(' ')
+        tmp_list=normalizeString(sentence).split(' ')
         tmp_list.append('<EOS>')
         cloze_start=tmp_list.index('{')
         cloze_end=tmp_list.index('}')
@@ -664,15 +660,14 @@ def evaluate_cloze(lang, encoder, decoder, input_sentence, max_length=MAX_LENGTH
         cloze_ct=0
 
         for di in range(max_length):
-            decoder_output, decoder_hidden, attention = decoder(
-                decoder_input, decoder_hidden, encoder_outputs)  # (1,outdim), ((1,h),(1,h)), (l,1)
-            attentions.append(attention)
+            decoder_output, decoder_hidden, attention = decoder(decoder_input, decoder_hidden, encoder_outputs)  # (1,outdim), ((1,h),(1,h)), (l,1)
+            decoder_attentions.append(attention)
 
             #空所が始まるまでは空所外の部分はそのまま用いる
             #ここではEOSを考慮しなくてよい
             if di <= cloze_start:
                 decoded_words.append(tmp_list[di])
-                decoder_input = input_tensor[di]
+                decoder_input = input_indexes[di]
 
             #空所内の予測
             elif cloze_flag == 0:
@@ -697,9 +692,9 @@ def evaluate_cloze(lang, encoder, decoder, input_sentence, max_length=MAX_LENGTH
                 if word == '<EOS>':
                     break
                 else:
-                    decoder_input = input_tensor[di-cloze_ct]
+                    decoder_input = input_indexes[di-cloze_ct]
 
-        attentions = torch.cat(decoder_attentions, dim=0)  # (l, n)
+        decoder_attentions = torch.cat(decoder_attentions, dim=0)  # (l, n)
 
         #返り値は予測した単語列とattentionの重み？
         return decoded_words, decoder_attentions.squeeze(0)
@@ -763,22 +758,22 @@ def pred_next_word(lang, next_word_list, decoder_output_data):
 
 #空所内のみを予想かつ選択肢の利用
 #evaluate_clozeの拡張
-def evaluate_choice(lang, encoder, decoder, input_sentence, choices, max_length=MAX_LENGTH):
+def evaluate_choice(lang, encoder, decoder, sentence, choices, max_length=MAX_LENGTH):
     with torch.no_grad():
-        input_tensor = tensorFromSentence(lang, sentence)
-        input_batch = torch.tensor([input_indxs], dtype=torch.long, device=device)  # (1, s)
-        input_length = input_tensor.size()[0]
+        input_indexes = pad_indexes(lang, sentence)
+        input_batch = torch.tensor([input_indexes], dtype=torch.long, device=my_device)  # (1, s)
+
 
         encoder_outputs, encoder_hidden = encoder(input_batch.transpose(0, 1))
 
-        decoder_input = torch.tensor([[SOS_token]], device=my_device)  # SOS
+        decoder_input = torch.tensor([SOS_token], device=my_device)  # SOS
 
         decoder_hidden = (encoder_hidden[0].squeeze(0), encoder_hidden[1].squeeze(0))
 
         decoded_words = []
         decoder_attentions = []
 
-        tmp_list=normalizeString(input_sentence).split(' ')
+        tmp_list=normalizeString(sentence).split(' ')
         tmp_list.append('<EOS>')
         cloze_start=tmp_list.index('{')
         cloze_end=tmp_list.index('}')
@@ -787,15 +782,14 @@ def evaluate_choice(lang, encoder, decoder, input_sentence, choices, max_length=
         cloze_words=[]
 
         for di in range(max_length):
-            decoder_output, decoder_hidden, attention = decoder(
-                decoder_input, decoder_hidden, encoder_outputs)  # (1,outdim), ((1,h),(1,h)), (l,1)
-            attentions.append(attention)
+            decoder_output, decoder_hidden, attention = decoder(decoder_input, decoder_hidden, encoder_outputs)  # (1,outdim), ((1,h),(1,h)), (l,1)
+            decoder_attentions.append(attention)
 
             #空所が始まるまでは空所外の部分はそのまま用いる
             #ここではEOSを考慮しなくてよい
             if di <= cloze_start:
                 decoded_words.append(tmp_list[di])
-                decoder_input = input_tensor[di]
+                decoder_input = input_indexes[di]
 
             #空所内の予測
             # } までdecorded_wordに格納
@@ -821,9 +815,9 @@ def evaluate_choice(lang, encoder, decoder, input_sentence, choices, max_length=
                 if word == '<EOS>':
                     break
                 else:
-                    decoder_input = input_tensor[di-cloze_ct]
+                    decoder_input = input_indexes[di-cloze_ct]
 
-        attentions = torch.cat(decoder_attentions, dim=0)  # (l, n)
+        decoder_attentions = torch.cat(decoder_attentions, dim=0)  # (l, n)
 
         #返り値は予測した単語列とattentionの重み？
         return decoded_words, decoder_attentions.squeeze(0)
@@ -1073,6 +1067,7 @@ def get_args():
     parser.add_argument('--model_dir', help='model directory path (when load model, mode=test)')
     parser.add_argument('--encoder', help='encoder file name (when load model, mode=test)')
     parser.add_argument('--decoder', help='decoder file name (when load model, mode=test)')
+    parser.add_argument('--epoch', type=int, default=100)
     #TODO ほかにも引数必要に応じて追加
     return parser.parse_args()
 
@@ -1088,8 +1083,8 @@ if __name__ == '__main__':
     vocab = readVocab(vocab_path)
 
     # 2.モデル定義
-    my_encoder = EncoderRNN(vocab.n_words, HIDDEN_DIM).to(my_device)
-    my_decoder = AttnDecoderRNN(HIDDEN_DIM, vocab.n_words, dropout_p=0.1).to(my_device)
+    my_encoder = EncoderRNN(vocab.n_words, EMB_DIM, HIDDEN_DIM).to(my_device)
+    my_decoder = AttnDecoderRNN(EMB_DIM, HIDDEN_DIM, vocab.n_words, dropout_p=0.1).to(my_device)
 
     #学習時
     if args.mode == 'all' or args.mode == 'mini':
@@ -1097,14 +1092,15 @@ if __name__ == '__main__':
         #train_ans=file_path+'tmp_ans.txt'
 
         #text8全体
-        #train_cloze=file_path+'text8_cloze.txt'
-        #train_ans=file_path+'text8_ans.txt'
+        train_cloze=file_path+'text8_cloze.txt'
+        train_ans=file_path+'text8_ans.txt'
 
         #合同ゼミ
-        train_cloze=file_path+'text8_cloze50000.txt'
-        train_ans=file_path+'text8_ans50000.txt'
+        #train_cloze=file_path+'text8_cloze50000.txt'
+        #train_ans=file_path+'text8_ans50000.txt'
 
         #all_data=readData(train_cloze, train_ans)
+        print("Reading data...")
         all_X=readData2(train_cloze)
         all_Y=readData2(train_ans)
 
@@ -1127,7 +1123,7 @@ if __name__ == '__main__':
         save_path=save_path+args.mode+'/'
 
         # 3.学習
-        my_encoder, my_decoder = trainIters(vocab, my_encoder, my_decoder, train_data, val_data, n_iters=100, saveModel=True)
+        my_encoder, my_decoder = trainIters(vocab, my_encoder, my_decoder, train_data, val_data, n_iters=args.epoch, saveModel=True)
 
     #すでにあるモデルでテスト時
     else:
@@ -1143,6 +1139,7 @@ if __name__ == '__main__':
     test_ans=file_path+'center_ans.txt'
     test_choi=file_path+'center_choices.txt'
 
+    print("Reading data...")
     test_data=readData(test_cloze, test_ans)
     choices=get_choices(test_choi)
 
@@ -1152,4 +1149,4 @@ if __name__ == '__main__':
 
     #テストデータに対する予測と精度の計算
     #選択肢を使ったテスト
-    test_choices(vocab, my_encoder, my_decoder, test_data, choices, saveAttention=False, file_output=True)
+    #test_choices(vocab, my_encoder, my_decoder, test_data, choices, saveAttention=False, file_output=True)
