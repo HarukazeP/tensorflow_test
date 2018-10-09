@@ -49,7 +49,7 @@ from torch.utils.data import TensorDataset, DataLoader
 MAX_LENGTH = 40
 HIDDEN_DIM = 128
 EMB_DIM = 100
-BATCH_SIZE = 256
+BATCH_SIZE = 128
 
 #自分で定義したグローバル関数とか
 file_path='../../../pytorch_data/'
@@ -63,8 +63,11 @@ UNK_token = 3
 
 #事前処理いろいろ
 print('Start: '+today_str)
-my_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
+if torch.cuda.is_available():
+    my_device = torch.device("cuda")
+    print('Use GPU')
+else:
+    my_device= torch.device("cpu")
 
 #----- 関数群 -----
 
