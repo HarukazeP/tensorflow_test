@@ -5,8 +5,8 @@ pytorchのseq2seqチュートリアルを改変
 
 
 動かしていたバージョン
-python   : 3.5.2
-pythorch : 2.0.4
+python  : 3.5.2
+pytorch : 2.0.4
 
 
 

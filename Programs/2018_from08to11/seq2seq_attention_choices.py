@@ -9,8 +9,8 @@ seq2seq_attention.py から変更
 ミニバッチ学習は未実装のまま
 
 動かしていたバージョン
-python   : 3.5.2
-pythorch : 2.0.4
+python  : 3.5.2
+pytorch : 2.0.4
 
 '''
 
