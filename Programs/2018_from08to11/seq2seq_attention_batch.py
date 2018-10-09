@@ -4,9 +4,10 @@
 pytorchのseq2seqチュートリアルを改変
 seq2seq_attention_with_choices.py から変更
 
-TensorDataset, DataLoaderを使ってミニバッチ学習リトライ
+TensorDataset, DataLoaderを使ってミニバッチ学習
 
 読み取りのデータ構造とか割と変更
+#TODO テスト関連の修正
 
 
 動かしていたバージョン
@@ -48,7 +49,7 @@ from torch.utils.data import TensorDataset, DataLoader
 MAX_LENGTH = 40
 HIDDEN_DIM = 128
 EMB_DIM = 100
-BATCH_SIZE = 128
+BATCH_SIZE = 256
 
 #自分で定義したグローバル関数とか
 file_path='../../../pytorch_data/'

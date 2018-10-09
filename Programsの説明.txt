@@ -24,16 +24,6 @@ pytorchのseq2seqチュートリアルから改変
 語彙をあらかじめ与える形式に変更
 
 
-seq2seq_attention_batch_ERROR.py
-seq2seq_attention_with_vocab.py　を改変しようとしたが未解決
-ミニバッチ学習をしようとしたがエラー残ったまま
-
-
-seq2seq_attention_dataloder_ERROR.py
-seq2seq_attention_with_vocab.py　を改変しようとしたが未解決
-seq2seq_attention_batch_ERROR.py　とは別の方法でミニバッチ学習をしようとしたがエラー残ったまま
-
-
 seq2seq_attention_allData.py
 seq2seq_attention_with_vocab.py　から変更
 ランダムではなく全データを学習する形式に
@@ -50,6 +40,10 @@ seq2seq_attention_choices.py
 seq2seq_attention.py　から変更
 空所内のみ予想、選択肢を利用して空所予想の機能を追加
 
+
+seq2seq_attention_batch.py
+seq2seq_attention_choices.py　から変更
+ミニバッチ学習を追加
 
 
 -----2018_from12to03ディレクトリ内----------------------------------------
