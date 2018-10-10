@@ -41,15 +41,25 @@ center_choices.txt
 
 
 --- < seq2seqチュートリアル(nmt)関係 > ---
-text8_nmt_tmp_nmt_ans.txt　と　text8_nmt_tmp_nmt_cloze.txt
-text8コーパスからnew_make_data_at_server.pyで作成したtensrflowのseq2seqチュートリアル(nmt)プログラム用のデータ
-1,059,810行
-
-
 text8_nmt.ans　と　text8_nmt.cloze
-text8_nmt_tmp_nmt_ans.txt とかの先頭5万行
+text8_nmt_tmp_nmt_ans.txt とか(後述)の先頭5万行
 
 
 enwiki_vocab30000.cloze
 wikipedia全体に対してtext8コーパスと同様を処理をしたファイルに現れる英単語上位30000件
 および、seq2seqモデルでの未知語を表す<unk>、他に<s>や</s>、{と}を足した語彙を表すファイル
+
+
+
+--- < pytorchでのseq2seq関係 > ---
+text8_nmt_tmp_nmt_ans.txt　と　text8_nmt_tmp_nmt_cloze.txt
+text8コーパスからnew_make_data_at_server.pyで作成したseq2seqプログラム用のデータ
+text8コーパスをランダムに分割、空所を作成したデータの問題と正答
+1,059,810行
+
+
+--- < その他 > ---
+text8.txt
+text8コーパス
+1行
+KenLMはこれで学習させている
