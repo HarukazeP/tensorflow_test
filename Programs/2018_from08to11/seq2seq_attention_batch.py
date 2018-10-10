@@ -446,7 +446,6 @@ def batch_valid(X, Y, encoder, decoder, criterion, lang):
         return loss.item() / target_length
 
 
-
 #秒を分秒に変換
 def asMinutes(s):
     m = math.floor(s / 60)
@@ -602,11 +601,9 @@ def evaluate(lang, encoder, decoder, sentence, max_length=MAX_LENGTH):
         input_indexes = pad_indexes(lang, sentence)
         input_batch = torch.tensor([input_indexes], dtype=torch.long, device=my_device)  # (1, s)
 
-
         encoder_outputs, encoder_hidden = encoder(input_batch.transpose(0, 1))
 
         decoder_input = torch.tensor([SOS_token], device=my_device)  # SOS
-
         decoder_hidden = (encoder_hidden[0].squeeze(0), encoder_hidden[1].squeeze(0))
 
         decoded_words = []
@@ -669,9 +666,10 @@ def evaluate_cloze(lang, encoder, decoder, sentence, max_length=MAX_LENGTH):
 
             #空所が始まるまでは空所外の部分はそのまま用いる
             #ここではEOSを考慮しなくてよい
+            #TODO decorder_inputを見直す
             if di <= cloze_start:
                 decoded_words.append(tmp_list[di])
-                decoder_input = input_indexes[di]
+                decoder_input = torch.tensor([input_indexes[di]], device=my_device)
 
             #空所内の予測
             elif cloze_flag == 0:
@@ -696,7 +694,7 @@ def evaluate_cloze(lang, encoder, decoder, sentence, max_length=MAX_LENGTH):
                 if word == '<EOS>':
                     break
                 else:
-                    decoder_input = input_indexes[di-cloze_ct]
+                    decoder_input = torch.tensor([input_indexes[di-cloze_ct]], device=my_device)
 
         decoder_attentions = torch.cat(decoder_attentions, dim=0)  # (l, n)
 
@@ -793,7 +791,7 @@ def evaluate_choice(lang, encoder, decoder, sentence, choices, max_length=MAX_LE
             #ここではEOSを考慮しなくてよい
             if di <= cloze_start:
                 decoded_words.append(tmp_list[di])
-                decoder_input = input_indexes[di]
+                decoder_input = torch.tensor([input_indexes[di]], device=my_device)
 
             #空所内の予測
             # } までdecorded_wordに格納
@@ -804,7 +802,7 @@ def evaluate_choice(lang, encoder, decoder, sentence, choices, max_length=MAX_LE
                 word=pred_next_word(lang, next_word_list, decoder_output.data)
                 cloze_words.append(word)
                 decoded_words.append(word)
-                word_tensor=torch.tensor(lang.check_word2index(word))
+                word_tensor=torch.tensor([lang.check_word2index(word)])
                 decoder_input = word_tensor
 
                 if word == '}':
@@ -819,7 +817,7 @@ def evaluate_choice(lang, encoder, decoder, sentence, choices, max_length=MAX_LE
                 if word == '<EOS>':
                     break
                 else:
-                    decoder_input = input_indexes[di-cloze_ct]
+                    decoder_input = torch.tensor([input_indexes[di-cloze_ct]], device=my_device)
 
         decoder_attentions = torch.cat(decoder_attentions, dim=0)  # (l, n)
 
@@ -954,8 +952,10 @@ def calc_score(preds_sentences, ans_sentences):
 
     for pred, ans in zip(preds_sentences, ans_sentences):
         pred=pred.replace(' <EOS>', '')
+        flag=0
         if pred == ans:
             allOK+=1
+            flag=1
         pred_cloze = get_cloze(pred)
         ans_cloze = get_cloze(ans)
         tmp_ans_length=len(ans_cloze.split(' '))
@@ -964,8 +964,11 @@ def calc_score(preds_sentences, ans_sentences):
             tmp_match=match(pred_cloze, ans_cloze)
             if tmp_match > 0:
                 partOK+=1
-            if tmp_ans_length == tmp_match:
+            if pred_cloze == ans_cloze:
                 clozeOK+=1
+                if flag==0:
+                    print(pred)
+                    print(ans)
         else:
             miss+=1
 
@@ -1042,26 +1045,27 @@ def test_choices(lang, encoder, decoder, test_data, choices, saveAttention=False
     for pair, choi in zip(test_data, choices):
         input_sentence=pair[0]
         ans.append(pair[1])
+        '''
         output_words, attentions = evaluate(lang, encoder, decoder, input_sentence)
         preds.append(' '.join(output_words))
-        '''
         output_cloze_ct, cloze_attentions = evaluate_cloze(lang, encoder, decoder, input_sentence)
         preds_cloze.append(' '.join(output_cloze_ct))
+        '''
         output_choice_words, choice_attentions = evaluate_choice(lang, encoder, decoder, input_sentence, choi)
         preds_choices.append(' '.join(output_choice_words))
-        '''
+
         if saveAttention:
             showAttention('all', input_sentence, output_words, attentions)
             showAttention('cloze', input_sentence, output_cloze_ct, cloze_attentions)
             showAttention('choice', input_sentence, output_choice_words, choice_attentions)
         if file_output:
             output_preds(save_path+'preds.txt', preds)
-            #output_preds(save_path+'preds_cloze.txt', preds_cloze)
-            #output_preds(save_path+'preds_choices.txt', preds_choices)
+            output_preds(save_path+'preds_cloze.txt', preds_cloze)
+            output_preds(save_path+'preds_choices.txt', preds_choices)
     print("Calc scores ...")
-    score(preds, ans, file_output, save_path+'score.txt')
+    #score(preds, ans, file_output, save_path+'score.txt')
     #score(preds_cloze, ans, file_output, save_path+'score_cloze.txt')
-    #score(preds_choices, ans, file_output, save_path+'score_choices.txt')
+    score(preds_choices, ans, file_output, save_path+'score_choices.txt')
 
 
 #コマンドライン引数の設定いろいろ
@@ -1154,4 +1158,4 @@ if __name__ == '__main__':
 
     #テストデータに対する予測と精度の計算
     #選択肢を使ったテスト
-    test_choices(vocab, my_encoder, my_decoder, test_data, choices, saveAttention=False, file_output=True)
+    test_choices(vocab, my_encoder, my_decoder, test_data, choices, saveAttention=False, file_output=False)

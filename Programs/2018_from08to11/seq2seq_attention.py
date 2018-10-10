@@ -704,7 +704,7 @@ def calc_score(preds_sentences, ans_sentences):
             tmp_match=match(pred_cloze, ans_cloze)
             if tmp_match > 0:
                 partOK+=1
-            if tmp_ans_length == tmp_match:
+            if pred_cloze == ans_cloze:
                 clozeOK+=1
         else:
             miss+=1
