@@ -474,7 +474,7 @@ def trainIters(lang, encoder, decoder, train_pairs, val_pairs, n_iters, print_ev
     print_val_loss_total = 0  # Reset every print_every
     plot_val_loss_total = 0
 
-    best_val_loss=10000   #仮
+    best_val_loss=1000000   #仮
     best_iter=0
 
     best_encoder_weight = copy.deepcopy(encoder.state_dict())
@@ -487,6 +487,9 @@ def trainIters(lang, encoder, decoder, train_pairs, val_pairs, n_iters, print_ev
     y_train=[pad_indexes(lang, s) for s in train_pairs[1]]
     X_val=[pad_indexes(lang, s) for s in val_pairs[0]]
     y_val=[pad_indexes(lang, s) for s in val_pairs[1]]
+
+    train_data_num=len(X_train)
+    val_data_num=len(X_val)
 
     X_train=torch.tensor(X_train, dtype=torch.long, device=my_device)
     y_train=torch.tensor(y_train, dtype=torch.long, device=my_device)
@@ -513,6 +516,9 @@ def trainIters(lang, encoder, decoder, train_pairs, val_pairs, n_iters, print_ev
             x=x.transpose(0,1)
             y=y.transpose(0,1)
             loss = batch_train(x, y, encoder, decoder, encoder_optimizer, decoder_optimizer, criterion)
+
+            loss=loss*x.size(1)
+
             print_loss_total += loss
             plot_loss_total += loss
         #ここで学習1回分終わり
@@ -521,9 +527,11 @@ def trainIters(lang, encoder, decoder, train_pairs, val_pairs, n_iters, print_ev
             x=x.transpose(0,1)
             y=y.transpose(0,1)
             val_loss = batch_valid(x, y, encoder, decoder, criterion, lang)
+
+            val_loss=val_loss*x.size(1)
+
             print_val_loss_total += val_loss
             plot_val_loss_total += val_loss
-
 
         #画面にlossと時間表示
         #経過時間 (- 残り時間) (現在のiter 進行度) loss val_loss
@@ -531,18 +539,18 @@ def trainIters(lang, encoder, decoder, train_pairs, val_pairs, n_iters, print_ev
             print('%s (%d %d%%) loss=%.4f, val_loss=%.4f' % (timeSince(start, iter / n_iters), iter, iter / n_iters * 100, print_loss_total, print_val_loss_total))
 
         elif iter % print_every == 0:
-            print_loss_avg = print_loss_total / print_every
+            print_loss_avg = (print_loss_total/train_data_num) / print_every
             print_loss_total = 0
-            print_val_loss_avg = print_val_loss_total / print_every
+            print_val_loss_avg = (print_val_loss_total/val_data_num) / print_every
             print_val_loss_total = 0
             print('%s (%d %d%%) loss=%.4f, val_loss=%.4f' % (timeSince(start, iter / n_iters), iter, iter / n_iters * 100, print_loss_avg, print_val_loss_avg))
 
         #lossグラフ記録
-        plot_loss_avg = plot_loss_total
+        plot_loss_avg = plot_loss_total/train_data_num
         plot_losses.append(plot_loss_avg)
         plot_loss_total = 0
 
-        plot_val_loss_avg = plot_val_loss_total
+        plot_val_loss_avg = plot_val_loss_total/val_data_num
         plot_val_losses.append(plot_val_loss_avg)
         plot_val_loss_total = 0
 
