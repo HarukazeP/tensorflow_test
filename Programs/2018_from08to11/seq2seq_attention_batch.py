@@ -1053,12 +1053,13 @@ def test_choices(lang, encoder, decoder, test_data, choices, saveAttention=False
     for pair, choi in zip(test_data, choices):
         input_sentence=pair[0]
         ans.append(pair[1])
-        '''
+
         output_words, attentions = evaluate(lang, encoder, decoder, input_sentence)
         preds.append(' '.join(output_words))
+        
         output_cloze_ct, cloze_attentions = evaluate_cloze(lang, encoder, decoder, input_sentence)
         preds_cloze.append(' '.join(output_cloze_ct))
-        '''
+
         output_choice_words, choice_attentions = evaluate_choice(lang, encoder, decoder, input_sentence, choi)
         preds_choices.append(' '.join(output_choice_words))
 
@@ -1071,8 +1072,8 @@ def test_choices(lang, encoder, decoder, test_data, choices, saveAttention=False
             output_preds(save_path+'preds_cloze.txt', preds_cloze)
             output_preds(save_path+'preds_choices.txt', preds_choices)
     print("Calc scores ...")
-    #score(preds, ans, file_output, save_path+'score.txt')
-    #score(preds_cloze, ans, file_output, save_path+'score_cloze.txt')
+    score(preds, ans, file_output, save_path+'score.txt')
+    score(preds_cloze, ans, file_output, save_path+'score_cloze.txt')
     score(preds_choices, ans, file_output, save_path+'score_choices.txt')
 
 
@@ -1166,4 +1167,4 @@ if __name__ == '__main__':
 
     #テストデータに対する予測と精度の計算
     #選択肢を使ったテスト
-    test_choices(vocab, my_encoder, my_decoder, test_data, choices, saveAttention=False, file_output=False)
+    test_choices(vocab, my_encoder, my_decoder, test_data, choices, saveAttention=False, file_output=True)
