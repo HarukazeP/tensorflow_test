@@ -276,9 +276,6 @@ def export_onnx(path, batch_size, seq_len):
 #コマンドライン引数の設定いろいろ
 def get_args():
     parser = argparse.ArgumentParser()
-    #miniはプログラムエラーないか確認用的な
-    parser.add_argument('--data', type=str, default='./data/wikitext-2',
-                        help='location of the data corpus')
     parser.add_argument('--model', type=str, default='LSTM',
                         help='type of recurrent net (RNN_TANH, RNN_RELU, LSTM, GRU)')
     parser.add_argument('--emsize', type=int, default=200,
@@ -307,7 +304,7 @@ def get_args():
                         help='use CUDA')
     parser.add_argument('--log-interval', type=int, default=200, metavar='N',
                         help='report interval')
-    parser.add_argument('--save', type=str, default='model.pt',
+    parser.add_argument('--load_model', type=str, default='model.pth',
                         help='path to save the final model')
     parser.add_argument('--onnx-export', type=str, default='',
                         help='path to export the final model in onnx format')
@@ -321,8 +318,13 @@ if __name__ == '__main__':
     print(args.mode)
 
     torch.manual_seed(args.seed)
-    corpus = Corpus(args.data)
 
+
+    data_file=file_path+'text8.txt'
+    corpus = Corpus(data_file)
+
+    #TODO まだ編集途中
+    
     eval_batch_size = 10
     train_data = batchify(corpus.train, args.batch_size)
     val_data = batchify(corpus.valid, eval_batch_size)
@@ -349,7 +351,7 @@ if __name__ == '__main__':
             print('-' * 89)
             # Save the model if the validation loss is the best we've seen so far.
             if not best_val_loss or val_loss < best_val_loss:
-                with open(args.save, 'wb') as f:
+                with open(save_path+'model.pth', 'wb') as f:
                     torch.save(model, f)
                 best_val_loss = val_loss
             else:
@@ -360,7 +362,7 @@ if __name__ == '__main__':
         print('Exiting from training early')
 
     # Load the best saved model.
-    with open(args.save, 'rb') as f:
+    with open(args.load_model, 'rb') as f:
         model = torch.load(f)
         # after load the rnn params are not a continuous chunk of memory
         # this makes them a continuous chunk, and will speed up forward pass
