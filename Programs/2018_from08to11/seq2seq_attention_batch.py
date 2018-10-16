@@ -810,7 +810,7 @@ def evaluate_choice(lang, encoder, decoder, sentence, choices, max_length=MAX_LE
                 word=pred_next_word(lang, next_word_list, decoder_output.data)
                 cloze_words.append(word)
                 decoded_words.append(word)
-                word_tensor=torch.tensor([lang.check_word2index(word)])
+                word_tensor=torch.tensor([lang.check_word2index(word)], device=my_device)
                 decoder_input = word_tensor
 
                 if word == '}':
