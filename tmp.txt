@@ -1,6 +1,37 @@
 python3 seq2seq_batch.py --mode test --model_dir ../../../pytorch_data/10_09_1136mini --encoder=encoder_100.pth --decoder=decoder_100.pth
 
+time python3.6 seq2seq_attention_batch.py --mode test --model_dir ../../../pytorch_data/10_10_2344all/ --encoder encoder_74.pth --decoder decoder_74.pth
 
+Calc scores ...
+  acc(all):  0.00  %
+acc(cloze):  0.00  %
+ acc(part):  0.00  %
+ BLEU:  1.08
+  all:  0
+cloze:  0
+ part:  0
+ line:  324
+ miss:  324
+
+  acc(all):  0.62  %
+acc(cloze):  0.62  %
+ acc(part):  3.70  %
+ BLEU:  88.32
+  all:  2
+cloze:  2
+ part:  12
+ line:  324
+ miss:  18
+
+  acc(all):  9.57  %
+acc(cloze):  9.57  %
+ acc(part):  16.98  %
+ BLEU:  85.37
+  all:  31
+cloze:  31
+ part:  55
+ line:  324
+ miss:  0
 
 
 
