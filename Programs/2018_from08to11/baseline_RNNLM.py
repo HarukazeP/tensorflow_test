@@ -400,7 +400,7 @@ if __name__ == '__main__':
         if best_epoch >=0:
             print('Exiting from training early')
         else :
-            eixt()
+            exit()
 
     # Load the best saved model.
     model.load_state_dict(best_weight)
