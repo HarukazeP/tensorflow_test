@@ -354,8 +354,8 @@ if __name__ == '__main__':
     vocab_path=file_path+'enwiki_vocab30000.txt'
     vocab = readVocab(vocab_path)
 
-    #train_file=file_path+'text8.txt'
-    train_file=file_path+'text8_mini.txt'
+    train_file=file_path+'text8.txt'
+    #train_file=file_path+'text8_mini.txt'
 
     train_tk, val_tk=data_tokenize(train_file, vocab)
 
