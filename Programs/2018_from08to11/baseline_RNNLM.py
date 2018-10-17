@@ -341,6 +341,13 @@ def get_args():
                         help='use CUDA')
     parser.add_argument('--log-interval', type=int, default=200, metavar='N',
                         help='report interval')
+    parser.add_argument('--mode', choices=['all', 'test'], default='all',
+                        help='train and test / test only')
+    parser.add_argument('--model_dir', type=str,
+                        help='directory name which has best model(at test only  mode)')
+    parser.add_argument('--model_name', type=str,
+                        help='best model name(at test only  mode)')
+
     return parser.parse_args()
 
 
@@ -353,65 +360,76 @@ if __name__ == '__main__':
 
     vocab_path=file_path+'enwiki_vocab30000.txt'
     vocab = readVocab(vocab_path)
-
-    train_file=file_path+'text8.txt'
-    #train_file=file_path+'text8_mini.txt'
-
-    train_tk, val_tk=data_tokenize(train_file, vocab)
-
-    eval_batch_size = 10
-    train_data = batchify(train_tk, args.batch_size)
-    val_data = batchify(val_tk, eval_batch_size)
-
     ntokens = vocab.n_words
-    model = RNNModel(args.model, ntokens, args.emsize, args.nhid, args.nlayers, args.dropout, args.tied).to(device)
 
-    criterion = nn.CrossEntropyLoss()
+    #学習時
+    if args.mode == 'all':
+        train_file=file_path+'text8.txt'
+        #train_file=file_path+'text8_mini.txt'
 
-    lr = args.lr
-    best_val_loss = None
-    best_epoch = -1
-    plot_train_loss=[]
-    plot_val_loss=[]
-    # At any point you can hit Ctrl + C to break out of training early.
-    try:
-        for epoch in range(1, args.epochs+1):
-            epoch_start_time = time.time()
-            train_loss = train(ntokens, train_data)
-            val_loss = evaluate(ntokens, val_data)
-            plot_train_loss.append(train_loss)
-            plot_val_loss.append(val_loss)
+        train_tk, val_tk=data_tokenize(train_file, vocab)
 
+        eval_batch_size = 10
+        train_data = batchify(train_tk, args.batch_size)
+        val_data = batchify(val_tk, eval_batch_size)
+
+        model = RNNModel(args.model, ntokens, args.emsize, args.nhid, args.nlayers, args.dropout, args.tied).to(device)
+
+        criterion = nn.CrossEntropyLoss()
+
+        lr = args.lr
+        best_val_loss = None
+        best_epoch = -1
+        plot_train_loss=[]
+        plot_val_loss=[]
+        # At any point you can hit Ctrl + C to break out of training early.
+        try:
+            for epoch in range(1, args.epochs+1):
+                epoch_start_time = time.time()
+                train_loss = train(ntokens, train_data)
+                val_loss = evaluate(ntokens, val_data)
+                plot_train_loss.append(train_loss)
+                plot_val_loss.append(val_loss)
+
+                print('-' * 89)
+                print('| end of epoch {:3d} | time: {:5.2f}s | valid loss {:5.2f} | '
+                        'valid ppl {:8.2f}'.format(epoch, (time.time() - epoch_start_time),
+                                                   val_loss, math.exp(val_loss)))
+                print('-' * 89)
+                # Save the model if the validation loss is the best we've seen so far.
+                if not best_val_loss or val_loss < best_val_loss:
+                    best_epoch=epoch
+                    best_weight=copy.deepcopy(model.state_dict())
+                    best_val_loss = val_loss
+                else:
+                    # Anneal the learning rate if no improvement has been seen in the validation dataset.
+                    lr /= 4.0
+        except KeyboardInterrupt:
             print('-' * 89)
-            print('| end of epoch {:3d} | time: {:5.2f}s | valid loss {:5.2f} | '
-                    'valid ppl {:8.2f}'.format(epoch, (time.time() - epoch_start_time),
-                                               val_loss, math.exp(val_loss)))
-            print('-' * 89)
-            # Save the model if the validation loss is the best we've seen so far.
-            if not best_val_loss or val_loss < best_val_loss:
-                best_epoch=epoch
-                best_weight=copy.deepcopy(model.state_dict())
-                best_val_loss = val_loss
-            else:
-                # Anneal the learning rate if no improvement has been seen in the validation dataset.
-                lr /= 4.0
-    except KeyboardInterrupt:
-        print('-' * 89)
-        if best_epoch >=0:
-            print('Exiting from training early')
-        else :
-            exit()
+            if best_epoch >=0:
+                print('Exiting from training early')
+            else :
+                exit()
 
-    # Load the best saved model.
-    model.load_state_dict(best_weight)
+        # Load the best saved model.
+        model.load_state_dict(best_weight)
 
-    #モデルとか結果とかを格納するディレクトリの作成
-    if os.path.exists(save_path)==False:
-        os.mkdir(save_path)
+        #モデルとか結果とかを格納するディレクトリの作成
+        if os.path.exists(save_path)==False:
+            os.mkdir(save_path)
 
-    save_path=save_path+'/'
-    torch.save(model.state_dict(), save_path+'model_'+str(best_epoch)+'.pth')
+        save_path=save_path+'/'
+        torch.save(model.state_dict(), save_path+'model_'+str(best_epoch)+'.pth')
 
-    showPlot2(plot_train_loss, plot_val_loss)
+        showPlot2(plot_train_loss, plot_val_loss)
 
-#TODO generate.pyはまだまとめてない
+    #すでにあるモデルをロードしてテスト
+    else:
+        model = RNNModel(args.model, ntokens, args.emsize, args.nhid, args.nlayers, args.dropout, args.tied).to(device)
+
+        save_path = file_path + args.model_dir +'/'
+
+        model.load_state_dict(torch.load(save_path+args.model_name))
+
+    model.eval()
+    #TODO まだ途中
