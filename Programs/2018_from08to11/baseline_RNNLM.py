@@ -39,17 +39,17 @@ import copy
 file_path='../../../pytorch_data/'
 today1=datetime.datetime.today()
 today_str=today1.strftime('%m_%d_%H%M')
-save_path=file_path + '/' + today_str
+save_path=file_path + '/RNNLM' + today_str
 
 UNK_token = 0
 
 #事前処理いろいろ
 print('Start: '+today_str)
 if torch.cuda.is_available():
-    my_device = torch.device("cuda")
+    device = torch.device("cuda")
     print('Use GPU')
 else:
-    my_device= torch.device("cpu")
+    device= torch.device("cpu")
 
 #----- 関数群 -----
 
@@ -63,23 +63,20 @@ class Dictionary:
     #文から単語を語彙へ
     def addSentence(self, sentence):
         for word in sentence.split(' '):
-            self.addWord(word)
+            self.add_word(word)
 
     #語彙のカウント
     def add_word(self, word):
-        if word not in self.word2index:
-            self.word2index[word] = self.n_words
-            self.word2count[word] = 1
-            self.index2word[self.n_words] = word
+        if word not in self.word2idx:
+            self.word2idx[word] = self.n_words
+            self.idx2word[self.n_words] = word
             self.n_words += 1
-        else:
-            self.word2count[word] += 1
 
-    def check_word2index(self, word):
-        if word in self.word2index:
-            return self.word2index[word]
+    def check_word2idx(self, word):
+        if word in self.word2idx:
+            return self.word2idx[word]
         else:
-            return self.word2index["<UNK>"]
+            return self.word2idx["<UNK>"]
 
 
 #半角カナとか特殊記号とかを正規化
@@ -134,11 +131,13 @@ def data_tokenize(file, lang):
             line=normalizeString(line)
             words = line.split() + ['<eos>']
             for word in words:
-                all_ids.append(lang.check_word2index(word))
+                all_ids.append(lang.check_word2idx(word))
                 length += 1
 
-    train_tokens=torch.tensor(all_ids[:length*9/10], dtype=torch.long, device=my_device)
-    val_tokens=torch.tensor(all_ids[length*9/10:], dtype=torch.long, device=my_device)
+    border=int(length*9/10)
+
+    train_tokens=torch.tensor(all_ids[:border], dtype=torch.long, device=device)
+    val_tokens=torch.tensor(all_ids[border:], dtype=torch.long, device=device)
 
     return train_tokens, val_tokens
 
@@ -349,14 +348,14 @@ def get_args():
 if __name__ == '__main__':
     #コマンドライン引数読み取り
     args = get_args()
-    print(args.mode)
 
     torch.manual_seed(args.seed)
 
     vocab_path=file_path+'enwiki_vocab30000.txt'
     vocab = readVocab(vocab_path)
 
-    train_file=file_path+'text8.txt'
+    #train_file=file_path+'text8.txt'
+    train_file=file_path+'text8_mini.txt'
 
     train_tk, val_tk=data_tokenize(train_file, vocab)
 
@@ -407,10 +406,10 @@ if __name__ == '__main__':
     model.load_state_dict(best_weight)
 
     #モデルとか結果とかを格納するディレクトリの作成
-    if os.path.exists(save_path+args.mode)==False:
-        os.mkdir(save_path+args.mode)
+    if os.path.exists(save_path)==False:
+        os.mkdir(save_path)
 
-    save_path=save_path+args.mode+'/'
+    save_path=save_path+'/'
     torch.save(model.state_dict(), save_path+'model_'+str(best_epoch)+'.pth')
 
     showPlot2(plot_train_loss, plot_val_loss)
