@@ -16,13 +16,11 @@ from io import open
 import unicodedata
 import string
 import re
-import random
 import datetime
 
 import torch
 import torch.nn as nn
 from torch import optim
-import torch.nn.functional as F
 
 import time
 import math
@@ -30,33 +28,20 @@ import math
 import matplotlib.pyplot as plt
 plt.switch_backend('agg')
 import matplotlib.ticker as ticker
-import numpy as np
+
 import os
 import argparse
-import collections
-from sklearn.model_selection import train_test_split
 import copy
 
-from torch.utils.data import TensorDataset, DataLoader
-
 #----- グローバル変数一覧 -----
-MAX_LENGTH = 35
-HIDDEN_DIM = 128
-EMB_DIM = 100
-BATCH_SIZE = 128
-
-
-
 
 #自分で定義したグローバル関数とか
 file_path='../../../pytorch_data/'
 today1=datetime.datetime.today()
 today_str=today1.strftime('%m_%d_%H%M')
 save_path=file_path + '/' + today_str
-PAD_token = 0
-SOS_token = 1
-EOS_token = 2
-UNK_token = 3
+
+UNK_token = 0
 
 #事前処理いろいろ
 print('Start: '+today_str)
@@ -69,51 +54,93 @@ else:
 #----- 関数群 -----
 
 #data.py内
-class Dictionary(object):
+class Dictionary:
     def __init__(self):
-        self.word2idx = {}
-        self.idx2word = []
+        self.word2idx = {"<UNK>": UNK_token}
+        self.idx2word = {UNK_token: "<UNK>"}
+        self.n_words = 1  # UNK
 
+    #文から単語を語彙へ
+    def addSentence(self, sentence):
+        for word in sentence.split(' '):
+            self.addWord(word)
+
+    #語彙のカウント
     def add_word(self, word):
-        if word not in self.word2idx:
-            self.idx2word.append(word)
-            self.word2idx[word] = len(self.idx2word) - 1
-        return self.word2idx[word]
+        if word not in self.word2index:
+            self.word2index[word] = self.n_words
+            self.word2count[word] = 1
+            self.index2word[self.n_words] = word
+            self.n_words += 1
+        else:
+            self.word2count[word] += 1
 
-    def __len__(self):
-        return len(self.idx2word)
+    def check_word2index(self, word):
+        if word in self.word2index:
+            return self.word2index[word]
+        else:
+            return self.word2index["<UNK>"]
 
-#data.py内
-class Corpus(object):
-    def __init__(self, path):
-        self.dictionary = Dictionary()
-        self.train = self.tokenize(os.path.join(path, 'train.txt'))
-        self.valid = self.tokenize(os.path.join(path, 'valid.txt'))
-        self.test = self.tokenize(os.path.join(path, 'test.txt'))
 
-    def tokenize(self, path):
-        """Tokenizes a text file."""
-        assert os.path.exists(path)
-        # Add words to the dictionary
-        with open(path, 'r', encoding="utf8") as f:
-            tokens = 0
-            for line in f:
-                words = line.split() + ['<eos>']
-                tokens += len(words)
-                for word in words:
-                    self.dictionary.add_word(word)
+#半角カナとか特殊記号とかを正規化
+# Ａ→A，Ⅲ→III，①→1とかそういうの
+def unicodeToAscii(s):
+    return ''.join(
+        c for c in unicodedata.normalize('NFD', s)
+        if unicodedata.category(c) != 'Mn'
+    )
 
-        # Tokenize file content
-        with open(path, 'r', encoding="utf8") as f:
-            ids = torch.LongTensor(tokens)
-            token = 0
-            for line in f:
-                words = line.split() + ['<eos>']
-                for word in words:
-                    ids[token] = self.dictionary.word2idx[word]
-                    token += 1
 
-        return ids
+#データの前処理
+#strip()は文頭文末の改行や空白を取り除いてくれる
+def normalizeString(s, choices=False):
+    s = unicodeToAscii(s.lower().strip())
+    #text8コーパスと同等の前処理
+    s=s.replace('0', ' zero ')
+    s=s.replace('1', ' one ')
+    s=s.replace('2', ' two ')
+    s=s.replace('3', ' three ')
+    s=s.replace('4', ' four ')
+    s=s.replace('5', ' five ')
+    s=s.replace('6', ' six ')
+    s=s.replace('7', ' seven ')
+    s=s.replace('8', ' eight ')
+    s=s.replace('9', ' nine ')
+    if choices:
+        s = re.sub(r'[^a-z{}#]', ' ', s)
+    else:
+        s = re.sub(r'[^a-z{}]', ' ', s)
+    s = re.sub(r'[ ]+', ' ', s)
+
+    return s.strip()
+
+
+#与えた語彙読み込み(自作)
+def readVocab(file):
+    lang = Dictionary()
+    print("Reading vocab...")
+    with open(file, encoding='utf-8') as f:
+        for line in f:
+            lang.addSentence(normalizeString(line))
+    #print("Vocab: %s" % lang.n_words)
+
+    return lang
+
+def data_tokenize(file, lang):
+    length=0
+    all_ids=[]
+    with open(file, encoding='utf-8') as f:
+        for line in f:
+            line=normalizeString(line)
+            words = line.split() + ['<eos>']
+            for word in words:
+                all_ids.append(lang.check_word2index(word))
+                length += 1
+
+    train_tokens=torch.tensor(all_ids[:length*9/10], dtype=torch.long, device=my_device)
+    val_tokens=torch.tensor(all_ids[length*9/10:], dtype=torch.long, device=my_device)
+
+    return train_tokens, val_tokens
 
 #model.py内
 class RNNModel(nn.Module):
@@ -172,7 +199,17 @@ class RNNModel(nn.Module):
         else:
             return weight.new_zeros(self.nlayers, bsz, self.nhid)
 
-
+# Starting from sequential data, batchify arranges the dataset into columns.
+# For instance, with the alphabet as the sequence and batch size 4, we'd get
+# ┌ a g m s ┐
+# │ b h n t │
+# │ c i o u │
+# │ d j p v │
+# │ e k q w │
+# └ f l r x ┘.
+# These columns are treated as independent by the model, which means that the
+# dependence of e. g. 'g' on 'f' can not be learned, but allows more efficient
+# batch processing.
 def batchify(data, bsz):
     # Work out how cleanly we can divide the dataset into bsz parts.
     nbatch = data.size(0) // bsz
@@ -205,7 +242,6 @@ def repackage_hidden(h):
 # done along the batch dimension (i.e. dimension 1), since that was handled
 # by the batchify function. The chunks are along dimension 0, corresponding
 # to the seq_len dimension in the LSTM.
-
 def get_batch(source, i):
     seq_len = min(args.bptt, len(source) - 1 - i)
     data = source[i:i+seq_len]
@@ -213,11 +249,10 @@ def get_batch(source, i):
     return data, target
 
 
-def evaluate(data_source):
+def evaluate(ntokens, data_source):
     # Turn on evaluation mode which disables dropout.
     model.eval()
     total_loss = 0.
-    ntokens = len(corpus.dictionary)
     hidden = model.init_hidden(eval_batch_size)
     with torch.no_grad():
         for i in range(0, data_source.size(0) - 1, args.bptt):
@@ -229,12 +264,12 @@ def evaluate(data_source):
     return total_loss / len(data_source)
 
 
-def train():
+def train(ntokens, train_data) :
     # Turn on training mode which enables dropout.
     model.train()
     total_loss = 0.
+    print_loss = 0.
     start_time = time.time()
-    ntokens = len(corpus.dictionary)
     hidden = model.init_hidden(args.batch_size)
     for batch, i in enumerate(range(0, train_data.size(0) - 1, args.bptt)):
         data, targets = get_batch(train_data, i)
@@ -252,26 +287,29 @@ def train():
             p.data.add_(-lr, p.grad.data)
 
         total_loss += loss.item()
+        print_loss += loss.item()
 
         if batch % args.log_interval == 0 and batch > 0:
-            cur_loss = total_loss / args.log_interval
+            cur_loss = print_loss / args.log_interval
             elapsed = time.time() - start_time
             print('| epoch {:3d} | {:5d}/{:5d} batches | lr {:02.2f} | ms/batch {:5.2f} | '
                     'loss {:5.2f} | ppl {:8.2f}'.format(
                 epoch, batch, len(train_data) // args.bptt, lr,
                 elapsed * 1000 / args.log_interval, cur_loss, math.exp(cur_loss)))
-            total_loss = 0
+            print_loss = 0
             start_time = time.time()
 
+    return total_loss/len(train_data)
 
-def export_onnx(path, batch_size, seq_len):
-    print('The model is also exported in ONNX format at {}'.
-          format(os.path.realpath(args.onnx_export)))
-    model.eval()
-    dummy_input = torch.LongTensor(seq_len * batch_size).zero_().view(-1, batch_size).to(device)
-    hidden = model.init_hidden(batch_size)
-    torch.onnx.export(model, (dummy_input, hidden), path)
 
+def showPlot2(loss, val_loss):
+    plt.plot(loss, color='blue', marker='o', label='loss')
+    plt.plot(val_loss, color='green', marker='o', label='val_loss')
+    plt.title('model loss')
+    plt.xlabel('epoch')
+    plt.ylabel('loss')
+    plt.legend()
+    plt.savefig(save_path+'loss.png')
 
 #コマンドライン引数の設定いろいろ
 def get_args():
@@ -304,10 +342,6 @@ def get_args():
                         help='use CUDA')
     parser.add_argument('--log-interval', type=int, default=200, metavar='N',
                         help='report interval')
-    parser.add_argument('--load_model', type=str, default='model.pth',
-                        help='path to save the final model')
-    parser.add_argument('--onnx-export', type=str, default='',
-                        help='path to export the final model in onnx format')
     return parser.parse_args()
 
 
@@ -319,31 +353,36 @@ if __name__ == '__main__':
 
     torch.manual_seed(args.seed)
 
+    vocab_path=file_path+'enwiki_vocab30000.txt'
+    vocab = readVocab(vocab_path)
 
-    data_file=file_path+'text8.txt'
-    corpus = Corpus(data_file)
+    train_file=file_path+'text8.txt'
 
-    #TODO まだ編集途中
-    
+    train_tk, val_tk=data_tokenize(train_file, vocab)
+
     eval_batch_size = 10
-    train_data = batchify(corpus.train, args.batch_size)
-    val_data = batchify(corpus.valid, eval_batch_size)
-    test_data = batchify(corpus.test, eval_batch_size)
+    train_data = batchify(train_tk, args.batch_size)
+    val_data = batchify(val_tk, eval_batch_size)
 
-    ntokens = len(corpus.dictionary)
+    ntokens = vocab.n_words
     model = RNNModel(args.model, ntokens, args.emsize, args.nhid, args.nlayers, args.dropout, args.tied).to(device)
 
     criterion = nn.CrossEntropyLoss()
 
     lr = args.lr
     best_val_loss = None
-
+    best_epoch = -1
+    plot_train_loss=[]
+    plot_val_loss=[]
     # At any point you can hit Ctrl + C to break out of training early.
     try:
         for epoch in range(1, args.epochs+1):
             epoch_start_time = time.time()
-            train()
-            val_loss = evaluate(val_data)
+            train_loss = train(ntokens, train_data)
+            val_loss = evaluate(ntokens, val_data)
+            plot_train_loss.append(train_loss)
+            plot_val_loss.append(val_loss)
+
             print('-' * 89)
             print('| end of epoch {:3d} | time: {:5.2f}s | valid loss {:5.2f} | '
                     'valid ppl {:8.2f}'.format(epoch, (time.time() - epoch_start_time),
@@ -351,32 +390,29 @@ if __name__ == '__main__':
             print('-' * 89)
             # Save the model if the validation loss is the best we've seen so far.
             if not best_val_loss or val_loss < best_val_loss:
-                with open(save_path+'model.pth', 'wb') as f:
-                    torch.save(model, f)
+                best_epoch=epoch
+                best_weight=copy.deepcopy(model.state_dict())
                 best_val_loss = val_loss
             else:
                 # Anneal the learning rate if no improvement has been seen in the validation dataset.
                 lr /= 4.0
     except KeyboardInterrupt:
         print('-' * 89)
-        print('Exiting from training early')
+        if best_epoch >=0:
+            print('Exiting from training early')
+        else :
+            eixt()
 
     # Load the best saved model.
-    with open(args.load_model, 'rb') as f:
-        model = torch.load(f)
-        # after load the rnn params are not a continuous chunk of memory
-        # this makes them a continuous chunk, and will speed up forward pass
-        model.rnn.flatten_parameters()
+    model.load_state_dict(best_weight)
 
-    # Run on test data.
-    test_loss = evaluate(test_data)
-    print('=' * 89)
-    print('| End of training | test loss {:5.2f} | test ppl {:8.2f}'.format(
-        test_loss, math.exp(test_loss)))
-    print('=' * 89)
+    #モデルとか結果とかを格納するディレクトリの作成
+    if os.path.exists(save_path+args.mode)==False:
+        os.mkdir(save_path+args.mode)
 
-    if len(args.onnx_export) > 0:
-        # Export the model in ONNX format.
-        export_onnx(args.onnx_export, batch_size=1, seq_len=args.bptt)
+    save_path=save_path+args.mode+'/'
+    torch.save(model.state_dict(), save_path+'model_'+str(best_epoch)+'.pth')
+
+    showPlot2(plot_train_loss, plot_val_loss)
 
 #TODO generate.pyはまだまとめてない
