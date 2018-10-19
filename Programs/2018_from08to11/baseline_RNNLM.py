@@ -449,15 +449,12 @@ if __name__ == '__main__':
     hidden = model.init_hidden(batch)
     input = torch.randint(ntokens, (n_gram, batch), dtype=torch.long).to(device)
     with torch.no_grad():  # no tracking history
-        for i in range(args.words):
-            output, hidden = model(input, hidden)
-            word_weights = output.squeeze().div(args.temperature).exp().cpu()
-            word_idx = torch.multinomial(word_weights, 1)[0]    #1語サンプリング
-            input.fill_(word_idx)
-            word = vocab.idx2word[word_idx.item()]
-
-            if i % args.log_interval == 0:
-                print('| Generated {}/{} words'.format(i, args.words))
-    print(output.size())
-    print(word_weights.size())
-    print(torch.multinomial(word_weights, 1).size())
+        output, hidden = model(input, hidden)
+        print(output.size())
+        word_weights = output.squeeze().div(args.temperature).exp().cpu()
+        print(word_weights.size())
+        word_idx = torch.multinomial(word_weights, 1)[0]    #1語サンプリング
+        print(torch.multinomial(word_weights, 1).size())
+        print(word_idx.size())
+        input.fill_(word_idx)
+        word = vocab.idx2word[word_idx.item()]
