@@ -456,5 +456,7 @@ if __name__ == '__main__':
         word_idx = torch.multinomial(word_weights, 1)[0]    #1語サンプリング
         print(torch.multinomial(word_weights, 1).size())
         print(word_idx.size())
-        input.fill_(word_idx)
+        #input.fill_(word_idx)
+        input=word_idx.unsqueeze(1)
+        output, hidden = model(input, hidden)
         word = vocab.idx2word[word_idx.item()]
