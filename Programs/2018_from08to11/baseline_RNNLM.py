@@ -453,7 +453,7 @@ if __name__ == '__main__':
             word_weights = output.squeeze().div(args.temperature).exp().cpu()
             word_idx = torch.multinomial(word_weights, 1)[0]
             input.fill_(word_idx)
-            word = corpus.dictionary.idx2word[word_idx]
+            word = vocab.idx2word[word_idx]
 
             if i % args.log_interval == 0:
                 print('| Generated {}/{} words'.format(i, args.words))
