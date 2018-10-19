@@ -48,7 +48,17 @@ cloze:  31
   この方法でkenLM、選択肢Bの方法ならできそうでは？
 
 
-
-
-RNNLM系動かすの大変そうだからpytorchのexampleのやつ改変する？
-https://github.com/pytorch/examples/tree/master/word_language_model
+  Traceback (most recent call last):
+    File "baseline_RNNLM_ngram.py", line 384, in <module>
+      train_loss = train(ntokens, train_data)
+    File "baseline_RNNLM_ngram.py", line 269, in train
+      loss = criterion(output.view(-1, ntokens), targets)
+    File "/usr/local/lib/python3.5/dist-packages/torch/nn/modules/module.py", line 491, in __call__
+      result = self.forward(*input, **kwargs)
+    File "/usr/local/lib/python3.5/dist-packages/torch/nn/modules/loss.py", line 759, in forward
+      self.ignore_index, self.reduce)
+    File "/usr/local/lib/python3.5/dist-packages/torch/nn/functional.py", line 1442, in cross_entropy
+      return nll_loss(log_softmax(input, 1), target, weight, size_average, ignore_index, reduce)
+    File "/usr/local/lib/python3.5/dist-packages/torch/nn/functional.py", line 1330, in nll_loss
+      .format(input.size(0), target.size(0)))
+  ValueError: Expected input batch_size (20) to match target batch_size (1).

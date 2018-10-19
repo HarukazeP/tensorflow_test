@@ -149,10 +149,10 @@ def make_data(data, N):
     train_X, val_X = train_test_split(all_X, test_size=0.1)
     train_Y, val_Y = train_test_split(all_Y, test_size=0.1)
 
-    train_X=torch.tensor(train_X, dtype=torch.long, device=my_device)
-    train_Y=torch.tensor(train_Y, dtype=torch.long, device=my_device)
-    val_X=torch.tensor(val_X, dtype=torch.long, device=my_device)
-    val_Y=torch.tensor(val_Y, dtype=torch.long, device=my_device)
+    train_X=torch.tensor(train_X, dtype=torch.long, device=device)
+    train_Y=torch.tensor(train_Y, dtype=torch.long, device=device)
+    val_X=torch.tensor(val_X, dtype=torch.long, device=device)
+    val_Y=torch.tensor(val_Y, dtype=torch.long, device=device)
 
     train_data = TensorDataset(train_X, train_Y)
     val_data = TensorDataset(val_X, val_Y)
@@ -259,7 +259,7 @@ def train(ntokens, train_data) :
     hidden = model.init_hidden(args.batch_size)
     loader_train = DataLoader(train_data, batch_size=args.batch_size, shuffle=True)
 
-    for x, y in loader:
+    for x, y in loader_train:
         data=x.transpose(0,1)
         targets=y.transpose(0,1)
 
@@ -439,7 +439,7 @@ if __name__ == '__main__':
     hidden = model.init_hidden(batch)
     temp_list=[33,987,432,3,5667,63,86,9,235,4764,12312,6566,44,22]
     input = torch.tensor(temp_list[:n_gram], dtype=torch.long).to(device)
-    input = input.unsqueeze(0) 
+    input = input.unsqueeze(0)
     with torch.no_grad():  # no tracking history
         output, hidden = model(input, hidden)
         print(output.size())
