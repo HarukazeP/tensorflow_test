@@ -439,24 +439,3 @@ if __name__ == '__main__':
 
     #テスト時
     model.eval()
-
-    choi_file=file_path+'aaaaaa.txt'
-    ans_file=file_path+'aaaaaa.txt'
-
-    #TODO これ試しにテストしてるだけ
-    n_gram=args.ngrams
-    hidden = model.init_hidden(n_gram)
-    input = torch.randint(ntokens, (n_gram, 1), dtype=torch.long).to(device)
-    with torch.no_grad():  # no tracking history
-        for i in range(args.words):
-            output, hidden = model(input, hidden)
-            word_weights = output.squeeze().div(args.temperature).exp().cpu()
-            word_idx = torch.multinomial(word_weights, 1)[0]
-            input.fill_(word_idx)
-            word = corpus.dictionary.idx2word[word_idx]
-
-            if i % args.log_interval == 0:
-                print('| Generated {}/{} words'.format(i, args.words))
-    print(output.size())
-    print(word_weights.size())
-    print(torch.multinomial(word_weights, 1).size())

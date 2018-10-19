@@ -341,12 +341,16 @@ def get_args():
                         help='use CUDA')
     parser.add_argument('--log-interval', type=int, default=200, metavar='N',
                         help='report interval')
+    parser.add_argument('--temperature', type=float, default=1.0,
+                        help='temperature - higher will increase diversity')
     parser.add_argument('--mode', choices=['all', 'test'], default='all',
                         help='train and test / test only')
-    parser.add_argument('--model_dir', type=str,
+    parser.add_argument('--model_dir', type=str, default='RNNLM10_17_1745',
                         help='directory name which has best model(at test only  mode)')
-    parser.add_argument('--model_name', type=str,
+    parser.add_argument('--model_name', type=str, default='model_95.pth',
                         help='best model name(at test only  mode)')
+    parser.add_argument('--ngrams', type=int, default=1,
+                        help='select N for N-grams')
 
     return parser.parse_args()
 
@@ -433,3 +437,24 @@ if __name__ == '__main__':
 
     model.eval()
     #TODO まだ途中
+
+    choi_file=file_path+'aaaaaa.txt'
+    ans_file=file_path+'aaaaaa.txt'
+
+    #TODO これ試しにテストしてるだけ
+    n_gram=args.ngrams
+    hidden = model.init_hidden(n_gram)
+    input = torch.randint(ntokens, (n_gram, 1), dtype=torch.long).to(device)
+    with torch.no_grad():  # no tracking history
+        for i in range(args.words):
+            output, hidden = model(input, hidden)
+            word_weights = output.squeeze().div(args.temperature).exp().cpu()
+            word_idx = torch.multinomial(word_weights, 1)[0]
+            input.fill_(word_idx)
+            word = corpus.dictionary.idx2word[word_idx]
+
+            if i % args.log_interval == 0:
+                print('| Generated {}/{} words'.format(i, args.words))
+    print(output.size())
+    print(word_weights.size())
+    print(torch.multinomial(word_weights, 1).size())
