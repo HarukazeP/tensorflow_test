@@ -343,6 +343,8 @@ def get_args():
                         help='report interval')
     parser.add_argument('--temperature', type=float, default=1.0,
                         help='temperature - higher will increase diversity')
+    parser.add_argument('--words', type=int, default='50',
+                        help='number of words to generate')
     parser.add_argument('--mode', choices=['all', 'test'], default='all',
                         help='train and test / test only')
     parser.add_argument('--model_dir', type=str, default='RNNLM10_17_1745',
