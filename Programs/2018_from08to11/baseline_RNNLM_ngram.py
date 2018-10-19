@@ -33,6 +33,9 @@ import os
 import argparse
 import copy
 
+from sklearn.model_selection import train_test_split
+from torch.utils.data import TensorDataset, DataLoader
+
 #----- グローバル変数一覧 -----
 
 #自分で定義したグローバル関数とか
@@ -123,8 +126,8 @@ def readVocab(file):
 
     return lang
 
+#文字列からID列に
 def data_tokenize(file, lang):
-    length=0
     all_ids=[]
     with open(file, encoding='utf-8') as f:
         for line in f:
@@ -132,14 +135,29 @@ def data_tokenize(file, lang):
             words = line.split() + ['<eos>']
             for word in words:
                 all_ids.append(lang.check_word2idx(word))
-                length += 1
 
-    border=int(length*9/10)
+    return all_ids
 
-    train_tokens=torch.tensor(all_ids[:border], dtype=torch.long, device=device)
-    val_tokens=torch.tensor(all_ids[border:], dtype=torch.long, device=device)
+#ID列からデータ作成
+def make_data(data, N):
+    all_X=[]
+    all_Y=[]
+    for i in range(len(data)-N):
+        all_X.append(data[i:i+N])
+        all_Y.append([data[i+N]])
 
-    return train_tokens, val_tokens
+    train_X, val_X = train_test_split(all_X, test_size=0.1)
+    train_Y, val_Y = train_test_split(all_Y, test_size=0.1)
+
+    train_X=torch.tensor(train_X, dtype=torch.long, device=my_device)
+    train_Y=torch.tensor(train_Y, dtype=torch.long, device=my_device)
+    val_X=torch.tensor(val_X, dtype=torch.long, device=my_device)
+    val_Y=torch.tensor(val_Y, dtype=torch.long, device=my_device)
+
+    train_data = TensorDataset(train_X, train_Y)
+    val_data = TensorDataset(val_X, val_Y)
+
+    return train_data, val_data
 
 #model.py内
 #TODO いろいろ変更
@@ -199,26 +217,7 @@ class RNNModel(nn.Module):
         else:
             return weight.new_zeros(self.nlayers, bsz, self.nhid)
 
-# Starting from sequential data, batchify arranges the dataset into columns.
-# For instance, with the alphabet as the sequence and batch size 4, we'd get
-# ┌ a g m s ┐
-# │ b h n t │
-# │ c i o u │
-# │ d j p v │
-# │ e k q w │
-# └ f l r x ┘.
-# These columns are treated as independent by the model, which means that the
-# dependence of e. g. 'g' on 'f' can not be learned, but allows more efficient
-# batch processing.
-#TODO いろいろ変更
-def batchify(data, bsz):
-    nbatch = data.size(0) // bsz
-    data = data.narrow(0, 0, nbatch * bsz)  #バッチの余りになる部分を切り捨て
-    data = data.view(nbatch, -1)    #bsz単語ごとに分割？
 
-    # Evenly divide the data across the bsz batches.
-    data = data.view(bsz, -1).t().contiguous()
-    return data.to(device)
 
 
 
@@ -234,30 +233,16 @@ def repackage_hidden(h):
         return tuple(repackage_hidden(v) for v in h)
 
 
-# get_batch subdivides the source data into chunks of length args.bptt.
-# If source is equal to the example output of the batchify function, with
-# a bptt-limit of 2, we'd get the following two Variables for i = 0:
-# ┌ a g m s ┐ ┌ b h n t ┐
-# └ b h n t ┘ └ c i o u ┘
-# Note that despite the name of the function, the subdivison of data is not
-# done along the batch dimension (i.e. dimension 1), since that was handled
-# by the batchify function. The chunks are along dimension 0, corresponding
-# to the seq_len dimension in the LSTM.
-def get_batch(source, i):
-    seq_len = min(args.bptt, len(source) - 1 - i)
-    data = source[i:i+seq_len]
-    target = source[i+1:i+1+seq_len].view(-1)
-    return data, target
-
-
 def evaluate(ntokens, data_source):
     # Turn on evaluation mode which disables dropout.
     model.eval()
     total_loss = 0.
-    hidden = model.init_hidden(eval_batch_size)
+    hidden = model.init_hidden(args.batch_size)
+    loader = DataLoader(data_source, batch_size=args.batch_size, shuffle=False)
     with torch.no_grad():
-        for i in range(0, data_source.size(0) - 1, args.bptt):
-            data, targets = get_batch(data_source, i)
+        for x, y in loader:
+            data=x.transpose(0,1)
+            targets=y.transpose(0,1)
             output, hidden = model(data, hidden)
             output_flat = output.view(-1, ntokens)
             total_loss += len(data) * criterion(output_flat, targets).item()
@@ -272,10 +257,12 @@ def train(ntokens, train_data) :
     print_loss = 0.
     start_time = time.time()
     hidden = model.init_hidden(args.batch_size)
-    for batch, i in enumerate(range(0, train_data.size(0) - 1, args.bptt)):
-        data, targets = get_batch(train_data, i)
-        # Starting each batch, we detach the hidden state from how it was previously produced.
-        # If we didn't, the model would try backpropagating all the way to start of the dataset.
+    loader_train = DataLoader(train_data, batch_size=args.batch_size, shuffle=True)
+
+    for x, y in loader:
+        data=x.transpose(0,1)
+        targets=y.transpose(0,1)
+
         hidden = repackage_hidden(hidden)
         model.zero_grad()
         output, hidden = model(data, hidden)
@@ -345,6 +332,8 @@ def get_args():
                         help='report interval')
     parser.add_argument('--temperature', type=float, default=1.0,
                         help='temperature - higher will increase diversity')
+    parser.add_argument('--words', type=int, default='50',
+                        help='number of words to generate')
     parser.add_argument('--mode', choices=['all', 'test'], default='all',
                         help='train and test / test only')
     parser.add_argument('--model_dir', type=str, default='RNNLM10_17_1745',
@@ -373,11 +362,11 @@ if __name__ == '__main__':
         #train_file=file_path+'text8.txt'
         train_file=file_path+'text8_mini.txt'
 
-        train_tk, val_tk=data_tokenize(train_file, vocab)
+        #文字列→ID列に
+        all_data=data_tokenize(train_file, vocab)
 
-        eval_batch_size = 10
-        train_data = batchify(train_tk, args.batch_size)
-        val_data = batchify(val_tk, eval_batch_size)
+        #ID列からX, Yの組を作成して，学習データと検証データ作成
+        train_data, val_data=make_data(all_data, args.ngrams)
 
         model = RNNModel(args.model, ntokens, args.emsize, args.nhid, args.nlayers, args.dropout, args.tied).to(device)
 
@@ -439,3 +428,23 @@ if __name__ == '__main__':
 
     #テスト時
     model.eval()
+    #TODO まだ途中
+
+    choi_file=file_path+'aaaaaa.txt'
+    ans_file=file_path+'aaaaaa.txt'
+
+    #TODO これ試しにテストしてるだけ
+    n_gram=args.ngrams
+    batch=1
+    hidden = model.init_hidden(batch)
+    temp_list=[33,987,432,3,5667,63,86,9,235,4764,12312,6566,44,22]
+    input = torch.tensor(temp_list[:n_gram], dtype=torch.long).to(device)
+    input = input.unsqueeze(0) 
+    with torch.no_grad():  # no tracking history
+        output, hidden = model(input, hidden)
+        print(output.size())
+        word_weights = output.squeeze().div(args.temperature).exp().cpu()
+        print(word_weights.size())
+        word_idx = torch.multinomial(word_weights, 1)[0]    #1語サンプリング
+        print(torch.multinomial(word_weights, 1).size())
+        print(word_idx)

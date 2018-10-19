@@ -1056,7 +1056,7 @@ def test_choices(lang, encoder, decoder, test_data, choices, saveAttention=False
 
         output_words, attentions = evaluate(lang, encoder, decoder, input_sentence)
         preds.append(' '.join(output_words))
-        
+
         output_cloze_ct, cloze_attentions = evaluate_cloze(lang, encoder, decoder, input_sentence)
         preds_cloze.append(' '.join(output_cloze_ct))
 
