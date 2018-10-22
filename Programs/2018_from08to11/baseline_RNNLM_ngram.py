@@ -336,7 +336,7 @@ def get_args():
                         help='initial learning rate')
     parser.add_argument('--clip', type=float, default=0.25,
                         help='gradient clipping')
-    parser.add_argument('--epochs', type=int, default=40,
+    parser.add_argument('--epochs', type=int, default=100,
                         help='upper epoch limit')
     parser.add_argument('--batch_size', type=int, default=20, metavar='N',
                         help='batch size')
@@ -381,8 +381,8 @@ if __name__ == '__main__':
 
     #学習時
     if args.mode == 'all':
-        #train_file=file_path+'text8.txt'
-        train_file=file_path+'text8_mini.txt'
+        train_file=file_path+'text8.txt'
+        #train_file=file_path+'text8_mini.txt'
 
         #文字列→ID列に
         all_data=data_tokenize(train_file, vocab)
