@@ -177,7 +177,7 @@ class RNNModel(nn.Module):
                 raise ValueError( """An invalid option for `--model` was supplied,
                                  options are ['LSTM', 'GRU', 'RNN_TANH' or 'RNN_RELU']""")
             self.rnn = nn.RNN(ninp, nhid, nlayers, nonlinearity=nonlinearity, dropout=dropout)
-        self.decoder = nn.Linear(nhid, ntoken)
+        self.decoder = nn.Linear(nhid, ntoken) #(入力次元数, 出力次元数)
 
         # Optionally tie weights as in:
         # "Using the Output Embedding to Improve Language Models" (Press & Wolf 2016)
@@ -258,8 +258,12 @@ def train(ntokens, train_data) :
     start_time = time.time()
     hidden = model.init_hidden(args.batch_size)
     loader_train = DataLoader(train_data, batch_size=args.batch_size, shuffle=True)
-
+    i=0
     for x, y in loader_train:
+        if i==0:
+            print(x.size())
+            print(y.size())
+            i=1
         data=x.transpose(0,1)
         targets=y.transpose(0,1)
 
