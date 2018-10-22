@@ -154,6 +154,15 @@ def make_data(data, N):
     val_X=torch.tensor(val_X, dtype=torch.long, device=device)
     val_Y=torch.tensor(val_Y, dtype=torch.long, device=device)
 
+    bsz=args.batch_size
+    train_batch = train_X.size(0) // bsz
+    train_X = train_X.narrow(0, 0, train_batch * bsz)
+    train_Y = train_Y.narrow(0, 0, train_batch * bsz)
+
+    val_batch = val_X.size(0) // bsz
+    val_X = val_X.narrow(0, 0, val_batch * bsz)
+    val_Y = val_Y.narrow(0, 0, val_batch * bsz)
+
     train_data = TensorDataset(train_X, train_Y)
     val_data = TensorDataset(val_X, val_Y)
 
@@ -177,7 +186,7 @@ class RNNModel(nn.Module):
                 raise ValueError( """An invalid option for `--model` was supplied,
                                  options are ['LSTM', 'GRU', 'RNN_TANH' or 'RNN_RELU']""")
             self.rnn = nn.RNN(ninp, nhid, nlayers, nonlinearity=nonlinearity, dropout=dropout)
-        self.decoder = nn.Linear(nhid, ntoken) #(入力次元数, 出力次元数)
+        self.decoder = nn.Linear(nhid*args.ngrams, ntoken) #(入力次元数, 出力次元数)
 
         # Optionally tie weights as in:
         # "Using the Output Embedding to Improve Language Models" (Press & Wolf 2016)
@@ -205,9 +214,12 @@ class RNNModel(nn.Module):
     def forward(self, input, hidden):
         emb = self.drop(self.encoder(input))
         output, hidden = self.rnn(emb, hidden)
-        output = self.drop(output)
-        decoded = self.decoder(output.view(output.size(0)*output.size(1), output.size(2)))
-        return decoded.view(output.size(0), output.size(1), decoded.size(1)), hidden
+        output = self.drop(output) #(文長、バッチサイズ、隠れ層の次元数)
+        output = output.transpose(0,1).contiguous() #(バッチサイズ、文長、隠れ層の次元数)
+        output = output.view(output.size(0), -1)
+
+        decoded = self.decoder(output)
+        return decoded, hidden
 
     def init_hidden(self, bsz):
         weight = next(self.parameters())
@@ -242,7 +254,7 @@ def evaluate(ntokens, data_source):
     with torch.no_grad():
         for x, y in loader:
             data=x.transpose(0,1)
-            targets=y.transpose(0,1)
+            targets=y.squeeze()
             output, hidden = model(data, hidden)
             output_flat = output.view(-1, ntokens)
             total_loss += len(data) * criterion(output_flat, targets).item()
@@ -259,13 +271,19 @@ def train(ntokens, train_data) :
     hidden = model.init_hidden(args.batch_size)
     loader_train = DataLoader(train_data, batch_size=args.batch_size, shuffle=True)
     i=0
+    batch=0
+    batch_set_num=len(train_data)
     for x, y in loader_train:
+        '''
         if i==0:
             print(x.size())
             print(y.size())
             i=1
+        '''
+        batch+=len(x)
         data=x.transpose(0,1)
-        targets=y.transpose(0,1)
+        #targets=y.transpose(0,1)
+        targets=y.squeeze()
 
         hidden = repackage_hidden(hidden)
         model.zero_grad()
@@ -286,7 +304,7 @@ def train(ntokens, train_data) :
             elapsed = time.time() - start_time
             print('| epoch {:3d} | {:5d}/{:5d} batches | lr {:02.2f} | ms/batch {:5.2f} | '
                     'loss {:5.2f} | ppl {:8.2f}'.format(
-                epoch, batch, len(train_data) // args.bptt, lr,
+                epoch, batch, batch_set_num, lr,
                 elapsed * 1000 / args.log_interval, cur_loss, math.exp(cur_loss)))
             print_loss = 0
             start_time = time.time()
@@ -431,6 +449,7 @@ if __name__ == '__main__':
         model.load_state_dict(torch.load(save_path+args.model_name))
 
     #テスト時
+    '''
     model.eval()
     #TODO まだ途中
 
@@ -452,3 +471,4 @@ if __name__ == '__main__':
         word_idx = torch.multinomial(word_weights, 1)[0]    #1語サンプリング
         print(torch.multinomial(word_weights, 1).size())
         print(word_idx)
+    '''
