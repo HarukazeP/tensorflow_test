@@ -177,7 +177,7 @@ def make_sents(choices, cloze_sent):
 #選択肢補充した文と，その正答のペアを返却
 def make_data_one_word(data_pair, choices_lists):
     data=[]
-    for choices, sent in zip(data_pair, choices_lists):
+    for sent, choices in zip(data_pair, choices_lists):
         flag=1
         for choice in choices:
             if(len(choice.split(' '))>1):
