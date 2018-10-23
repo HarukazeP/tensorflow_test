@@ -48,48 +48,9 @@ EOS_token = 2
 UNK_token = 3
 
 #事前処理いろいろ
-print('Start: '+today_str)
-if torch.cuda.is_available():
-    my_device = torch.device("cuda")
-    print('Use GPU')
-else:
-    my_device= torch.device("cpu")
 
 #----- 関数群 -----
 
-
-###########################
-# 1.データの準備
-###########################
-
-#seq2seqモデルで用いる語彙に関するクラス
-class Lang:
-    def __init__(self):
-        self.word2index = {"<UNK>": UNK_token}
-        self.word2count = {"<UNK>": 0}
-        self.index2word = {PAD_token: "PAD", SOS_token: "SOS", EOS_token: "EOS", UNK_token: "<UNK>"}
-        self.n_words = 4  # PAD と SOS と EOS と UNK
-
-    #文から単語を語彙へ
-    def addSentence(self, sentence):
-        for word in sentence.split(' '):
-            self.addWord(word)
-
-    #語彙のカウント
-    def addWord(self, word):
-        if word not in self.word2index:
-            self.word2index[word] = self.n_words
-            self.word2count[word] = 1
-            self.index2word[self.n_words] = word
-            self.n_words += 1
-        else:
-            self.word2count[word] += 1
-
-    def check_word2index(self, word):
-        if word in self.word2index:
-            return self.word2index[word]
-        else:
-            return self.word2index["<UNK>"]
 
 
 #半角カナとか特殊記号とかを正規化
@@ -152,6 +113,16 @@ def readData2(file):
 
     return data
 
+def get_choices(file_name):
+    print("Reading data...")
+    choices=[]
+    with open(file_name, encoding='utf-8') as f:
+        for line in f:
+            line=get_cloze(normalizeString(line, choices=True))
+            choices.append(line.split(' ### '))     #選択肢を区切る文字列
+
+    return choices
+
 
 def get_cloze(line):
     line=re.sub(r'.*{ ', '', line)
@@ -163,8 +134,8 @@ def get_cloze(line):
 #選択肢を補充した文4つを返す
 def make_sents(choices, cloze_sent):
     sents=[]
-    before=re.sub(r'.*{ ', '', cloze_sent) + ' '
-    after=' ' + re.sub(r' }.*', '', cloze_sent)
+    before=re.sub(r'{.*', '', cloze_sent)
+    after=re.sub(r'.*}', '', cloze_sent)
     for choice in choices:
         tmp=before + choice + after
         sents.append(tmp.strip())
@@ -184,7 +155,8 @@ def make_data_one_word(data_pair, choices_lists):
                 flag=-1
         if(flag>0):
             test_data=make_sents(choices, sent[0])
-            data.append(testdata + sent[1])
+            test_data.append(sent[1])
+            data.append(test_data)
 
     return data
 
@@ -293,3 +265,8 @@ if __name__ == '__main__':
     #選択肢を使ったテスト
     data=make_data_one_word(test_data, choices)
     print(len(data))
+
+    for i in range(10):
+        print(data[i][0])
+
+    pass
