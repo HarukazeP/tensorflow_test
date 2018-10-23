@@ -381,8 +381,8 @@ if __name__ == '__main__':
 
     #学習時
     if args.mode == 'all':
-        #train_file=file_path+'text8.txt'
-        train_file=file_path+'text8_mini.txt'
+        train_file=file_path+'text8.txt'
+        #train_file=file_path+'text8_mini.txt'
 
         #文字列→ID列に
         all_data=data_tokenize(train_file, vocab)
