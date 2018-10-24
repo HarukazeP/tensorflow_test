@@ -226,11 +226,12 @@ def output_score(file_name, line, allOK, clozeOK, partOK, BLEU, miss):
 
 
 def get_best_sent(sent_list, model):
-    max=-1
+    max=-10000000
     best_sent=''
     for sent in sent_list:
         score=model.score(sent)
-        if(max<socre):
+        #print(score)
+        if(max<score):
             max=score
             best_sent=sent
     return best_sent
@@ -244,6 +245,8 @@ def calc_acc(data, model):
     for one_data in data:
         line+=1
         pred=get_best_sent(one_data[:len(one_data)-1], model)
+        print(pred)
+        print(one_data[-1])
         if pred == one_data[-1]:
             OK+=1
     print_score(line, OK)
@@ -276,7 +279,7 @@ if __name__ == '__main__':
     choices=get_choices(test_choi)
 
     #kenLMモデル読み込み
-    model_path=file_path+'text8.arpa'
+    model_path=file_path+'text8.klm'
     model = kenlm.LanguageModel(model_path)
     print('{0}-gram model'.format(model.order))
 

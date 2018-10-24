@@ -48,17 +48,23 @@ cloze:  31
   この方法でkenLM、選択肢Bの方法ならできそうでは？
 
 
+  tamaki@tamaki-ubuntu:~/M2/tensorflow_pytorch_test/Programs/2018_from08to11$ time python3 baseline_kenLM.py 
+  Reading data...
+  data: 324
+  Reading data...
+  Loading the LM will be faster if you build a binary file.
+  Reading /home/tamaki/M2/pytorch_data/text8.arpa
+  ----5---10---15---20---25---30---35---40---45---50---55---60---65---70---75---80---85---90---95--100
+  ****************************************************************************************************
   Traceback (most recent call last):
-    File "baseline_RNNLM_ngram.py", line 384, in <module>
-      train_loss = train(ntokens, train_data)
-    File "baseline_RNNLM_ngram.py", line 269, in train
-      loss = criterion(output.view(-1, ntokens), targets)
-    File "/usr/local/lib/python3.5/dist-packages/torch/nn/modules/module.py", line 491, in __call__
-      result = self.forward(*input, **kwargs)
-    File "/usr/local/lib/python3.5/dist-packages/torch/nn/modules/loss.py", line 759, in forward
-      self.ignore_index, self.reduce)
-    File "/usr/local/lib/python3.5/dist-packages/torch/nn/functional.py", line 1442, in cross_entropy
-      return nll_loss(log_softmax(input, 1), target, weight, size_average, ignore_index, reduce)
-    File "/usr/local/lib/python3.5/dist-packages/torch/nn/functional.py", line 1330, in nll_loss
-      .format(input.size(0), target.size(0)))
-  ValueError: Expected input batch_size (20) to match target batch_size (1).
+    File "kenlm.pyx", line 119, in kenlm.Model.__init__ (python/kenlm.cpp:2603)
+  RuntimeError: lm/vocab.cc:305 in void lm::ngram::MissingSentenceMarker(const lm::ngram::Config&, const char*) threw SpecialWordMissingException.
+  The ARPA file is missing </s> and the model is configured to reject these models.  Run build_binary -s to disable this check. Byte: 7648247
+
+  The above exception was the direct cause of the following exception:
+
+  Traceback (most recent call last):
+    File "baseline_kenLM.py", line 280, in <module>
+      model = kenlm.LanguageModel(model_path)
+    File "kenlm.pyx", line 122, in kenlm.Model.__init__ (python/kenlm.cpp:2740)
+  OSError: Cannot read model '../../../pytorch_data/text8.arpa' (lm/vocab.cc:305 in void lm::ngram::MissingSentenceMarker(const lm::ngram::Config&, const char*) threw SpecialWordMissingException. The ARPA file is missing </s> and the model is configured to reject these models.  Run build_binary -s to disable this check. Byte: 7648247)
