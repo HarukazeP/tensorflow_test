@@ -246,7 +246,7 @@ def calc_acc(data, model):
         line+=1
         pred=get_best_sent(one_data[:len(one_data)-1], model)
         print(pred)
-        print(one_data[-1])
+        print(ans)
         if pred == one_data[-1]:
             OK+=1
     print_score(line, OK)
