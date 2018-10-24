@@ -203,17 +203,10 @@ def output_preds(file_name, preds):
             f.write(p+'\n')
 
 
-def print_score(line, allOK, clozeOK, partOK, BLEU, miss):
-    print('  acc(all): ', '{0:.2f}'.format(1.0*allOK/line*100),' %')
-    print('acc(cloze): ', '{0:.2f}'.format(1.0*clozeOK/line*100),' %')
-    print(' acc(part): ', '{0:.2f}'.format(1.0*partOK/line*100),' %')
-
-    print(' BLEU: ','{0:.2f}'.format(BLEU*100.0))
-    print('  all: ', allOK)
-    print('cloze: ',clozeOK)
-    print(' part: ',partOK)
+def print_score(line, OK):
+    print('  acc: ', '{0:.2f}'.format(1.0*OK/line*100),' %')
     print(' line: ',line)
-    print(' miss: ',miss)
+    print('   OK: ',OK)
 
 
 def output_score(file_name, line, allOK, clozeOK, partOK, BLEU, miss):
@@ -231,8 +224,30 @@ def output_score(file_name, line, allOK, clozeOK, partOK, BLEU, miss):
     with open(file_name, 'w') as f:
         f.write(output)
 
-def calc_acc(data):
-    pass
+
+def get_best_sent(sent_list, model):
+    max=-1
+    best_sent=''
+    for sent in sent_list:
+        score=model.score(sent)
+        if(max<socre):
+            max=score
+            best_sent=sent
+    return best_sent
+
+
+
+
+def calc_acc(data, model):
+    line=0
+    OK=0
+    for one_data in data:
+        line+=1
+        pred=get_best_sent(one_data[:len(one_data)-1], model)
+        if pred == one_data[-1]:
+            OK+=1
+    print_score(line, OK)
+
 
 
 #コマンドライン引数の設定いろいろ
@@ -252,7 +267,6 @@ if __name__ == '__main__':
     #vocab_path=file_path+'enwiki_vocab30000.txt'
     #vocab = readVocab(vocab_path)
 
-    # 4.評価
     test_cloze=file_path+'center_cloze.txt'
     test_ans=file_path+'center_ans.txt'
     test_choi=file_path+'center_choices.txt'
@@ -261,12 +275,18 @@ if __name__ == '__main__':
     test_data=readData(test_cloze, test_ans)
     choices=get_choices(test_choi)
 
+    #kenLMモデル読み込み
+    model_path=file_path+'text8.arpa'
+    model = kenlm.LanguageModel(model_path)
+    print('{0}-gram model'.format(model.order))
+
     #テストデータに対する予測と精度の計算
     #選択肢を使ったテスト
     data=make_data_one_word(test_data, choices)
+    calc_acc(data, model)
+    '''
     print(len(data))
 
     for i in range(10):
         print(data[i][0])
-
-    pass
+    '''
