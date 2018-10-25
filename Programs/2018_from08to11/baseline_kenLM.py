@@ -39,6 +39,7 @@ BATCH_SIZE = 128
 
 #自分で定義したグローバル関数とか
 file_path='../../../pytorch_data/'
+git_data_path='../../Data/'
 today1=datetime.datetime.today()
 today_str=today1.strftime('%m_%d_%H%M')
 save_path=file_path + '/' + today_str
@@ -86,8 +87,6 @@ def normalizeString(s, choices=False):
     return s.strip()
 
 
-
-
 #入出力データ読み込み用
 def readData(input_file, target_file):
     #print("Reading data...")
@@ -101,6 +100,20 @@ def readData(input_file, target_file):
     print("data: %s" % i)
 
     return pairs
+
+
+def get_words(file):
+    words=[]
+    print("Reading vocab...")
+    with open(file, encoding='utf-8') as f:
+        for line in f:
+            line=normalizeString(line)
+            for word in line.split(' '):
+                if not word in words:
+                    words.append(word)
+
+    return words
+
 
 
 #ペアじゃなくて単独で読み取るやつ
@@ -146,55 +159,40 @@ def make_sents(choices, cloze_sent):
 
 #選択肢が全て1語のデータのみについて
 #選択肢補充した文と，その正答のペアを返却
-def make_data_one_word(data_pair, choices_lists):
+def make_data(data_pair, choices_lists, one_word=True):
     data=[]
     for sent, choices in zip(data_pair, choices_lists):
         flag=1
-        for choice in choices:
-            if(len(choice.split(' '))>1):
-                flag=-1
-        if(flag>0):
+        if(one_word==True):
+            for choice in choices:
+                if(len(choice.split(' '))>1):
+                    flag=-1
+                    #選択肢に2語以上のものがあるときはflagが負
+                if(flag>0):
+                    test_data=make_sents(choices, sent[0])
+                    test_data.append(sent[1])
+                    data.append(test_data)
+        else:
             test_data=make_sents(choices, sent[0])
             test_data.append(sent[1])
             data.append(test_data)
 
     return data
 
+def make_data_from_all_words(data_pair, choices_lists, all_words):
+    data=[]
+    for sent, choices in zip(data_pair, choices_lists):
+        flag=1
+        for choice in choices:
+            if(len(choice.split(' '))>1):
+                flag=-1
+                #選択肢に2語以上のものがあるときはflagが負
+        if(flag>0):
+            test_data=make_sents(all_words, sent[0])
+            test_data.append(sent[1])
+            data.append(test_data)
 
-#精度いろいろ計算
-#問題文、完全一致文、空所の完答文、空所の一部正答文、BLEU値、空所ミス文
-def calc_score(preds_sentences, ans_sentences):
-    line_num=0
-    allOK=0
-    clozeOK=0
-    partOK=0
-    miss=0
-
-    for pred, ans in zip(preds_sentences, ans_sentences):
-        pred=pred.replace(' <EOS>', '')
-        flag=0
-        if pred == ans:
-            allOK+=1
-            flag=1
-        pred_cloze = get_cloze(pred)
-        ans_cloze = get_cloze(ans)
-        tmp_ans_length=len(ans_cloze.split(' '))
-        line_num+=1
-        if is_correct_cloze(pred):
-            tmp_match=match(pred_cloze, ans_cloze)
-            if tmp_match > 0:
-                partOK+=1
-            if pred_cloze == ans_cloze:
-                clozeOK+=1
-                if flag==0:
-                    print(pred)
-                    print(ans)
-        else:
-            miss+=1
-
-    BLEU=compute_bleu(preds_sentences, ans_sentences)
-
-    return line_num, allOK, clozeOK, partOK, BLEU, miss
+    return data
 
 
 def output_preds(file_name, preds):
@@ -244,10 +242,12 @@ def calc_acc(data, model):
     OK=0
     for one_data in data:
         line+=1
+        ans=one_data[-1]
+        ans=ans.replace('{ ', '')
+        ans=ans.replace(' }', '')
+        ans.strip()
         pred=get_best_sent(one_data[:len(one_data)-1], model)
-        print(pred)
-        print(ans)
-        if pred == one_data[-1]:
+        if pred == ans:
             OK+=1
     print_score(line, OK)
 
@@ -267,12 +267,12 @@ if __name__ == '__main__':
     args = get_args()
 
     # 1.語彙データ読み込み
-    #vocab_path=file_path+'enwiki_vocab30000.txt'
-    #vocab = readVocab(vocab_path)
+    vocab_path=file_path+'enwiki_vocab30000_wordonly.txt'
+    all_words = get_words(vocab_path)
 
-    test_cloze=file_path+'center_cloze.txt'
-    test_ans=file_path+'center_ans.txt'
-    test_choi=file_path+'center_choices.txt'
+    test_cloze=git_data_path+'center_cloze.txt'
+    test_ans=git_data_path+'center_ans.txt'
+    test_choi=git_data_path+'center_choices.txt'
 
     print("Reading data...")
     test_data=readData(test_cloze, test_ans)
@@ -285,11 +285,18 @@ if __name__ == '__main__':
 
     #テストデータに対する予測と精度の計算
     #選択肢を使ったテスト
-    data=make_data_one_word(test_data, choices)
+    print('Use choices')
+    data=make_data(test_data, choices, one_word=False)
     calc_acc(data, model)
-    '''
+
+    #選択肢なしテスト
+    #空所内の選択肢は全て1語のみ
+    print('\nNot use choices, from all words')
+    data=make_data_from_all_words(test_data, choices, all_words)
+    calc_acc(data, model)
+
+
     print(len(data))
 
     for i in range(10):
         print(data[i][0])
-    '''

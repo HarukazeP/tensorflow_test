@@ -109,7 +109,6 @@ The puppy at the rescue center looked happy to have been { choice ### choose ###
 Why did Jack quit his job? He wanted to { come true ### increase ### make sure ### realize } his dream of opening his own cafe.
 In my school, when a { common ### different ### regular ### retired } teacher is absent, another teacher teaches the class instead.
 Going through all the steps to adjust the brightness of my computer screen is a real nuisance. Well, why don' t you do it the easy way? Just press this key. That' s the { shortcut ### shortened ### shorthand ### shortsighted } .
-After many years of war, the country has lost much of its power. { Even so ### Even though ### So ### Thus } , its influence should not be underestimated.
 Dad, if my grades improve by the end of the term, would you mind { raising ### rising ### to raise ### to rise } my allowance?
 I' ve been { carrying ### increasing ### putting ### reducing } on weight recently. You should exercise more and eat better.
 Kenji told me his trip to London was wonderful. I wish I { had participated ### have participated ### participate ### will participate } in that program.
@@ -147,19 +146,12 @@ My wife wanted to have our son { cook ### cooked ### cooks ### to cook } dinner 
 I took it for { demanded ### granted ### natural ### truthful } that we were free to use the school gym on Saturdays.
 Could you { say to ### talk to ### teach ### tell } me who is planning Dan' s birthday party?
 We were shocked when the cashier added { at ### from ### off ### up } the bill and the total was 20,000 yen.
-The { cost ### fare } of treatment at the hospital is much lower for { them ### those } who have health insurance.
-Even though I { ever ### once } spent two years in the US, I' ve never { been ### visites } to the Grand Canyon. Maybe I' ll go next year.
-My mother is trying very hard to { get ### make } ends meet, { but ### so } she never lets me buy anything unnecessary.
 Did you make your grandfather angry again? You should { know better than ### know less than ### make do with ### make up with } that.
 Scott went to the police station because he { caused his computer stolen ### got stolen his computer ### had his computer stolen ### was stolen his computer } .
 Last winter was rather unusual { about ### by ### in ### on } that very little snow fell in northern Japan.
-My granddaughter has started a career as a singer, but I really { hope she became ### hope she will become ### wish she became ### wish she will become } an actress as well in the future.
 I was fast asleep, so I didn' t hear the car accident that { happened ### happens ### was happened ### would happen } at 2 a.m. this morning.
 I always walk my dog along the beach, { being enjoyed ### enjoy ### enjoying ### with enjoying } the sea view.
 Mt. Fuji stands impressively { against ### among ### behind ### by } the blue sky.
-Sorry. We talked about it just now, but { how ### what } did you say { the best solution ### was the best solution ### the best solution ### the best solution was } ?
-The Internet has become { so ### such } powerful a tool { but ### that } people living anywhere can access any educational resource.
-The manager said his team { will ### would } win the soccer league and they actually did { next ### the next } season.
 The train { had already arrived ### has already arrived ### previously arrived ### previously arrives } when I reached the platform, so I didn' t have to wait in the cold.
  { Although ### But ### Despite ### However } Tokyo has a relatively small land area, it has a huge population.
 Children { bringing up ### brought up ### have brought up ### were brought up } by bilingual parents may naturally learn two languages.
@@ -167,9 +159,6 @@ My sister was not a serious high school student, and { either I was ### either w
 Before the movie begins, please { keep ### make sure ### never fail ### remind } your mobile phone is switched off.
 We have made good progress, so we are already { ahead of ### apart from ### far from ### out of } schedule.
 Thanks to their { friendly ### nicely ### properly ### warmly } comments after my presentation, I felt very relieved.
- { If ### Unless ### Until ### While } you' ve completed this required class, you { won' t ### would } be able to graduate.
-Wood { used to ### was used to } be used as the main fuel, but nowadays fossil fuels { are used ### have been used } widely.
- { He is ### It is } so considerate { for ### of } him to come and see his grandmother in the hospital every day.
 What would you like to do today? I feel like { going ### I go ### I' m going ### to go } for a drive.
 Walter found it difficult to tell the truth, so he had to { combine ### describe ### explain ### invent } a story.
 Susie and her sister are so { alike ### double ### near ### same } that they could almost be twins.
@@ -319,9 +308,6 @@ Would you mind doing the laundry while I { care about ### care of ### take care 
 Our teacher' s voice doesn' t { arrive to ### get ### reach ### sound to } the back of the classroom.
 On the train, a man { looked ### moved ### turned ### went } over so that other passengers could go out of the door.
 I' d like to { do ### get ### pay ### take } your parents a visit sometime next week if they' re going to be at home.
-If I { didn' t know ### had known ### hadn' t known ### knew } you were here before I left home, I { have brought ### would have brought ### would bring ### had brought } your book with me 15
-I need a bigger refrigerator, but I' ll have to { do ### keep } without a new one { until ### when } I can afford it.
-In advertising, it' s hard to come up { on ### with } clever { propaganda ### slogans } to attract consumers.
 I' m leaving for Tokyo today on important business and will be back in Osaka { at ### by ### in ### to } three days.
 All the trains were canceled yesterday due to deep snow. That' s { because ### for ### so ### why } I was not able to attend the meeting.
 We keep many roses throughout the house, so every room { is smelled sweet ### is smelled sweetly ### smells sweet ### smells sweetly } .
@@ -329,9 +315,6 @@ Let' s take a break now. We { are fixing ### have ### share ### will prepare } c
 My teacher always tries to create a learning environment { that ### what ### where ### which } all students can express themselves freely.
 Grandma said she was still waiting to hear from you. Did you forget { call her ### having called ### of calling ### to call } again?
 Even if immigrants work very hard in their new country, they might { find ### hear ### look ### say } it difficult to adapt themselves to the new culture.
-Not only { could ### did ### does ### would } Margaret plan the trip to New York, but she { too ### also } did all the packing for her family.
-The government recognizes that the number of children { are ### is } falling on one hand, while life expectancy is increasing { on another ### on the other } .
- { Owing ### Owing to } the new curriculum, pupils now { benefit ### enjoy } more freedom in choosing what courses to take.
 Takashi gently took his grandmother { at ### by ### in ### to } the arm and led her to the sofa.
 My computer crashed last night, so it needs { having repaired ### repaired ### repairing ### to repair } .
 Sand is the material { from which ### on which ### what ### which } glass is made.
@@ -339,6 +322,3 @@ I' m sleepy, so I' m going to drink a { deep ### dense ### strong ### tough } cu
 In my family, I am the second tallest { after ### in ### of ### than } my father.
 Nothing { has been heard ### has ever heard ### is ever heard ### was being heard } from the explorer since last night.
 Oh, it has started to rain. { Are not ### Don' t ### Hadn' t ### Should not } we better stay at home?
-Many British people speak { either ### neither } Spanish nor French, { even ### let alone } Japanese.
-I didn' t immediately recognize Professor Smith at the conference yesterday. He { didn' t put on ### wasn' t wearing } a suit and tie although he usually { does ### was } .
-If my parents { didn' t let ### hadn' t let } me study in Germany at that time, I wouldn' t { find ### have found } such a good job there.

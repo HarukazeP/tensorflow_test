@@ -1,6 +1,11 @@
+自分のPC上
 python3 seq2seq_batch.py --mode test --model_dir ../../../pytorch_data/10_09_1136mini --encoder=encoder_100.pth --decoder=decoder_100.pth
 
+711サーバ上
 time python3.6 seq2seq_attention_batch.py --mode test --model_dir ../../../pytorch_data/10_10_2344all/ --encoder encoder_74.pth --decoder decoder_74.pth
+
+
+-----------------------
 
 Calc scores ...
   acc(all):  0.00  %
@@ -48,23 +53,5 @@ cloze:  31
   この方法でkenLM、選択肢Bの方法ならできそうでは？
 
 
-  tamaki@tamaki-ubuntu:~/M2/tensorflow_pytorch_test/Programs/2018_from08to11$ time python3 baseline_kenLM.py 
-  Reading data...
-  data: 324
-  Reading data...
-  Loading the LM will be faster if you build a binary file.
-  Reading /home/tamaki/M2/pytorch_data/text8.arpa
-  ----5---10---15---20---25---30---35---40---45---50---55---60---65---70---75---80---85---90---95--100
-  ****************************************************************************************************
-  Traceback (most recent call last):
-    File "kenlm.pyx", line 119, in kenlm.Model.__init__ (python/kenlm.cpp:2603)
-  RuntimeError: lm/vocab.cc:305 in void lm::ngram::MissingSentenceMarker(const lm::ngram::Config&, const char*) threw SpecialWordMissingException.
-  The ARPA file is missing </s> and the model is configured to reject these models.  Run build_binary -s to disable this check. Byte: 7648247
 
-  The above exception was the direct cause of the following exception:
-
-  Traceback (most recent call last):
-    File "baseline_kenLM.py", line 280, in <module>
-      model = kenlm.LanguageModel(model_path)
-    File "kenlm.pyx", line 122, in kenlm.Model.__init__ (python/kenlm.cpp:2740)
-  OSError: Cannot read model '../../../pytorch_data/text8.arpa' (lm/vocab.cc:305 in void lm::ngram::MissingSentenceMarker(const lm::ngram::Config&, const char*) threw SpecialWordMissingException. The ARPA file is missing </s> and the model is configured to reject these models.  Run build_binary -s to disable this check. Byte: 7648247)
+  ./kenlm/build/bin/build_binary -s pytorch_data/text8.arpa text8.klm
