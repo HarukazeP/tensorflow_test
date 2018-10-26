@@ -321,6 +321,90 @@ def showPlot2(loss, val_loss):
     plt.legend()
     plt.savefig(save_path+'loss.png')
 
+
+def readData(input_file, target_file):
+    #print("Reading data...")
+    pairs=[]
+    i=0
+    with open(input_file, encoding='utf-8') as input:
+        with open(target_file, encoding='utf-8') as target:
+            for line1, line2 in zip(input, target):
+                i+=1
+                pairs.append([normalizeString(line1), normalizeString(line2)])
+    print("data: %s" % i)
+
+    return pairs
+
+
+def get_choices(file_name):
+    print("Reading data...")
+    choices=[]
+    with open(file_name, encoding='utf-8') as f:
+        for line in f:
+            line=get_cloze(normalizeString(line, choices=True))
+            choices.append(line.split(' ### '))     #選択肢を区切る文字列
+
+    return choices
+
+
+def get_cloze(line):
+    line=re.sub(r'.*{ ', '', line)
+    line=re.sub(r' }.*', '', line)
+
+    return line
+
+
+#選択肢を補充した文4つを返す
+def make_sents(choices, cloze_sent):
+    sents=[]
+    before=re.sub(r'{.*', '', cloze_sent)
+    after=re.sub(r'.*}', '', cloze_sent)
+    for choice in choices:
+        tmp=before + choice + after
+        sents.append(tmp.strip())
+
+    return sents
+
+
+
+#選択肢が全て1語のデータのみについて
+#選択肢補充した文と，その正答のペアを返却
+def make_data(data_pair, choices_lists, one_word=True):
+    data=[]
+    for sent, choices in zip(data_pair, choices_lists):
+        flag=1
+        if(one_word==True):
+            for choice in choices:
+                if(len(choice.split(' '))>1):
+                    flag=-1
+                    #選択肢に2語以上のものがあるときはflagが負
+                if(flag>0):
+                    test_data=make_sents(choices, sent[0])
+                    test_data.append(sent[1])
+                    data.append(test_data)
+        else:
+            test_data=make_sents(choices, sent[0])
+            test_data.append(sent[1])
+            data.append(test_data)
+
+    return data
+
+def make_data_from_all_words(data_pair, choices_lists, all_words):
+    data=[]
+    for sent, choices in zip(data_pair, choices_lists):
+        flag=1
+        for choice in choices:
+            if(len(choice.split(' '))>1):
+                flag=-1
+                #選択肢に2語以上のものがあるときはflagが負
+        if(flag>0):
+            test_data=make_sents(all_words, sent[0])
+            test_data.append(sent[1])
+            data.append(test_data)
+
+    return data
+
+
 #コマンドライン引数の設定いろいろ
 def get_args():
     parser = argparse.ArgumentParser()
@@ -448,14 +532,65 @@ if __name__ == '__main__':
 
         model.load_state_dict(torch.load(save_path+args.model_name))
 
-    #テスト時
-    '''
+    #テストデータに対する予測と精度の計算
     model.eval()
-    #TODO まだ途中
+    test_cloze=git_data_path+'center_cloze.txt'
+    test_ans=git_data_path+'center_ans.txt'
+    test_choi=git_data_path+'center_choices.txt'
 
-    choi_file=file_path+'aaaaaa.txt'
-    ans_file=file_path+'aaaaaa.txt'
+    print("Reading Testdata...")
+    test_data=readData(test_cloze, test_ans)
+    choices=get_choices(test_choi)
 
+    #前から予測スコア（方法A）
+    #空所内1単語のみ（選択肢ありなし両方）
+    print('\npreds by prob from top')
+    '''
+    #こっちは学習にパディングの処理とか入れてから？
+    #いったん後回しにする
+    前から予測用（1語限定）
+    モデルの入力部分作成
+        |___空所の直前まで（選択肢は見なくてOK）
+        |___空所の前がnに満たない場合はどうする？
+    モデルの出力する確率確認
+        |___確率一覧を見て，最大の語（選択肢なし），選択肢のうち最大の語（選択肢あり）
+    '''
+    #print('one_word(use choices / not use choices)')
+    #data=make_data_from_all_words(test_data, choices, all_words)
+    #calc_acc(data, model)
+
+    #文スコア（方法B）
+    #空所内1単語以上（選択肢あり）
+    #空所内1単語のみ（選択肢ありなし両方）
+    print('\npreds by sent score')
+    '''
+    文スコア用（1語でも，それ以上でも）
+    モデルの入力部分作成
+        |___空所に語を補充した文を作成   make_data_for_sent_score
+        |___その文からn-gramの組を作成    sent_to_ngram_pair
+    モデルの出力する確率確認
+        |___n-gramの組について対数尤度の和 or 確率の積をとる
+        |___上記をn-gramペア数（文長の代わり）で割って正規化，これを文スコアとする
+
+    '''
+    data=make_data_for_sent_score(test_data, choices, all_words, one_word=True)
+    #calc_acc(data, model)
+
+#TODO ここ単なるメモ
+def make_data_for_sent_score():
+    #ここで1語かどうかのチェックも
+    #選択肢入れてs1, s2, ...
+    #return [[s1,s2,s3, ..., s_ans], [s1, s2,s3, ..., s_ans], ...]
+    return sents
+
+def sent_to_ngram_pair():
+    #1文s1 → ngramのpair
+    #return [ngram1,ngram2,ngram3, ...]
+    return ngram_pair
+
+def aaa():
+
+    '''
     #TODO これ試しにテストしてるだけ
     n_gram=args.ngrams
     batch=1
