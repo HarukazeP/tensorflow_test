@@ -678,15 +678,16 @@ if __name__ == '__main__':
     all_words=vocab.idx2word.values()
 
     print('Use choices(one_words)')
-    #data=make_data_for_sent_score(test_data, choices, one_word=True)
+    '''
+    data=make_data_for_sent_score(test_data, choices, one_word=True)
     print(len(data))
-    #calc_acc(vocab, data, model, args.ngrams)
+    calc_acc(vocab, data, model, args.ngrams)
 
     print('Use choices(over one_words)')
-    #data=make_data_for_sent_score(test_data, choices, one_word=False)
+    data=make_data_for_sent_score(test_data, choices, one_word=False)
     print(len(data))
     #calc_acc(vocab, data, model, args.ngrams)
-
+    '''
     print('\nNot use choices, from all words(one_words)')
     data=make_data_for_sent_score_from_all_words(test_data, choices, all_words)
     print(len(data))
