@@ -455,8 +455,7 @@ def sent_to_idxs(sent, lang):
 #ngramのペアからモデルの返す尤度をもとにスコアを算出
 def calc_sent_score(lang, ngram_pair, model):
     score=0
-    n_gram=args.ngrams
-    batch=1
+    batch=args.ngrams
     hidden = model.init_hidden(batch)
     with torch.no_grad():
         for one_pair in ngram_pair:
@@ -631,7 +630,7 @@ if __name__ == '__main__':
 
     #前から予測スコア（方法A）
     #空所内1単語のみ（選択肢ありなし両方）
-    print('\npreds by prob from top')
+    #print('\npreds by prob from top')
     '''
     #こっちは学習にパディングの処理とか入れてから？
     #いったん後回しにする
