@@ -377,10 +377,10 @@ def make_data_for_sent_score(data_pair, choices_lists, one_word=True):
                 if(len(choice.split(' '))>1):
                     flag=-1
                     #選択肢に2語以上のものがあるときはflagが負
-                if(flag>0):
-                    test_data=make_sents(choices, sent[0])
-                    test_data.append(sent[1])
-                    data.append(test_data)
+            if(flag>0):
+                test_data=make_sents(choices, sent[0])
+                test_data.append(sent[1])
+                data.append(test_data)
         else:
             test_data=make_sents(choices, sent[0])
             test_data.append(sent[1])
@@ -659,11 +659,9 @@ if __name__ == '__main__':
     print(len(all_words))
     data=make_data_for_sent_score(test_data, choices, one_word=True)
     print(len(data))
-    for i in range(10):
-        print(data[i])
-    #calc_acc(vocab, data, model, args.ngrams)
+    calc_acc(vocab, data, model, args.ngrams)
 
     print('\nNot use choices, from all words')
     data=make_data_for_sent_score(test_data, choices, all_words)
     print(len(data))
-    #calc_acc(vocab, data, model, args.ngrams)
+    calc_acc(vocab, data, model, args.ngrams)

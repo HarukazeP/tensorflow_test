@@ -165,10 +165,10 @@ def make_data(data_pair, choices_lists, one_word=True):
                 if(len(choice.split(' '))>1):
                     flag=-1
                     #選択肢に2語以上のものがあるときはflagが負
-                if(flag>0):
-                    test_data=make_sents(choices, sent[0])
-                    test_data.append(sent[1])
-                    data.append(test_data)
+            if(flag>0):
+                test_data=make_sents(choices, sent[0])
+                test_data.append(sent[1])
+                data.append(test_data)
         else:
             test_data=make_sents(choices, sent[0])
             test_data.append(sent[1])
