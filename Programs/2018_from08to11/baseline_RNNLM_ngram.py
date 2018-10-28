@@ -418,7 +418,7 @@ def calc_acc(lang, data, model, N):
     OK=0
     for one_data in data:
         line+=1
-        print(line)
+        print('line:'line)
         ans=one_data[-1]
         ans=ans.replace('{ ', '')
         ans=ans.replace(' }', '')
@@ -433,6 +433,7 @@ def calc_acc(lang, data, model, N):
 #例えば3-gramなら
 #return [[[w1, w2, w3], w4], [[w2, w3, w4], w5], ...]
 #文の長さ<Nとなることはない前提
+#TODO Nが5以上のとき文の長さ<Nが起こり得る
 def sent_to_ngram_pair(sent, N):
     pair=[]
     words=sent.split(' ')
@@ -507,8 +508,11 @@ def calc_sent_score(lang, ngram_pair, model):
 def get_best_sent(lang, sents, model, N):
     best_score = -1000.0 #仮
     i=0
+    sent_num=0
     best_sent=''
     for sent in sents:
+        sent_num+=1
+        print('sent:'sent_num)
         ngram_pair=sent_to_ngram_pair(sent, N)
         #scoreは対数尤度 -inf ～ 0
         score=calc_sent_score(lang, ngram_pair, model)
@@ -686,7 +690,7 @@ if __name__ == '__main__':
     data=make_data_for_sent_score(test_data, choices, one_word=True)
     print(len(data))
     calc_acc(vocab, data, model, args.ngrams)
-    '''
+
     print('Use choices(over one_words)')
     data=make_data_for_sent_score(test_data, choices, one_word=False)
     print(len(data))
@@ -696,5 +700,5 @@ if __name__ == '__main__':
     data=make_data_for_sent_score_from_all_words(test_data, choices, all_words)
     print(len(data))
     calc_acc(vocab, data, model, args.ngrams)
-    '''
+
     pass
