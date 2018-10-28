@@ -445,7 +445,7 @@ def sent_to_ngram_pair(sent, N):
 
 def sent_to_idxs(sent, lang):
     idxs=[]
-    for words in sent:
+    for word in sent:
         idxs.append(lang.check_word2idx(word))
 
     return idxs
