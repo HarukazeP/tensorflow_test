@@ -4,6 +4,8 @@ python3 seq2seq_batch.py --mode test --model_dir ../../../pytorch_data/10_09_113
 711サーバ上
 time python3.6 seq2seq_attention_batch.py --mode test --model_dir ../../../pytorch_data/10_10_2344all/ --encoder encoder_74.pth --decoder decoder_74.pth
 
+time python3.6 baseline_RNNLM_ngram.py --mode test --model_dir RNNLM10_23_1240_N5 --model_name model_16.pth --ngrams 5
+
 
 -----------------------
 

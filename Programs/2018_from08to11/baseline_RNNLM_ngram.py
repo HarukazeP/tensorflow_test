@@ -497,7 +497,7 @@ def get_args():
                         help='initial learning rate')
     parser.add_argument('--clip', type=float, default=0.25,
                         help='gradient clipping')
-    parser.add_argument('--epochs', type=int, default=100,
+    parser.add_argument('--epochs', type=int, default=30,
                         help='upper epoch limit')
     parser.add_argument('--batch_size', type=int, default=128, metavar='N',
                         help='batch size')
@@ -519,11 +519,11 @@ def get_args():
                         help='number of words to generate')
     parser.add_argument('--mode', choices=['all', 'test'], default='all',
                         help='train and test / test only')
-    parser.add_argument('--model_dir', type=str, default='RNNLM10_17_1745',
+    parser.add_argument('--model_dir', type=str, default='RNNLM10_23_1240_N5',
                         help='directory name which has best model(at test only  mode)')
     parser.add_argument('--model_name', type=str, default='model_95.pth',
                         help='best model name(at test only  mode)')
-    parser.add_argument('--ngrams', type=int, default=1,
+    parser.add_argument('--ngrams', type=int, default=5,
                         help='select N for N-grams')
 
     return parser.parse_args()
