@@ -452,7 +452,10 @@ def sent_to_idxs(sent, lang):
 
 
 #ngramのペアからモデルの返す尤度をもとにスコアを算出
-def calc_sent_score(lang, ngram_pair, model):
+#TODO これ間違ってるのか，エラーになる
+#RuntimeError: Expected hidden[0] size (2, 5, 200), got (2, 1, 200)
+
+def calc_sent_score2(lang, ngram_pair, model):
     score=0
     batch=1
     #TODO これあってる？
@@ -474,7 +477,7 @@ def calc_sent_score(lang, ngram_pair, model):
     return score/len(ngram_pair)
 
 #ngramのペアからモデルの返す尤度をもとにスコアを算出
-def calc_sent_score_old(lang, ngram_pair, model):
+def calc_sent_score(lang, ngram_pair, model):
     score=0
     batch=args.ngrams
     #TODO これあってる？
@@ -488,7 +491,7 @@ def calc_sent_score_old(lang, ngram_pair, model):
             input = torch.tensor(input_idx, dtype=torch.long).to(device)
             #input = input.unsqueeze(0)  #(1, N)
             output, hidden_out = model(input, hidden)    #(5, 語彙数)
-            probs=F.log_softmax(output.squeeze(),dim=1)
+            probs=F.log_softmax(output.squeeze(),dim=0)
             word_idx=lang.check_word2idx(one_pair[1])
             score+=probs[0][word_idx].item()
 
