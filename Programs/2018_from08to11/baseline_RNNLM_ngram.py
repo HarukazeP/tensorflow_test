@@ -443,6 +443,13 @@ def sent_to_ngram_pair(sent, N):
 
     return pair
 
+def sent_to_idxs(sent, lang):
+    idxs=[]
+    for words in sent:
+        idxs.append(lang.check_word2idx(word))
+
+    return idxs
+
 
 #TODO まだ途中
 #ngramのペアからモデルの返す尤度をもとにスコアを算出
@@ -453,7 +460,8 @@ def calc_sent_score(lang, ngram_pair, model):
     hidden = model.init_hidden(batch)
     with torch.no_grad():
         for one_pair in ngram_pair:
-            input = torch.tensor(one_pair[0], dtype=torch.long).to(device)
+            ids=sent_to_idxs(one_pair[0], lang)
+            input = torch.tensor(ids, dtype=torch.long).to(device)
             input = input.unsqueeze(0)  #(1, N)
             output, _ = model(input, hidden)    #(1, 語彙数)
             probs=F.log_softmax(output.squeeze())
