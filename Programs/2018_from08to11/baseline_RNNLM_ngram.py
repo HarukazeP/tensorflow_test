@@ -418,6 +418,7 @@ def calc_acc(lang, data, model, N):
     OK=0
     for one_data in data:
         line+=1
+        print(line)
         ans=one_data[-1]
         ans=ans.replace('{ ', '')
         ans=ans.replace(' }', '')
@@ -677,12 +678,12 @@ if __name__ == '__main__':
     all_words=vocab.idx2word.values()
 
     print('Use choices(one_words)')
-    data=make_data_for_sent_score(test_data, choices, one_word=True)
+    #data=make_data_for_sent_score(test_data, choices, one_word=True)
     print(len(data))
-    calc_acc(vocab, data, model, args.ngrams)
+    #calc_acc(vocab, data, model, args.ngrams)
 
     print('Use choices(over one_words)')
-    data=make_data_for_sent_score(test_data, choices, one_word=False)
+    #data=make_data_for_sent_score(test_data, choices, one_word=False)
     print(len(data))
     #calc_acc(vocab, data, model, args.ngrams)
 
