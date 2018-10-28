@@ -466,10 +466,10 @@ def calc_sent_score(lang, ngram_pair, model):
             input = torch.tensor(input_idx, dtype=torch.long).to(device)
             print(input.Size())
             #input = input.unsqueeze(0)  #(1, N)
-            output, _ = model(input, hidden)    #(1, 語彙数)
-            probs=F.log_softmax(output.squeeze())
+            #output, _ = model(input, hidden)    #(1, 語彙数)
+            #probs=F.log_softmax(output.squeeze())
             word_idx=lang.check_word2idx(one_pair[1])
-            score+=probs[word_idx].item()
+            #score+=probs[word_idx].item()
 
     #返り値のスコアは文長で正規化する
     return score/len(ngram_pair)
