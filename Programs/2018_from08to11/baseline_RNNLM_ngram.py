@@ -656,9 +656,11 @@ if __name__ == '__main__':
     print('\npreds by sent score')
     print('Use choices')
     all_words=vocab.idx2word.values()
+    print(len(all_words))
     data=make_data_for_sent_score(test_data, choices, one_word=True)
-    calc_acc(vocab, data, model, args.ngrams)
+    print(len(data))
+    #calc_acc(vocab, data, model, args.ngrams)
 
     print('\nNot use choices, from all words')
     data=make_data_for_sent_score(test_data, choices, all_words)
-    calc_acc(vocab, data, model, args.ngrams)
+    #calc_acc(vocab, data, model, args.ngrams)
