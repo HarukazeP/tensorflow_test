@@ -418,7 +418,6 @@ def calc_acc(lang, data, model, N):
     OK=0
     for one_data in data:
         line+=1
-        print(line)
         ans=one_data[-1]
         ans=ans.replace('{ ', '')
         ans=ans.replace(' }', '')
@@ -470,10 +469,6 @@ def calc_sent_score(lang, ngram_pair, model):
             probs=F.log_softmax(output.squeeze(),dim=1)
             word_idx=lang.check_word2idx(one_pair[1])
             score+=probs[0][word_idx].item()
-        #print(input.size())
-        #print(output.size())
-        #print(probs.size())
-
 
     #返り値のスコアは文長で正規化する
     return score/len(ngram_pair)
@@ -654,16 +649,16 @@ if __name__ == '__main__':
     #空所内1単語以上（選択肢あり）
     #空所内1単語のみ（選択肢ありなし両方）
     print('\npreds by sent score')
-    print('Use choices')
     all_words=vocab.idx2word.values()
-    print(len(all_words))
-    data=make_data_for_sent_score(test_data, choices, one_word=True)
-    print(len(data))
-    if len(data)==324:
-        print('dataOK')
-        calc_acc(vocab, data, model, args.ngrams)
 
-    print('\nNot use choices, from all words')
+    print('Use choices(one_words)')
+    data=make_data_for_sent_score(test_data, choices, one_word=True)
+    calc_acc(vocab, data, model, args.ngrams)
+
+    print('Use choices(over one_words)')
+    data=make_data_for_sent_score(test_data, choices, one_word=False)
+    calc_acc(vocab, data, model, args.ngrams)
+
+    print('\nNot use choices, from all words(one_words)')
     data=make_data_for_sent_score(test_data, choices, all_words)
-    print(len(data))
     calc_acc(vocab, data, model, args.ngrams)
