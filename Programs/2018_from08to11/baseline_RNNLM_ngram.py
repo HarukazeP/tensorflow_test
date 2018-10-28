@@ -463,6 +463,7 @@ def calc_sent_score(lang, ngram_pair, model):
             ids=sent_to_idxs(one_pair[0], lang)
             input = torch.tensor(ids, dtype=torch.long).to(device)
             input = input.unsqueeze(0)  #(1, N)
+            input.transpose(0,1)
             output, _ = model(input, hidden)    #(1, 語彙数)
             probs=F.log_softmax(output.squeeze())
             word_idx=lang.check_word2idx(one_pair[1])
