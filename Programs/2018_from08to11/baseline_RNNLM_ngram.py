@@ -497,6 +497,8 @@ def calc_sent_score(lang, ngram_pair, model):
             score+=probs[0][word_idx].item()
 
     #返り値のスコアは文長で正規化する
+    if len(ngram_pair)==0:
+        return -1000.0
     return score/len(ngram_pair)
 
 
@@ -510,6 +512,8 @@ def get_best_sent(lang, sents, model, N):
         ngram_pair=sent_to_ngram_pair(sent, N)
         #scoreは対数尤度 -inf ～ 0
         score=calc_sent_score(lang, ngram_pair, model)
+        if score==-1000.0:
+            print(sent)
         if(score<best_score or i==0):
             best_score=score
             best_sent=sent
@@ -682,7 +686,7 @@ if __name__ == '__main__':
     data=make_data_for_sent_score(test_data, choices, one_word=True)
     print(len(data))
     calc_acc(vocab, data, model, args.ngrams)
-
+    '''
     print('Use choices(over one_words)')
     data=make_data_for_sent_score(test_data, choices, one_word=False)
     print(len(data))
@@ -692,3 +696,5 @@ if __name__ == '__main__':
     data=make_data_for_sent_score_from_all_words(test_data, choices, all_words)
     print(len(data))
     calc_acc(vocab, data, model, args.ngrams)
+    '''
+    pass
