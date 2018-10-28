@@ -418,6 +418,7 @@ def calc_acc(lang, data, model, N):
     OK=0
     for one_data in data:
         line+=1
+        print(line)
         ans=one_data[-1]
         ans=ans.replace('{ ', '')
         ans=ans.replace(' }', '')
