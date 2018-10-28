@@ -372,7 +372,7 @@ def make_data_for_sent_score(data_pair, choices_lists, one_word=True):
     data=[]
     for sent, choices in zip(data_pair, choices_lists):
         flag=1
-        if(one_word==True):
+        if(one_word):
             for choice in choices:
                 if(len(choice.split(' '))>1):
                     flag=-1
@@ -659,7 +659,9 @@ if __name__ == '__main__':
     print(len(all_words))
     data=make_data_for_sent_score(test_data, choices, one_word=True)
     print(len(data))
-    calc_acc(vocab, data, model, args.ngrams)
+    if len(data)==324:
+        print('dataOK')
+        calc_acc(vocab, data, model, args.ngrams)
 
     print('\nNot use choices, from all words')
     data=make_data_for_sent_score(test_data, choices, all_words)
