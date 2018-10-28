@@ -454,6 +454,28 @@ def sent_to_idxs(sent, lang):
 #ngramのペアからモデルの返す尤度をもとにスコアを算出
 def calc_sent_score(lang, ngram_pair, model):
     score=0
+    batch=1
+    #TODO これあってる？
+    #ほんとはbatch=1のはずだが，ngramと同じにしないとエラーでる
+    hidden = model.init_hidden(batch)
+    with torch.no_grad():
+        for one_pair in ngram_pair:
+            ids=sent_to_idxs(one_pair[0], lang)
+            #zeros=[[0]*(args.ngrams)]*(batch-1)
+            #input_idx=[ids]+zeros
+            input = torch.tensor(ids, dtype=torch.long).to(device)
+            input = input.unsqueeze(0)  #(1, N)
+            output, hidden_out = model(input, hidden)    #(5, 語彙数)
+            probs=F.log_softmax(output.squeeze())
+            word_idx=lang.check_word2idx(one_pair[1])
+            score+=probsword_idx].item()
+
+    #返り値のスコアは文長で正規化する
+    return score/len(ngram_pair)
+
+#ngramのペアからモデルの返す尤度をもとにスコアを算出
+def calc_sent_score_old(lang, ngram_pair, model):
+    score=0
     batch=args.ngrams
     #TODO これあってる？
     #ほんとはbatch=1のはずだが，ngramと同じにしないとエラーでる
