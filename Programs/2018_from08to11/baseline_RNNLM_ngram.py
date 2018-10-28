@@ -41,6 +41,7 @@ from torch.utils.data import TensorDataset, DataLoader
 
 #自分で定義したグローバル関数とか
 file_path='../../../pytorch_data/'
+git_data_path='../../Data/'
 today1=datetime.datetime.today()
 today_str=today1.strftime('%m_%d_%H%M')
 save_path=file_path + '/RNNLM' + today_str
