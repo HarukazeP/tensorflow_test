@@ -659,8 +659,11 @@ if __name__ == '__main__':
     print(len(all_words))
     data=make_data_for_sent_score(test_data, choices, one_word=True)
     print(len(data))
+    for i in range(10):
+        print(data[i])
     #calc_acc(vocab, data, model, args.ngrams)
 
     print('\nNot use choices, from all words')
     data=make_data_for_sent_score(test_data, choices, all_words)
+    print(len(data))
     #calc_acc(vocab, data, model, args.ngrams)
