@@ -491,7 +491,7 @@ def calc_sent_score(lang, ngram_pair, model):
             input = torch.tensor(input_idx, dtype=torch.long).to(device)
             #input = input.unsqueeze(0)  #(1, N)
             output, hidden_out = model(input, hidden)    #(5, 語彙数)
-            probs=F.log_softmax(output.squeeze(),dim=0)
+            probs=F.log_softmax(output.squeeze(),dim=1)
             word_idx=lang.check_word2idx(one_pair[1])
             score+=probs[0][word_idx].item()
 
@@ -687,6 +687,6 @@ if __name__ == '__main__':
     #calc_acc(vocab, data, model, args.ngrams)
 
     print('\nNot use choices, from all words(one_words)')
-    data=make_data_for_sent_score(test_data, choices, all_words)
+    data=make_data_for_sent_score_from_all_words(test_data, choices, all_words)
     print(len(data))
     calc_acc(vocab, data, model, args.ngrams)
