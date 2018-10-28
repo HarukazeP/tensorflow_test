@@ -468,7 +468,7 @@ def calc_sent_score(lang, ngram_pair, model):
             output, hidden_out = model(input, hidden)    #(5, 語彙数)
             probs=F.log_softmax(output.squeeze())
             word_idx=lang.check_word2idx(one_pair[1])
-            score+=probsword_idx].item()
+            score+=probs[word_idx].item()
 
     #返り値のスコアは文長で正規化する
     return score/len(ngram_pair)
