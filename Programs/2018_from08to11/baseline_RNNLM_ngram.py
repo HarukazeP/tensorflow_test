@@ -690,7 +690,7 @@ if __name__ == '__main__':
     print('Use choices(over one_words)')
     data=make_data_for_sent_score(test_data, choices, one_word=False)
     print(len(data))
-    #calc_acc(vocab, data, model, args.ngrams)
+    calc_acc(vocab, data, model, args.ngrams)
     '''
     print('\nNot use choices, from all words(one_words)')
     data=make_data_for_sent_score_from_all_words(test_data, choices, all_words)
