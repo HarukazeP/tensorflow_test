@@ -4,9 +4,6 @@
 kenLMライブラリを用いた統計言語モデル（n-grams）
 https://github.com/kpu/kenlm
 
-#TODO テスト関連の再確認
-
-
 動かしていたバージョン
 python  : 3.5.2
 
@@ -257,7 +254,6 @@ def calc_acc(data, model):
 def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--epoch', type=int, default=100)
-    #TODO ほかにも引数必要に応じて追加
     return parser.parse_args()
 
 

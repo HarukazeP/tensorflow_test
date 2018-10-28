@@ -451,18 +451,21 @@ def sent_to_idxs(sent, lang):
     return idxs
 
 
-#TODO まだ途中
 #ngramのペアからモデルの返す尤度をもとにスコアを算出
 def calc_sent_score(lang, ngram_pair, model):
     score=0
     batch=args.ngrams
+    #TODO これあってる？
+    #ほんとはbatch=1のはずだが，ngramと同じにしないとエラーでる
     hidden = model.init_hidden(batch)
     with torch.no_grad():
         for one_pair in ngram_pair:
             ids=sent_to_idxs(one_pair[0], lang)
-            input = torch.tensor(ids, dtype=torch.long).to(device)
-            input = input.unsqueeze(0)  #(1, N)
-            input.transpose(0,1)
+            zeros=[[0]*(args.ngrams)]*(batch-1)
+            input_idx=[ids]+zeros
+            input = torch.tensor(input_idx, dtype=torch.long).to(device)
+            print(input.Size())
+            #input = input.unsqueeze(0)  #(1, N)
             output, _ = model(input, hidden)    #(1, 語彙数)
             probs=F.log_softmax(output.squeeze())
             word_idx=lang.check_word2idx(one_pair[1])
@@ -477,12 +480,10 @@ def calc_sent_score(lang, ngram_pair, model):
 def get_best_sent(lang, sents, model, N):
     best_score = -1000.0 #仮
     i=0
-    #TODO モデルの返り値は尤度？対数尤度？
-    #それによってbest_scoreの初期値変わる
     best_sent=''
     for sent in sents:
         ngram_pair=sent_to_ngram_pair(sent, N)
-        #scoreは -inf ～ 0
+        #scoreは対数尤度 -inf ～ 0
         score=calc_sent_score(lang, ngram_pair, model)
         if(score<best_score or i==0):
             best_score=score
