@@ -512,7 +512,8 @@ def get_best_sent(lang, sents, model, N):
     best_sent=''
     for sent in sents:
         sent_num+=1
-        print('sent:',sent_num)
+        if sent_num&1000==0:
+            print('sent:',sent_num)
         ngram_pair=sent_to_ngram_pair(sent, N)
         #scoreは対数尤度 -inf ～ 0
         score=calc_sent_score(lang, ngram_pair, model)
