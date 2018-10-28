@@ -464,7 +464,7 @@ def calc_sent_score(lang, ngram_pair, model):
             zeros=[[0]*(args.ngrams)]*(batch-1)
             input_idx=[ids]+zeros
             input = torch.tensor(input_idx, dtype=torch.long).to(device)
-            print(input.Size())
+            print(input.size())
             #input = input.unsqueeze(0)  #(1, N)
             #output, _ = model(input, hidden)    #(1, 語彙数)
             #probs=F.log_softmax(output.squeeze())
