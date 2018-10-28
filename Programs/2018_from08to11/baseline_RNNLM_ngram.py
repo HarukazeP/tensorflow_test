@@ -21,6 +21,7 @@ import datetime
 import torch
 import torch.nn as nn
 from torch import optim
+import torch.nn.functional as F
 
 import time
 import math
@@ -169,7 +170,6 @@ def make_data(data, N):
     return train_data, val_data
 
 #model.py内
-#TODO いろいろ変更
 class RNNModel(nn.Module):
     """Container module with an encoder, a recurrent module, and a decoder."""
 
@@ -366,10 +366,8 @@ def make_sents(choices, cloze_sent):
     return sents
 
 
-
-#選択肢が全て1語のデータのみについて
-#選択肢補充した文と，その正答のペアを返却
-def make_data(data_pair, choices_lists, one_word=True):
+#ファイルから選択肢補充済み文と答えのセット
+def make_data_for_sent_score(data_pair, choices_lists, one_word=True):
     data=[]
     for sent, choices in zip(data_pair, choices_lists):
         flag=1
@@ -389,7 +387,10 @@ def make_data(data_pair, choices_lists, one_word=True):
 
     return data
 
-def make_data_from_all_words(data_pair, choices_lists, all_words):
+
+#ファイルから選択肢補充済み文と答えのセット
+#全単語から
+def make_data_for_sent_score_from_all_words(data_pair, choices_lists, all_words):
     data=[]
     for sent, choices in zip(data_pair, choices_lists):
         flag=1
@@ -403,6 +404,82 @@ def make_data_from_all_words(data_pair, choices_lists, all_words):
             data.append(test_data)
 
     return data
+
+
+def print_score(line, OK):
+    print('  acc: ', '{0:.2f}'.format(1.0*OK/line*100),' %')
+    print(' line: ',line)
+    print('   OK: ',OK)
+
+#正答率の算出
+def calc_acc(lang, data, model, N):
+    line=0
+    OK=0
+    for one_data in data:
+        line+=1
+        ans=one_data[-1]
+        ans=ans.replace('{ ', '')
+        ans=ans.replace(' }', '')
+        ans.strip()
+        pred=get_best_sent(lang, one_data[:len(one_data)-1], model, N)
+        if pred == ans:
+            OK+=1
+    print_score(line, OK)
+
+
+#1文 → ngramのpair
+#例えば3-gramなら
+#return [[[w1, w2, w3], w4], [[w2, w3, w4], w5], ...]
+#文の長さ<Nとなることはない前提
+def sent_to_ngram_pair(sent, N):
+    pair=[]
+    words=sent.split(' ')
+    for i in range(len(words)-N-1):
+        one_pair=[]
+        one_pair.append(words[0+i:N+i])
+        one_pair.append(words[N+i])
+        pair.append(one_pair)
+
+    return pair
+
+
+#TODO まだ途中
+#ngramのペアからモデルの返す尤度をもとにスコアを算出
+def calc_sent_score(lang, ngram_pair, model):
+    score=0
+    n_gram=args.ngrams
+    batch=1
+    hidden = model.init_hidden(batch)
+    with torch.no_grad():
+        for one_pair in ngram_pair:
+            input = torch.tensor(one_pair[0], dtype=torch.long).to(device)
+            input = input.unsqueeze(0)  #(1, N)
+            output, _ = model(input, hidden)    #(1, 語彙数)
+            probs=F.log_softmax(output.squeeze())
+            word_idx=lang.check_word2idx(one_pair[1])
+            score+=probs[word_idx].item()
+
+    #返り値のスコアは文長で正規化する
+    return score/len(ngram_pair)
+
+
+#1つの問題に対する，選択肢補充済み文複数から
+#ベスト1文を返す
+def get_best_sent(lang, sents, model, N):
+    best_score = -1000.0 #仮
+    i=0
+    #TODO モデルの返り値は尤度？対数尤度？
+    #それによってbest_scoreの初期値変わる
+    best_sent=''
+    for sent in sents:
+        ngram_pair=sent_to_ngram_pair(sent, N)
+        #scoreは -inf ～ 0
+        score=calc_sent_score(lang, ngram_pair, model)
+        if(score<best_score or i==0):
+            best_score=score
+            best_sent=sent
+        i+=1
+    return best_sent
 
 
 #コマンドライン引数の設定いろいろ
@@ -557,53 +634,17 @@ if __name__ == '__main__':
     '''
     #print('one_word(use choices / not use choices)')
     #data=make_data_from_all_words(test_data, choices, all_words)
-    #calc_acc(data, model)
+    #calc_acc(lang, data, model)
 
     #文スコア（方法B）
     #空所内1単語以上（選択肢あり）
     #空所内1単語のみ（選択肢ありなし両方）
     print('\npreds by sent score')
-    '''
-    文スコア用（1語でも，それ以上でも）
-    モデルの入力部分作成
-        |___空所に語を補充した文を作成   make_data_for_sent_score
-        |___その文からn-gramの組を作成    sent_to_ngram_pair
-    モデルの出力する確率確認
-        |___n-gramの組について対数尤度の和 or 確率の積をとる
-        |___上記をn-gramペア数（文長の代わり）で割って正規化，これを文スコアとする
+    print('Use choices')
+    all_words=vocab.idx2word.values()
+    data=make_data_for_sent_score(test_data, choices, one_word=True)
+    calc_acc(vocab, data, model, args.ngrams)
 
-    '''
-    data=make_data_for_sent_score(test_data, choices, all_words, one_word=True)
-    #calc_acc(data, model)
-
-#TODO ここ単なるメモ
-def make_data_for_sent_score():
-    #ここで1語かどうかのチェックも
-    #選択肢入れてs1, s2, ...
-    #return [[s1,s2,s3, ..., s_ans], [s1, s2,s3, ..., s_ans], ...]
-    return sents
-
-def sent_to_ngram_pair():
-    #1文s1 → ngramのpair
-    #return [ngram1,ngram2,ngram3, ...]
-    return ngram_pair
-
-def aaa():
-
-    '''
-    #TODO これ試しにテストしてるだけ
-    n_gram=args.ngrams
-    batch=1
-    hidden = model.init_hidden(batch)
-    temp_list=[33,987,432,3,5667,63,86,9,235,4764,12312,6566,44,22]
-    input = torch.tensor(temp_list[:n_gram], dtype=torch.long).to(device)
-    input = input.unsqueeze(0)
-    with torch.no_grad():  # no tracking history
-        output, hidden = model(input, hidden)
-        print(output.size())
-        word_weights = output.squeeze().div(args.temperature).exp().cpu()
-        print(word_weights.size())
-        word_idx = torch.multinomial(word_weights, 1)[0]    #1語サンプリング
-        print(torch.multinomial(word_weights, 1).size())
-        print(word_idx)
-    '''
+    print('\nNot use choices, from all words')
+    data=make_data_for_sent_score(test_data, choices, all_words)
+    calc_acc(vocab, data, model, args.ngrams)
