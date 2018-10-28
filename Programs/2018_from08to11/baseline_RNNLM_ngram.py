@@ -596,7 +596,7 @@ if __name__ == '__main__':
         if os.path.exists(save_path)==False:
             os.mkdir(save_path)
 
-        save_path=save_path+'/'
+        save_path=save_path+'_N'+str(args.ngrams) + '/'
         torch.save(model.state_dict(), save_path+'model_'+str(best_epoch)+'.pth')
 
         showPlot2(plot_train_loss, plot_val_loss)
