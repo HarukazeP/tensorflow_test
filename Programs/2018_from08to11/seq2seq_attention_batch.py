@@ -1080,8 +1080,8 @@ def test_choices(lang, encoder, decoder, test_data, choices, saveAttention=False
 #選択肢を使って4つの文を生成
 def make_sents_with_cloze_mark(sentence, choices):
     sents=[]
-    before=re.sub(r'{.*', '{ ', cloze_sent)
-    after=re.sub(r'.*}', ' }', cloze_sent)
+    before=re.sub(r'{.*', '{ ', sentence)
+    after=re.sub(r'.*}', ' }', sentence)
     for choice in choices:
         tmp=before + choice + after
         sents.append(tmp.strip())
