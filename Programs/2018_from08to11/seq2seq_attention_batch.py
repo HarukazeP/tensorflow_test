@@ -1135,7 +1135,7 @@ def test_choices_by_sent_score(lang, encoder, decoder, test_data, choices, saveA
         input_sentence=pair[0]
         ans.append(pair[1])
 
-        sents=make_sents(input_sentence, choi)
+        sents=make_sents_with_cloze_mark(input_sentence, choi)
         pred=get_best_sent(lang, encoder, decoder, sents)
 
         preds_choices.append(pred)
