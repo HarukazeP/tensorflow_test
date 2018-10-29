@@ -192,8 +192,11 @@ class EncoderRNN(nn.Module):
                             hidden_size=self.hidden_dim,
                             bidirectional=True,
                             num_layers=2)
-        self.linear_h = nn.Linear(self.hidden_dim * 4, self.hidden_dim)
-        self.linear_c = nn.Linear(self.hidden_dim * 4, self.hidden_dim)
+        self.linear_h1 = nn.Linear(self.hidden_dim * 2, self.hidden_dim)
+        self.linear_c1 = nn.Linear(self.hidden_dim * 2, self.hidden_dim)
+
+        self.linear_h2 = nn.Linear(self.hidden_dim * 2, self.hidden_dim)
+        self.linear_c2 = nn.Linear(self.hidden_dim * 2, self.hidden_dim)
 
     def forward(self, input_batch):
         """
@@ -212,32 +215,32 @@ class EncoderRNN(nn.Module):
         hidden_c1, hidden_c2=torch.chunk(all_c, 2, dim=0)
 
 
-        hidden_h1 = hidden_h1.transpose(1, 0)  # (4, b, h) -> (b, 4, h)
-        hidden_h1 = hidden_h1.reshape(batch_size, -1)  # (b, 4, h) -> (b, 4h)
+        hidden_h1 = hidden_h1.transpose(1, 0)  # (2, b, h) -> (b, 2, h)
+        hidden_h1 = hidden_h1.reshape(batch_size, -1)  # (b, 2, h) -> (b, 2h)
         hidden_h1 = F.dropout(hidden_h1, p=0.5, training=self.training)
-        hidden_h1 = self.linear_h(hidden_h1)  # (b, 4h) -> (b, h)
+        hidden_h1 = self.linear_h1(hidden_h1)  # (b, 2h) -> (b, h)
         hidden_h1 = F.relu(hidden_h1)
         hidden_h1 = hidden_h1.unsqueeze(0)  # (b, h) -> (1, b, h)
 
         hidden_c1 = hidden_c1.transpose(1, 0)
-        hidden_c1 = hidden_c1.reshape(batch_size, -1)  # (b, 4, h) -> (b, 4h)
+        hidden_c1 = hidden_c1.reshape(batch_size, -1)  # (b, 2, h) -> (b, 2h)
         hidden_c1 = F.dropout(hidden_c1, p=0.5, training=self.training)
-        hidden_c1 = self.linear_c(hidden_c1)
+        hidden_c1 = self.linear_c1(hidden_c1)
         hidden_c1 = F.relu(hidden_c1)
         hidden_c1 = hidden_c1.unsqueeze(0)  # (b, h) -> (1, b, h)
 
 
-        hidden_h2 = hidden_h2.transpose(1, 0)  # (4, b, h) -> (b, 4, h)
-        hidden_h2 = hidden_h2.reshape(batch_size, -1)  # (b, 4, h) -> (b, 4h)
+        hidden_h2 = hidden_h2.transpose(1, 0)  # (2, b, h) -> (b, 2, h)
+        hidden_h2 = hidden_h2.reshape(batch_size, -1)  # (b, 2, h) -> (b, 2h)
         hidden_h2 = F.dropout(hidden_h2, p=0.5, training=self.training)
-        hidden_h2 = self.linear_h(hidden_h2)  # (b, 4h) -> (b, h)
+        hidden_h2 = self.linear_h2(hidden_h2)  # (b, 2h) -> (b, h)
         hidden_h2 = F.relu(hidden_h2)
         hidden_h2 = hidden_h2.unsqueeze(0)  # (b, h) -> (1, b, h)
 
         hidden_c2 = hidden_c2.transpose(1, 0)
-        hidden_c2 = hidden_c2.reshape(batch_size, -1)  # (b, 4, h) -> (b, 4h)
+        hidden_c2 = hidden_c2.reshape(batch_size, -1)  # (b, 2, h) -> (b, 2h)
         hidden_c2 = F.dropout(hidden_c2, p=0.5, training=self.training)
-        hidden_c2 = self.linear_c(hidden_c2)
+        hidden_c2 = self.linear_c2(hidden_c2)
         hidden_c2 = F.relu(hidden_c2)
         hidden_c2 = hidden_c2.unsqueeze(0)  # (b, h) -> (1, b, h)
 
@@ -1235,9 +1238,10 @@ if __name__ == '__main__':
         train_cloze=file_path+'text8_cloze.txt'
         train_ans=file_path+'text8_ans.txt'
 
-        #合同ゼミ
-        #train_cloze=file_path+'text8_cloze50000.txt'
-        #train_ans=file_path+'text8_ans50000.txt'
+        if args.mode == 'mini':
+            #合同ゼミ
+            train_cloze=file_path+'text8_cloze50000.txt'
+            train_ans=file_path+'text8_ans50000.txt'
 
         #all_data=readData(train_cloze, train_ans)
         print("Reading data...")
@@ -1258,9 +1262,10 @@ if __name__ == '__main__':
         val_data = (val_X, val_Y)
 
         #モデルとか結果とかを格納するディレクトリの作成
-        if os.path.exists(save_path+args.mode)==False:
-            os.mkdir(save_path+args.mode)
-        save_path=save_path+args.mode+'/'
+        save_path=save_path+args.mode+'_seq2seq'
+        if os.path.exists(save_path)==False:
+            os.mkdir(save_path)
+        save_path=save_path+'/'
 
         # 3.学習
         my_encoder, my_decoder = trainIters(vocab, my_encoder, my_decoder, train_data, val_data, n_iters=args.epoch, saveModel=True)
