@@ -1077,6 +1077,75 @@ def test_choices(lang, encoder, decoder, test_data, choices, saveAttention=False
     score(preds_choices, ans, file_output, save_path+'score_choices.txt')
 
 
+#選択肢を使って4つの文を生成
+def make_sents_with_cloze_mark(sentence, choices):
+    sents=[]
+    before=re.sub(r'{.*', '{ ', cloze_sent)
+    after=re.sub(r'.*}', ' }', cloze_sent)
+    for choice in choices:
+        tmp=before + choice + after
+        sents.append(tmp.strip())
+
+    return sents
+
+#1文に対して文スコアを算出
+def calc_sent_score(lang, encoder, decoder, sent):
+    #evaluate_choiceから改変
+    score=0
+    with torch.no_grad():
+        input_indexes = pad_indexes(lang, sent)
+        input_batch = torch.tensor([input_indexes], dtype=torch.long, device=my_device)  # (1, s)
+
+        encoder_outputs, encoder_hidden = encoder(input_batch.transpose(0, 1))
+        decoder_input = torch.tensor([SOS_token], device=my_device)  # SOS
+        decoder_hidden = (encoder_hidden[0].squeeze(0), encoder_hidden[1].squeeze(0))
+
+        for di in range(max_length):
+            decoder_output, decoder_hidden, attention = decoder(decoder_input, decoder_hidden, encoder_outputs)  # (1,outdim), ((1,h),(1,h)), (l,1)
+
+            score+=decoder_output.data[0][input_indexes[di]]
+
+            if input_indexes[di] == EOS_token:
+                break
+            decoder_input = torch.tensor([input_indexes[di]], device=my_device)
+
+    return score/len(out_sent.split(' '))
+
+
+
+def get_best_sent(lang, encoder, decoder, sents):
+    scores=[]
+    for sent in sents:
+        score=calc_sent_score(lang, encoder, decoder, sent)
+
+    #scoreが最大の分を返す
+    #numpyへの変換考えるとこっちのほうが速い？
+    return sents[scores.index(max(scores))]
+
+#一旦1語以上，選択肢ありモード
+#TODO あとで全単語からもできるように
+def test_choices_by_sent_score(lang, encoder, decoder, test_data, choices, saveAttention=False, file_output=False):
+    print("Test by sent score...")
+    #input_sentence や ansは文字列であるのに対し、output_wordsはリストであることに注意
+    preds=[]
+    ans=[]
+    preds_cloze=[]
+    preds_choices=[]
+    for pair, choi in zip(test_data, choices):
+        input_sentence=pair[0]
+        ans.append(pair[1])
+
+        sents=make_sents(input_sentence, choi)
+        pred=get_best_sent(lang, encoder, decoder, sents)
+
+        preds_choices.append(pred)
+
+        if file_output:
+            output_preds(save_path+'preds_choices.txt', preds_choices)
+    print("Calc scores ...")
+    score(preds_choices, ans, file_output, save_path+'score_choices.txt')
+
+
 #コマンドライン引数の設定いろいろ
 def get_args():
     parser = argparse.ArgumentParser()
@@ -1167,4 +1236,8 @@ if __name__ == '__main__':
 
     #テストデータに対する予測と精度の計算
     #選択肢を使ったテスト
-    test_choices(vocab, my_encoder, my_decoder, test_data, choices, saveAttention=False, file_output=True)
+    #これは前からの予測
+    #test_choices(vocab, my_encoder, my_decoder, test_data, choices, saveAttention=False, file_output=True)
+
+    #これは文スコア
+    test_choices_by_sent_score(vocab, my_encoder, my_decoder, test_data, choices, saveAttention=False, file_output=False)
