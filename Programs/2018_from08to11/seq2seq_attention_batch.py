@@ -1089,7 +1089,7 @@ def make_sents_with_cloze_mark(sentence, choices):
     return sents
 
 #1文に対して文スコアを算出
-def calc_sent_score(lang, encoder, decoder, sent):
+def calc_sent_score(lang, encoder, decoder, sent, max_length=MAX_LENGTH):
     #evaluate_choiceから改変
     score=0
     with torch.no_grad():
