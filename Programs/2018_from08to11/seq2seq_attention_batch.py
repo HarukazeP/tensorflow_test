@@ -1109,7 +1109,7 @@ def calc_sent_score(lang, encoder, decoder, sent, max_length=MAX_LENGTH):
                 break
             decoder_input = torch.tensor([input_indexes[di]], device=my_device)
 
-    return score/len(out_sent.split(' '))
+    return score/len(sent.split(' '))
 
 
 
