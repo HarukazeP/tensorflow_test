@@ -1117,6 +1117,7 @@ def get_best_sent(lang, encoder, decoder, sents):
     scores=[]
     for sent in sents:
         score=calc_sent_score(lang, encoder, decoder, sent)
+        scores.append(score)
 
     #scoreが最大の分を返す
     #numpyへの変換考えるとこっちのほうが速い？
