@@ -5,6 +5,8 @@ pytorchのseq2seqチュートリアルを改変
 seq2seq_attention_batch.py から変更
 
 モデルの構造を変化
+    LSTMを2層にしたことでいろいろ変化
+    attentionの仕組みも変更
 epochを100から50に
 
 動かしていたバージョン
