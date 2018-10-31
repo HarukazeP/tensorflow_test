@@ -1212,7 +1212,7 @@ def get_args():
     parser.add_argument('--model_dir', help='model directory path (when load model, mode=test)')
     parser.add_argument('--encoder', help='encoder file name (when load model, mode=test)')
     parser.add_argument('--decoder', help='decoder file name (when load model, mode=test)')
-    parser.add_argument('--epoch', type=int, default=50)
+    parser.add_argument('--epoch', type=int, default=30)
     #TODO ほかにも引数必要に応じて追加
     return parser.parse_args()
 
