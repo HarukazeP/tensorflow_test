@@ -334,7 +334,7 @@ class AttnDecoderRNN2(nn.Module):
         #concat = F.dropout(concat, p=0.5, training=self.training)
 
         attentional = self.attn_w(concat)  # (b,4h) -> (b,a)
-        attentional = F.tanh(attentional)
+        attentional = torch.tanh(attentional)
         #attentional = F.dropout(attentional, p=0.5, training=self.training)
 
         output = self.out_w(attentional)  # (b,a) -> (b,o)
