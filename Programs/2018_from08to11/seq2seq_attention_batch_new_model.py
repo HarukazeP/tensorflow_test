@@ -1297,7 +1297,7 @@ if __name__ == '__main__':
     #テストデータに対する予測と精度の計算
     #選択肢を使ったテスト
     #これは前からの予測
-    test_choices(vocab, my_encoder, my_decoder, test_data, choices, saveAttention=False, file_output=False)
+    test_choices(vocab, my_encoder, my_decoder, test_data, choices, saveAttention=False, file_output=True)
 
     #これは文スコア
     test_choices_by_sent_score(vocab, my_encoder, my_decoder, test_data, choices, saveAttention=False, file_output=False)
