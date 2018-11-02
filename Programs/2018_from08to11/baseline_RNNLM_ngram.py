@@ -498,7 +498,7 @@ def calc_sent_score(lang, ngram_pair, model):
 
     #返り値のスコアは文長で正規化する
     if len(ngram_pair)==0:
-        return -1000.0
+        return -10000000.0
     return score/len(ngram_pair)
 
 
