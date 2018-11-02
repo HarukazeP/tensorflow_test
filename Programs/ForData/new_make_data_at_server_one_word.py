@@ -34,6 +34,31 @@ def print_time(str1):
     return today
 
 
+
+#listの各要素を単語で連結してstring型で返す
+def list_to_sent(list_line, start, end):
+    sent=' '.join(list_line[start:end])
+    return sent
+
+
+#文の長さの乱数
+def rand_sent():
+    li=list(range(1,41))
+    we=[ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.03135889, 0.06271777, 0.06271777, 0.09756098, 0.1358885, 0.09407666, 0.08710801, 0.10801394, 0.08362369, 0.04181185, 0.05574913, 0.04529617, 0.05574913, 0.03832753, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    we[15]=1.0-sum(we)+we[15]
+
+
+    return np.random.choice(li, p=we)
+
+
+#空所の長さの乱数
+def rand_cloze():
+    li=list(range(1,6))
+    we=[0.615502686109, 0.235610130468, 0.114351496546, 0.0283960092095, 0.00613967766692]
+    we[0]=1.0-sum(we)+we[0]
+    return np.random.choice(li, p=we)
+
+
 #前処理
 def preprocess_line2(before_line):
     after_line=before_line.lower()
@@ -43,6 +68,56 @@ def preprocess_line2(before_line):
 
     return after_line
 
+
+#学習データへの前処理を行う
+#小文字化，アルファベット以外の文字の削除，1万単語ごとに分割
+def parse_line(old_path, new_path):
+    if (os.path.exists(new_path)==False):
+        print('Preprpcessing training data...')
+        text=''
+        text_len=0
+        i=0
+        with open(old_path) as f_in:
+            with open(new_path, 'w') as f_out:
+                for line in f_in:
+                    #この前処理はtext8とかの前処理と同じ
+                    line=line.strip()
+                    line_list=line.split(' ')
+                    line_len=len(line_list)
+                    #max_len以下の時は連結して次へ
+                    max_len=rand_sent()
+                    if(text_len+line_len <= max_len):
+                        if(text_len==0):
+                            text=line
+                        else:
+                            text=text+' '+line
+                        text_len=text_len+line_len
+                    #max_lenより長いときはmax_len単語ごとに区切ってファイルへ書き込み
+                    else:
+                        while (line_len>max_len):
+                            if(text_len==0):
+                                text=list_to_sent(line_list,0,max_len)
+                            else:
+                                text=text+' '+list_to_sent(line_list,0,max_len-text_len)
+                            f_out.write(text+'\n')
+                            text=''
+                            text_len=0
+                            #残りの更新
+                            line_list=line_list[max_len-text_len+1:]
+                            line_len=len(line_list)
+                            max_len=rand_sent()
+                        #while 終わり（1行の末尾の処理）
+                        #余りは次の行と連結
+                        text=list_to_sent(line_list,0,line_len)
+                        text_len=line_len
+                #for終わり（ファイルの最後の行の処理）
+                if text_len!=0:
+                    text=preprocess_line(text)
+                    f_out.write(text+'\n')
+                print('total '+str(i)+' line\n')
+                print_time('preprpcess end')
+
+    return new_path
 
 def make_data_one_word(old_path, cloze_path, ans_path):
     if (os.path.exists(ans_path)==False):
@@ -85,7 +160,9 @@ def make_data_one_word(old_path, cloze_path, ans_path):
 start_time=print_time('all start')
 
 #データ
-tmp_path='/home/ohtalab/tamaki/M1/corpus/'
-file_name='text8_nmt_tmp.txt'
+tmp_path='../../../pytorch_data/'
+file_name='text8_seq2seq_pytorch.txt'
+
+tmp2_path=parse_line(tmp_path+'text8.txt', tmp_path+file_name)
 
 make_data_one_word(tmp_path+file_name, tmp_path+'text8_cloze_one_word.txt', tmp_path+'text8_ans_one_word.txt')
