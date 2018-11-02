@@ -9,37 +9,6 @@ time python3.6 baseline_RNNLM_ngram.py --mode test --model_dir RNNLM10_23_1240_N
 
 -----------------------
 
-Calc scores ...
-  acc(all):  0.00  %
-acc(cloze):  0.00  %
- acc(part):  0.00  %
- BLEU:  1.08
-  all:  0
-cloze:  0
- part:  0
- line:  324
- miss:  324
-
-  acc(all):  0.62  %
-acc(cloze):  0.62  %
- acc(part):  3.70  %
- BLEU:  88.32
-  all:  2
-cloze:  2
- part:  12
- line:  324
- miss:  18
-
-  acc(all):  9.57  %
-acc(cloze):  9.57  %
- acc(part):  16.98  %
- BLEU:  85.37
-  all:  31
-cloze:  31
- part:  55
- line:  324
- miss:  0
-
 
 
 	そしてこの論文に他のテストデータセット載ってた
@@ -47,13 +16,21 @@ cloze:  31
 	https://dl.acm.org/citation.cfm?id=2390940.2390944
 
 
-	今後はこのテストデータも使う？
-	ベースラインとして自分の学習データとテストデータでKenLM，RNNLM，attentionつきRNNLMをやってみる？
+kenlm
+bos=False, eos=False
+score=score/len
+  5-gram model
+  Use choices
+(1語以上)
+    acc:  45.06  %
+   line:  324
+     OK:  146
+(1語のみ)
+    acc:  52.80  %
+   line:  161
+     OK:  85
 
-
-  https://yidatao.github.io/2017-05-31/kenlm-ngram/
-  この方法でkenLM、選択肢Bの方法ならできそうでは？
-
-
-
-  ./kenlm/build/bin/build_binary -s pytorch_data/text8.arpa text8.klm
+  Not use choices, from all words
+    acc:  13.66  %
+   line:  161
+     OK:  22

@@ -221,16 +221,14 @@ def output_score(file_name, line, allOK, clozeOK, partOK, BLEU, miss):
 
 
 def get_best_sent(sent_list, model):
-    max=-10000000
-    best_sent=''
+    scores=[]
     for sent in sent_list:
-        score=model.score(sent)
-        #print(score)
-        if(max<score):
-            max=score
-            best_sent=sent
-    return best_sent
+        #score=model.score(sent,bos=True,eos=True)
+        score=model.score(sent,bos=False,eos=False)
+        score=score/len(sent.split(' '))
+        scores.append(score)
 
+    return sent_list[scores.index(max(scores))]
 
 
 
@@ -285,14 +283,18 @@ if __name__ == '__main__':
     data=make_data(test_data, choices, one_word=False)
     calc_acc(data, model)
 
+    data=make_data(test_data, choices, one_word=True)
+    calc_acc(data, model)
+
     #選択肢なしテスト
     #空所内の選択肢は全て1語のみ
     print('\nNot use choices, from all words')
     data=make_data_from_all_words(test_data, choices, all_words)
     calc_acc(data, model)
 
-
+'''
     print(len(data))
 
     for i in range(10):
         print(data[i][0])
+'''

@@ -456,7 +456,6 @@ def sent_to_idxs(sent, lang):
 #ngramのペアからモデルの返す尤度をもとにスコアを算出
 #TODO これ間違ってるのか，エラーになる
 #RuntimeError: Expected hidden[0] size (2, 5, 200), got (2, 1, 200)
-
 def calc_sent_score2(lang, ngram_pair, model):
     score=0
     batch=1
@@ -506,8 +505,7 @@ def calc_sent_score(lang, ngram_pair, model):
 #1つの問題に対する，選択肢補充済み文複数から
 #ベスト1文を返す
 def get_best_sent(lang, sents, model, N):
-    best_score = -1000.0 #仮
-    i=0
+    scores=[]
     sent_num=0
     best_sent=''
     for sent in sents:
@@ -517,13 +515,10 @@ def get_best_sent(lang, sents, model, N):
         ngram_pair=sent_to_ngram_pair(sent, N)
         #scoreは対数尤度 -inf ～ 0
         score=calc_sent_score(lang, ngram_pair, model)
-        if score==-1000.0:
-            print(sent)
-        if(score<best_score or i==0):
-            best_score=score
-            best_sent=sent
-        i+=1
-    return best_sent
+        scores.append(score)
+
+    return sents[scores.index(max(scores))]
+
 
 
 #コマンドライン引数の設定いろいろ
