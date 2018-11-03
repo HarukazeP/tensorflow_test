@@ -46,6 +46,17 @@ seq2seq_attention_choices.py　から変更
 ミニバッチ学習を追加
 
 
+seq2seq_attention_batch_new_model.py
+seq2seq_attention_batch.py　から変更
+attentionの仕組みを変更およびLSTMを2層に
+
+
+seq2seq_attention_pretrain_vec.py
+seq2seq_attention_batch_new_model.py　から変更
+Embedding層に学習済み初期値使用
+
+
+
 -----2018_from12to03ディレクトリ内----------------------------------------
 
 
@@ -53,7 +64,7 @@ seq2seq_attention_choices.py　から変更
 -----ForDataディレクトリ内----------------------------------------
 主にデータ整形orデータ作成プログラム
 
---- < seq2seqチュートリアル(nmt)関係 > ---
+--- < 2018_from04to07のプログラム関連 > ---
 calc_words_in_sent.py
 センターの英文が何単語か分布確認するやつ
 
@@ -72,10 +83,17 @@ text8コーパスからseq2seq用の学習データと検証データ作成
 at_serverってついてるのはファイルパスの関係だけ
 
 
+--- < 2018_from08to11のプログラム関連 > ---
+
+new_make_data_at_server_one_data.py
+new_make_data_at_server.py から変更
+空所内1語のみver
+
+
 -----ForCalcディレクトリ内----------------------------------------
 正解率とか計算用プログラム
 
---- < seq2seqチュートリアル(nmt)関係 > ---
+--- < 2018_from04to07のプログラム関連 > ---
 calc_BLEU_acc.py
 テストデータと検証データに対するBLEUと空所正解率を算出
 
