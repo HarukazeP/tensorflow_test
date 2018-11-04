@@ -81,6 +81,9 @@ def parse_line(old_path, new_path):
             with open(new_path, 'w') as f_out:
                 for line in f_in:
                     #この前処理はtext8とかの前処理と同じ
+                    i+=1
+                    if i%200000==0:
+                        print('line: '+str(i))
                     line=line.strip()
                     line_list=line.split(' ')
                     line_len=len(line_list)
@@ -128,7 +131,8 @@ def make_data_one_word(old_path, cloze_path, ans_path):
                 with open(ans_path, 'w') as f_ans:
                     for line in f_in:
                         i+=1
-                        print('line: '+str(i)+'\n')
+                        if i%200000==0:
+                            print('line: '+str(i))
                         line=preprocess_line2(line)
                         line_list=line.split(' ')
                         line_len=len(line_list)
