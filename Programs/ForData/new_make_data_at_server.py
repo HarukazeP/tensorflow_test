@@ -112,7 +112,7 @@ def parse_line(old_path, new_path):
                         text_len=line_len
                 #for終わり（ファイルの最後の行の処理）
                 if text_len!=0:
-                    text=preprocess_line(text)
+                    text=preprocess_line2(text)
                     f_out.write(text+'\n')
                 print('total '+str(i)+' line\n')
                 print_time('preprpcess end')
