@@ -44,7 +44,7 @@ file_path='../../../pytorch_data/'
 git_data_path='../../Data/'
 today1=datetime.datetime.today()
 today_str=today1.strftime('%m_%d_%H%M')
-save_path=file_path + '/RNNLM' + today_str
+save_path=file_path + 'RNNLM' + today_str
 
 UNK_token = 0
 
@@ -632,10 +632,11 @@ if __name__ == '__main__':
         model.load_state_dict(best_weight)
 
         #モデルとか結果とかを格納するディレクトリの作成
+        save_path=save_path+'_N'+str(args.ngrams)
         if os.path.exists(save_path)==False:
             os.mkdir(save_path)
 
-        save_path=save_path+'_N'+str(args.ngrams) + '/'
+        save_path=save_path + '/'
         torch.save(model.state_dict(), save_path+'model_'+str(best_epoch)+'.pth')
 
         showPlot2(plot_train_loss, plot_val_loss)

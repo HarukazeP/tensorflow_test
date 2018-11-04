@@ -39,6 +39,7 @@ from sklearn.model_selection import train_test_split
 from torch.utils.data import TensorDataset, DataLoader
 
 import gensim
+import numpy as np
 
 #----- グローバル変数一覧 -----
 
@@ -47,7 +48,7 @@ file_path='../../../pytorch_data/'
 git_data_path='../../Data/'
 today1=datetime.datetime.today()
 today_str=today1.strftime('%m_%d_%H%M')
-save_path=file_path + '/RNNLM' + today_str
+save_path=file_path + 'RNNLM' + today_str
 
 PAD_token = 0
 UNK_token = 1
@@ -182,20 +183,20 @@ def get_weight_matrix(lang):
     vec_model = gensim.models.KeyedVectors.load_word2vec_format(file_path+'GoogleNews-vectors-negative300.bin', binary=True)
     # https://code.google.com/archive/p/word2vec/ ここからダウンロード&解凍
 
-    weights_matrix = np.zeros((lang.n_words, EMB_DIM))
+    weights_matrix = np.zeros((lang.n_words, args.emsize))
 
-    for i, word in lang.index2word.items():
+    for i, word in lang.idx2word.items():
         try:
             weights_matrix[i] = vec_model.wv[word]
         except KeyError:
-            weights_matrix[i] = np.random.normal(size=(EMB_DIM, ))
+            weights_matrix[i] = np.random.normal(size=(args.emsize, ))
 
     del vec_model
     #これメモリ解放的なことらしい、なくてもいいかも
 
     #パディングのところを初期化
     #Emneddingで引数のpad_index指定は、そこだけ更新(微分)しないらしい？
-    weights_matrix[PAD_token]=np.zeros(EMB_DIM)
+    weights_matrix[PAD_token]=np.zeros(args.emsize)
 
     return weights_matrix
 
@@ -209,6 +210,7 @@ class RNNModel(nn.Module):
         self.drop = nn.Dropout(dropout)
         self.encoder = nn.Embedding(ntoken, ninp, padding_idx=PAD_token)
         self.encoder.weight.data.copy_(torch.from_numpy(weights_matrix))
+
         if rnn_type in ['LSTM', 'GRU']:
             self.rnn = getattr(nn, rnn_type)(ninp, nhid, nlayers, dropout=dropout)
         else:
@@ -239,7 +241,7 @@ class RNNModel(nn.Module):
 
     def init_weights(self):
         initrange = 0.1
-        self.encoder.weight.data.uniform_(-initrange, initrange)
+        #self.encoder.weight.data.uniform_(-initrange, initrange)
         self.decoder.bias.data.zero_()
         self.decoder.weight.data.uniform_(-initrange, initrange)
 
@@ -449,7 +451,8 @@ def calc_acc(lang, data, model, N):
     OK=0
     for one_data in data:
         line+=1
-        print('line:',line)
+        if line%50==0:
+            print('line:',line)
         ans=one_data[-1]
         ans=ans.replace('{ ', '')
         ans=ans.replace(' }', '')
@@ -557,9 +560,9 @@ def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', type=str, default='LSTM',
                         help='type of recurrent net (RNN_TANH, RNN_RELU, LSTM, GRU)')
-    parser.add_argument('--emsize', type=int, default=200,
+    parser.add_argument('--emsize', type=int, default=300,
                         help='size of word embeddings')
-    parser.add_argument('--nhid', type=int, default=200,
+    parser.add_argument('--nhid', type=int, default=128,
                         help='number of hidden units per layer')
     parser.add_argument('--nlayers', type=int, default=2,
                         help='number of layers')
@@ -612,7 +615,7 @@ if __name__ == '__main__':
 
     weights_matrix=get_weight_matrix(vocab)
 
-    model = RNNModel(args.model, ntokens, args.emsize, args.nhid, args.nlayers, args.dropout, args.tied, weights_matrix).to(device)
+    model = RNNModel(args.model, ntokens, args.emsize, args.nhid, args.nlayers, weights_matrix, args.dropout, args.tied).to(device)
 
     #学習時
     if args.mode == 'all' or args.mode == 'mini':
@@ -668,10 +671,11 @@ if __name__ == '__main__':
         model.load_state_dict(best_weight)
 
         #モデルとか結果とかを格納するディレクトリの作成
+        save_path=save_path+'_N'+str(args.ngrams)
         if os.path.exists(save_path)==False:
             os.mkdir(save_path)
 
-        save_path=save_path+'_N'+str(args.ngrams) + '/'
+        save_path=save_path+'/'
         torch.save(model.state_dict(), save_path+'model_'+str(best_epoch)+'.pth')
 
         showPlot2(plot_train_loss, plot_val_loss)
@@ -716,7 +720,7 @@ if __name__ == '__main__':
     all_words=vocab.idx2word.values()
 
     print('Use choices(one_words)')
-    '''
+
     data=make_data_for_sent_score(test_data, choices, one_word=True)
     print(len(data))
     calc_acc(vocab, data, model, args.ngrams)
@@ -725,10 +729,12 @@ if __name__ == '__main__':
     data=make_data_for_sent_score(test_data, choices, one_word=False)
     print(len(data))
     calc_acc(vocab, data, model, args.ngrams)
+
     '''
     print('\nNot use choices, from all words(one_words)')
     data=make_data_for_sent_score_from_all_words(test_data, choices, all_words)
     print(len(data))
     calc_acc(vocab, data, model, args.ngrams)
+    '''
 
     pass
