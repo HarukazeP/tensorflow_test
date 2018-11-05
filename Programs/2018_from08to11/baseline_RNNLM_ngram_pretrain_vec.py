@@ -688,13 +688,22 @@ if __name__ == '__main__':
 
     #テストデータに対する予測と精度の計算
     model.eval()
-    test_cloze=git_data_path+'center_cloze.txt'
-    test_ans=git_data_path+'center_ans.txt'
-    test_choi=git_data_path+'center_choices.txt'
+    center_cloze=git_data_path+'center_cloze.txt'
+    center_ans=git_data_path+'center_ans.txt'
+    center_choi=git_data_path+'center_choices.txt'
+
+    MS_cloze=git_data_path+'microsoft_cloze.txt'
+    MS_ans=git_data_path+'microsoft_ans.txt'
+    MS_choi=git_data_path+'microsoft_choices.txt'
 
     print("Reading Testdata...")
-    test_data=readData(test_cloze, test_ans)
-    choices=get_choices(test_choi)
+    center_data=readData(center_cloze, center_ans)
+    center_choices=get_choices(center_choi)
+
+    MS_data=readData(MS_cloze, MS_ans)
+    MS_choices=get_choices(MS_choi)
+
+
 
     #前から予測スコア（方法A）
     #空所内1単語のみ（選択肢ありなし両方）
@@ -709,9 +718,6 @@ if __name__ == '__main__':
     モデルの出力する確率確認
         |___確率一覧を見て，最大の語（選択肢なし），選択肢のうち最大の語（選択肢あり）
     '''
-    #print('one_word(use choices / not use choices)')
-    #data=make_data_from_all_words(test_data, choices, all_words)
-    #calc_acc(lang, data, model)
 
     #文スコア（方法B）
     #空所内1単語以上（選択肢あり）
@@ -720,20 +726,27 @@ if __name__ == '__main__':
     all_words=vocab.idx2word.values()
 
     print('Use choices(one_words)')
-
-    data=make_data_for_sent_score(test_data, choices, one_word=True)
-    print(len(data))
+    print('center')
+    data=make_data_for_sent_score(center_data, center_choices, one_word=True)
     calc_acc(vocab, data, model, args.ngrams)
 
+    print('MS')
+    data=make_data_for_sent_score(MS_data, MS_choices, one_word=True)
+    calc_acc(vocab, data, model, args.ngrams)
+
+
     print('Use choices(over one_words)')
-    data=make_data_for_sent_score(test_data, choices, one_word=False)
-    print(len(data))
+    print('center')
+    data=make_data_for_sent_score(center_data, center_choices, one_word=False)
+    calc_acc(vocab, data, model, args.ngrams)
+
+    print('MS')
+    data=make_data_for_sent_score(MS_data, MS_choices, one_word=False)
     calc_acc(vocab, data, model, args.ngrams)
 
     '''
     print('\nNot use choices, from all words(one_words)')
-    data=make_data_for_sent_score_from_all_words(test_data, choices, all_words)
-    print(len(data))
+    data=make_data_for_sent_score_from_all_words(center_data, center_choices, all_words)
     calc_acc(vocab, data, model, args.ngrams)
     '''
 

@@ -58,6 +58,7 @@ BATCH_SIZE = 128
 
 #自分で定義したグローバル関数とか
 file_path='../../../pytorch_data/'
+git_data_path='../../Data/'
 today1=datetime.datetime.today()
 today_str=today1.strftime('%m_%d_%H%M')
 save_path=file_path + '/' + today_str
@@ -1307,22 +1308,39 @@ if __name__ == '__main__':
         save_path=save_path+today_str
 
     # 4.評価
-    test_cloze=file_path+'center_cloze.txt'
-    test_ans=file_path+'center_ans.txt'
-    test_choi=file_path+'center_choices.txt'
+    center_cloze=git_data_path+'center_cloze.txt'
+    center_ans=git_data_path+'center_ans.txt'
+    center_choi=git_data_path+'center_choices.txt'
+
+    MS_cloze=git_data_path+'microsoft_cloze.txt'
+    MS_ans=git_data_path+'microsoft_ans.txt'
+    MS_choi=git_data_path+'microsoft_choices.txt'
 
     print("Reading data...")
-    test_data=readData(test_cloze, test_ans)
-    choices=get_choices(test_choi)
+    center_data=readData(center_cloze, center_ans)
+    center_choices=get_choices(center_choi)
+
+    MS_data=readData(MS_cloze, MS_ans)
+    MS_choices=get_choices(MS_choi)
 
     if args.mode == 'mini' or args.mode == 'mini_test':
-        test_data=test_data[:5]
-        choices=choices[:5]
+        center_data=center_data[:5]
+        center_choices=center_choices[:5]
+        MS_data=MS_data[:5]
+        MS_choices=MS_choices[:5]
+
 
     #テストデータに対する予測と精度の計算
     #選択肢を使ったテスト
     #これは前からの予測
-    test_choices(vocab, my_encoder, my_decoder, test_data, choices, saveAttention=False, file_output=True)
+    print('center')
+    test_choices(vocab, my_encoder, my_decoder, center_data, center_choices, saveAttention=False, file_output=True)
 
     #これは文スコア
-    test_choices_by_sent_score(vocab, my_encoder, my_decoder, test_data, choices, saveAttention=False, file_output=False)
+    test_choices_by_sent_score(vocab, my_encoder, my_decoder, center_data, center_choices, saveAttention=False, file_output=False)
+
+    print('MS')
+    test_choices(vocab, my_encoder, my_decoder, MS_data, MS_choices, saveAttention=False, file_output=True)
+
+    #これは文スコア
+    test_choices_by_sent_score(vocab, my_encoder, my_decoder, MS_data, MS_choices, saveAttention=False, file_output=False)

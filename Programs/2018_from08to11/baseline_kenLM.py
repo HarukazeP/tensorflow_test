@@ -264,13 +264,21 @@ if __name__ == '__main__':
     vocab_path=file_path+'enwiki_vocab30000_wordonly.txt'
     all_words = get_words(vocab_path)
 
-    test_cloze=git_data_path+'center_cloze.txt'
-    test_ans=git_data_path+'center_ans.txt'
-    test_choi=git_data_path+'center_choices.txt'
+    center_cloze=git_data_path+'center_cloze.txt'
+    center_ans=git_data_path+'center_ans.txt'
+    center_choi=git_data_path+'center_choices.txt'
 
-    print("Reading data...")
-    test_data=readData(test_cloze, test_ans)
-    choices=get_choices(test_choi)
+    MS_cloze=git_data_path+'microsoft_cloze.txt'
+    MS_ans=git_data_path+'microsoft_ans.txt'
+    MS_choi=git_data_path+'microsoft_choices.txt'
+
+    print("Reading Testdata...")
+    center_data=readData(center_cloze, center_ans)
+    center_choices=get_choices(center_choi)
+
+    MS_data=readData(MS_cloze, MS_ans)
+    MS_choices=get_choices(MS_choi)
+
 
     #kenLMモデル読み込み
     model_path=file_path+'text8.klm'
@@ -280,21 +288,28 @@ if __name__ == '__main__':
     #テストデータに対する予測と精度の計算
     #選択肢を使ったテスト
     print('Use choices')
-    data=make_data(test_data, choices, one_word=False)
+    print('center')
+    data=make_data(center_data, center_choices, one_word=False)
     calc_acc(data, model)
 
-    data=make_data(test_data, choices, one_word=True)
+    data=make_data(center_data, center_choices, one_word=True)
     calc_acc(data, model)
+
+    print('MS')
+    data=make_data(MS_data, MS_choices, one_word=False)
+    calc_acc(data, model)
+
+    data=make_data(MS_data, MS_choices, one_word=True)
+    calc_acc(data, model)
+
 
     #選択肢なしテスト
     #空所内の選択肢は全て1語のみ
     print('\nNot use choices, from all words')
-    data=make_data_from_all_words(test_data, choices, all_words)
+    print('center')
+    data=make_data_from_all_words(center_data, center_choices, all_words)
     calc_acc(data, model)
 
-'''
-    print(len(data))
-
-    for i in range(10):
-        print(data[i][0])
-'''
+    print('MS')
+    data=make_data_from_all_words(MS_data, MS_choices, all_words)
+    calc_acc(data, model)
