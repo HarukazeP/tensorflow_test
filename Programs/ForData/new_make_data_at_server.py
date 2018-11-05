@@ -15,13 +15,6 @@ import os
 import os.path
 import subprocess
 
-#----- グローバル変数一覧 -----
-my_epoch=100
-vec_size=100
-maxlen_words = 5
-KeyError_set=set()
-today_str=''
-tmp_vec_dict=dict()
 
 
 #----- 関数群 -----
