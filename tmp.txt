@@ -16,8 +16,12 @@ dpkg -l | grep nvidia
 ②GPUに合わせたNVIDIAドライバをインストール
 https://www.nvidia.co.jp/Download/index.aspx?lang=jp
 sudo apt-get update
-sudo apt-get install nvidia-304
+sudo apt-get install nvidia-410
 ↑ここを自分のNVIDIAに合わせた数字に
+再起動
+nvidia-smi
+で表示されればOK
+
 
 ③cudaツールキットをダウンロードして実行，その際に聞かれるNVIDIAドライバはインストールしない
 https://developer.nvidia.com/cuda-90-download-archive?target_os=Linux&target_arch=x86_64&target_distro=Ubuntu&target_version=1604&target_type=runfilelocal
@@ -28,6 +32,10 @@ NVIDIAなんとか　no
 CUDAなんとか　yes
 synbolicなんとか　yes
 samples no
+
+.bashrcに追記
+nvcc -V 
+で表示されればOK
 
 
 
