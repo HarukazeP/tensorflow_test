@@ -7,6 +7,40 @@ time python3.6 seq2seq_attention_batch.py --mode test --model_dir ../../../pytor
 time python3.6 baseline_RNNLM_ngram.py --mode test --model_dir RNNLM10_23_1240_N5 --model_name model_16.pth --ngrams 5
 
 
+
+ubuntu GPU
+
+①自分のGPUを調べる
+dpkg -l | grep nvidia
+
+②GPUに合わせたNVIDIAドライバをインストール
+https://www.nvidia.co.jp/Download/index.aspx?lang=jp
+sudo apt-get update
+sudo apt-get install nvidia-410
+↑ここを自分のNVIDIAに合わせた数字に
+再起動
+nvidia-smi
+で表示されればOK
+
+
+③cudaツールキットをダウンロードして実行，その際に聞かれるNVIDIAドライバはインストールしない
+https://developer.nvidia.com/cuda-90-download-archive?target_os=Linux&target_arch=x86_64&target_distro=Ubuntu&target_version=1604&target_type=runfilelocal
+runファイルを実行
+しばらくエンター押す
+accept
+NVIDIAなんとか　no
+CUDAなんとか　yes
+synbolicなんとか　yes
+samples no
+
+.bashrcに追記
+nvcc -V 
+で表示されればOK
+
+
+
+
+
 -----------------------
 
 

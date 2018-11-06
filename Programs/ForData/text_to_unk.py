@@ -1,10 +1,8 @@
 # -*- coding: utf-8 -*-
 
 '''
-microsoft社の英文空所補充問題(csv)から
-今までのデータと同じtxt形式で作成
-
-正規化などの前処理はしない
+学習データの未知語をUNKに置換するやつ
+kenLM用
 
 '''
 
@@ -17,8 +15,6 @@ import datetime
 import os
 import os.path
 
-import pandas as pd
-
 #----- 関数群 -----
 
 #時間表示
@@ -29,17 +25,9 @@ def print_time(str1):
     return today
 
 
-def make_test_sents(sent, choices_list, ans_word):
-    cloze=sent.replace('_____', '{ }')
-    choice_all=' ### '.join(choices_list)
-    before=re.sub(r'{.*', '{ ', cloze)
-    after=re.sub(r'.*}', ' }', cloze)
-    choice = before + choice_all + after
-    ans = before + ans_word + after
 
-    return cloze, ans, choice
-
-
+#TODO
+#まだ全然作ってない
 def csv_to_text(test_csv, ans_csv, output_pass):
     cloze_file = output_pass+'microsoft_cloze.txt'
     ans_file = output_pass+'microsoft_ans.txt'
@@ -53,12 +41,6 @@ def csv_to_text(test_csv, ans_csv, output_pass):
             with open(choice_file, 'w') as f_cho:
                 #csvの各行に対してループ
                 for i in range(len(test_df)):
-                    choices=[]
-                    choices.append(test_df.ix[i, 'a)'])
-                    choices.append(test_df.ix[i, 'b)'])
-                    choices.append(test_df.ix[i, 'c)'])
-                    choices.append(test_df.ix[i, 'd)'])
-                    choices.append(test_df.ix[i, 'e)'])
 
                     sent=test_df.ix[i, 'question']
                     ans_id=ans_df.ix[i, 'answer']
