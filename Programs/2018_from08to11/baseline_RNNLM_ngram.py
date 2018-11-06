@@ -575,7 +575,7 @@ if __name__ == '__main__':
 
     torch.manual_seed(args.seed)
 
-    vocab_path=file_path+'enwiki_vocab30000.txt'
+    vocab_path=file_path+'enwiki_vocab30000_wordonly.txt'
     vocab = readVocab(vocab_path)
     ntokens = vocab.n_words
 
