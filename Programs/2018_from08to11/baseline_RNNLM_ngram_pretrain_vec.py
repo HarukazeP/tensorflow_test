@@ -66,8 +66,8 @@ else:
 #data.py内
 class Dictionary:
     def __init__(self):
-        self.word2idx = {"<UNK>": UNK_token}
-        self.idx2word = {PAD_token: "PAD", UNK_token: "<UNK>"}
+        self.word2idx = {"<PAD>":PAD_token, "<UNK>": UNK_token}
+        self.idx2word = {PAD_token: "<PAD>", UNK_token: "<UNK>"}
         self.n_words = 2  # PAD と UNK
 
     #文から単語を語彙へ
@@ -466,12 +466,15 @@ def calc_acc(lang, data, model, N):
 #1文 → ngramのpair
 #例えば3-gramなら
 #return [[[w1, w2, w3], w4], [[w2, w3, w4], w5], ...]
-#文の長さ<Nとなることはない前提
-#TODO Nが5以上のとき文の長さ<Nが起こり得る
 def sent_to_ngram_pair(sent, N):
     pair=[]
     words=sent.split(' ')
-    for i in range(len(words)-N-1):
+    length=len(words)
+    if length < N+1:
+        words=["<PAD>"]*(N+1-length)+words
+        length=N+1
+
+    for i in range(length-N-1):
         one_pair=[]
         one_pair.append(words[0+i:N+i])
         one_pair.append(words[N+i])
