@@ -213,7 +213,7 @@ class RNNModel(nn.Module):
         self.encoder.weight.data.copy_(torch.from_numpy(weights_matrix))
         self.rnn = nn.LSTM(ninp, nhid, nlayers, dropout=dropout, bidirectional=True)
 
-        self.decoder = nn.Linear(nhid*args.ngrams, ntoken) #(入力次元数, 出力次元数)
+        self.decoder = nn.Linear(nhid*args.ngrams*2, ntoken) #(入力次元数, 出力次元数)
 
         # Optionally tie weights as in:
         # "Using the Output Embedding to Improve Language Models" (Press & Wolf 2016)
