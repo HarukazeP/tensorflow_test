@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
 
 '''
-pytorchのRNNLMチュートリアルを改変
-LSTMを使った言語モデル
+baseline_RNNLM_ngram.py から変更
+embedding層に学習済みベクトルを使用
+LSTMを双方向に
 
 動かしていたバージョン
 python  : 3.5.2
@@ -205,21 +206,13 @@ def get_weight_matrix(lang):
 class RNNModel(nn.Module):
     """Container module with an encoder, a recurrent module, and a decoder."""
 
-    def __init__(self, rnn_type, ntoken, ninp, nhid, nlayers, weights_matrix, dropout=0.5, tie_weights=False):
+    def __init__(self, ntoken, ninp, nhid, nlayers, weights_matrix, dropout=0.5, tie_weights=False):
         super(RNNModel, self).__init__()
         self.drop = nn.Dropout(dropout)
         self.encoder = nn.Embedding(ntoken, ninp, padding_idx=PAD_token)
         self.encoder.weight.data.copy_(torch.from_numpy(weights_matrix))
+        self.rnn = nn.LSTM(ninp, nhid, nlayers, dropout=dropout, bidirectional=True)
 
-        if rnn_type in ['LSTM', 'GRU']:
-            self.rnn = getattr(nn, rnn_type)(ninp, nhid, nlayers, dropout=dropout)
-        else:
-            try:
-                nonlinearity = {'RNN_TANH': 'tanh', 'RNN_RELU': 'relu'}[rnn_type]
-            except KeyError:
-                raise ValueError( """An invalid option for `--model` was supplied,
-                                 options are ['LSTM', 'GRU', 'RNN_TANH' or 'RNN_RELU']""")
-            self.rnn = nn.RNN(ninp, nhid, nlayers, nonlinearity=nonlinearity, dropout=dropout)
         self.decoder = nn.Linear(nhid*args.ngrams, ntoken) #(入力次元数, 出力次元数)
 
         # Optionally tie weights as in:
@@ -235,7 +228,6 @@ class RNNModel(nn.Module):
 
         self.init_weights()
 
-        self.rnn_type = rnn_type
         self.nhid = nhid
         self.nlayers = nlayers
 
@@ -257,11 +249,9 @@ class RNNModel(nn.Module):
 
     def init_hidden(self, bsz):
         weight = next(self.parameters())
-        if self.rnn_type == 'LSTM':
-            return (weight.new_zeros(self.nlayers, bsz, self.nhid),
-                    weight.new_zeros(self.nlayers, bsz, self.nhid))
-        else:
-            return weight.new_zeros(self.nlayers, bsz, self.nhid)
+        return (weight.new_zeros(self.nlayers, bsz, self.nhid),
+                weight.new_zeros(self.nlayers, bsz, self.nhid))
+
 
 
 
@@ -561,8 +551,6 @@ def get_best_sent(lang, sents, model, N):
 #コマンドライン引数の設定いろいろ
 def get_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model', type=str, default='LSTM',
-                        help='type of recurrent net (RNN_TANH, RNN_RELU, LSTM, GRU)')
     parser.add_argument('--emsize', type=int, default=300,
                         help='size of word embeddings')
     parser.add_argument('--nhid', type=int, default=128,
@@ -618,7 +606,7 @@ if __name__ == '__main__':
 
     weights_matrix=get_weight_matrix(vocab)
 
-    model = RNNModel(args.model, ntokens, args.emsize, args.nhid, args.nlayers, weights_matrix, args.dropout, args.tied).to(device)
+    model = RNNModel(ntokens, args.emsize, args.nhid, args.nlayers, weights_matrix, args.dropout, args.tied).to(device)
 
     #学習時
     if args.mode == 'all' or args.mode == 'mini':
@@ -674,7 +662,7 @@ if __name__ == '__main__':
         model.load_state_dict(best_weight)
 
         #モデルとか結果とかを格納するディレクトリの作成
-        save_path=save_path+'_N'+str(args.ngrams)
+        save_path=save_path+'_biLSTM_N'+str(args.ngrams)
         if os.path.exists(save_path)==False:
             os.mkdir(save_path)
 
