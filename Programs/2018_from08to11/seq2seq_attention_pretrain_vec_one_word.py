@@ -1077,13 +1077,13 @@ def output_preds(file_name, preds):
 def print_score(line, allOK, clozeOK, partOK, BLEU, miss):
     print('  acc(all): ', '{0:.2f}'.format(1.0*allOK/line*100),' %')
     print('acc(cloze): ', '{0:.2f}'.format(1.0*clozeOK/line*100),' %')
-    print(' acc(part): ', '{0:.2f}'.format(1.0*partOK/line*100),' %')
+    #print(' acc(part): ', '{0:.2f}'.format(1.0*partOK/line*100),' %')
 
     print(' BLEU: ','{0:.2f}'.format(BLEU*100.0))
     print('  all: ', allOK)
     print('cloze: ',clozeOK)
-    print(' part: ',partOK)
-    print(' line: ',line)
+    #print(' part: ',partOK)
+    #print(' line: ',line)
     print(' miss: ',miss)
 
 
@@ -1208,7 +1208,7 @@ def get_best_sent(lang, encoder, decoder, sents):
     return sents[scores.index(max(scores))]
 
 #一旦1語以上，選択肢ありモード
-#TODO あとで全単語からもできるように
+#TODO あとで文スコア全単語からもできるように，前から予測はすでに全単語実装ずみというかデフォ
 def test_choices_by_sent_score(lang, encoder, decoder, test_data, choices, saveAttention=False, file_output=False):
     print("Test by sent score...")
     #input_sentence や ansは文字列であるのに対し、output_wordsはリストであることに注意
