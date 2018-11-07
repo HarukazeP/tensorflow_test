@@ -249,8 +249,8 @@ class RNNModel(nn.Module):
 
     def init_hidden(self, bsz):
         weight = next(self.parameters())
-        return (weight.new_zeros(self.nlayers, bsz, self.nhid),
-                weight.new_zeros(self.nlayers, bsz, self.nhid))
+        return (weight.new_zeros(self.nlayers*2, bsz, self.nhid),
+                weight.new_zeros(self.nlayers*2, bsz, self.nhid))
 
 
 
