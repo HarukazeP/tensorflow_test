@@ -658,6 +658,7 @@ if __name__ == '__main__':
             else :
                 exit()
 
+        print('best epoch = ',best_epoch)
         # Load the best saved model.
         model.load_state_dict(best_weight)
 
