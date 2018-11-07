@@ -34,7 +34,7 @@ synbolicなんとか　yes
 samples no
 
 .bashrcに追記
-nvcc -V 
+nvcc -V
 で表示されればOK
 
 
@@ -48,6 +48,19 @@ nvcc -V
 	そしてこの論文に他のテストデータセット載ってた
 	https://stackoverflow.com/questions/44373470/get-the-microsoft-research-sentence-completion-challenge
 	https://dl.acm.org/citation.cfm?id=2390940.2390944
+
+	text_to_unk.py
+ all start
+ 2018-11-07 23:17:01.681968
+ Reading vocab...
+ word num   :  17005207
+ change UNK :  911550
+
+ real	17m9.850s
+ user	17m7.964s
+ sys	0m1.064s
+
+
 
 
 kenlm
