@@ -29,7 +29,7 @@ def get_words(file):
     print("Reading vocab...")
     with open(file, encoding='utf-8') as f:
         for line in f:
-            line=normalizeString(line)
+            line=line.strip()
             for word in line.split(' '):
                 if not word in words:
                     words.append(word)
@@ -70,7 +70,7 @@ start_time=print_time('all start')
 
 
 #データ
-tmp_path='../../../'
+tmp_path='../../../pytorch_data/'
 input_data=tmp_path+'text8.txt'
 output_data=tmp_path+'text8_UNK.txt'
 
