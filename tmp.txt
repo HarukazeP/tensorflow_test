@@ -31,21 +31,98 @@ time python3.6 baseline_RNNLM_ngram.py --mode test --model_dir RNNLM10_23_1240_N
 
 
 
-kenlm
-bos=False, eos=False
-score=score/len
-  5-gram model
-  Use choices
-(1語以上)
-    acc:  45.06  %
-   line:  324
-     OK:  146
-(1語のみ)
-    acc:  52.80  %
-   line:  161
-     OK:  85
+ tamaki@tamaki-ubuntu:~/M2/tensorflow_pytorch_test/Programs/2018_from08to11$ time python3 baseline_kenLM.py
+ Reading vocab...
+ Reading Testdata...
+ data: 324
+ Reading data...
+ data: 1040
+ Reading data...
+ ../../../pytorch_data/text8_UNK_N5.klm
+ 2018-11-08 01:08:28.889722
+ 5-gram model
+ Use choices
+ center
+   acc:  45.68  %
+  line:  324
+    OK:  148
+   acc:  53.42  %
+  line:  161
+    OK:  86
+ MS
+   acc:  25.19  %
+  line:  1040
+    OK:  262
+   acc:  25.42  %
+  line:  956
+    OK:  243
 
-  Not use choices, from all words
-    acc:  13.66  %
-   line:  161
-     OK:  22
+ Not use choices, from all words
+ center
+   acc:  14.29  %
+  line:  161
+    OK:  23
+ MS
+   acc:  1.78  %
+  line:  956
+    OK:  17
+ ../../../pytorch_data/text8_UNK_N4.klm
+ 2018-11-08 01:11:48.172392
+ 4-gram model
+ Use choices
+ center
+   acc:  45.68  %
+  line:  324
+    OK:  148
+   acc:  53.42  %
+  line:  161
+    OK:  86
+ MS
+   acc:  25.58  %
+  line:  1040
+    OK:  266
+   acc:  25.84  %
+  line:  956
+    OK:  247
+
+ Not use choices, from all words
+ center
+   acc:  13.66  %
+  line:  161
+    OK:  22
+ MS
+   acc:  1.78  %
+  line:  956
+    OK:  17
+ ../../../pytorch_data/text8_UNK_N3.klm
+ 2018-11-08 01:15:05.613612
+ 3-gram model
+ Use choices
+ center
+   acc:  45.68  %
+  line:  324
+    OK:  148
+   acc:  52.80  %
+  line:  161
+    OK:  85
+ MS
+   acc:  24.52  %
+  line:  1040
+    OK:  255
+   acc:  24.69  %
+  line:  956
+    OK:  236
+
+ Not use choices, from all words
+ center
+   acc:  14.29  %
+  line:  161
+    OK:  23
+ MS
+   acc:  1.15  %
+  line:  956
+    OK:  11
+
+ real	10m2.670s
+ user	9m56.620s
+ sys	0m6.308s

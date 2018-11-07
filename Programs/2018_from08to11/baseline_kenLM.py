@@ -281,35 +281,42 @@ if __name__ == '__main__':
 
 
     #kenLMモデル読み込み
-    model_path=file_path+'text8.klm'
-    model = kenlm.LanguageModel(model_path)
-    print('{0}-gram model'.format(model.order))
+    model_N5=file_path+'text8_UNK_N5.klm'
+    model_N4=file_path+'text8_UNK_N4.klm'
+    model_N3=file_path+'text8_UNK_N3.klm'
+    models=[model_N5, model_N4, model_N3]
 
-    #テストデータに対する予測と精度の計算
-    #選択肢を使ったテスト
-    print('Use choices')
-    print('center')
-    data=make_data(center_data, center_choices, one_word=False)
-    calc_acc(data, model)
+    for model_path in models:
+        print(model_path)
+        print(datetime.datetime.today())
+        model = kenlm.LanguageModel(model_path)
+        print('{0}-gram model'.format(model.order))
 
-    data=make_data(center_data, center_choices, one_word=True)
-    calc_acc(data, model)
+        #テストデータに対する予測と精度の計算
+        #選択肢を使ったテスト
+        print('Use choices')
+        print('center')
+        data=make_data(center_data, center_choices, one_word=False)
+        calc_acc(data, model)
 
-    print('MS')
-    data=make_data(MS_data, MS_choices, one_word=False)
-    calc_acc(data, model)
+        data=make_data(center_data, center_choices, one_word=True)
+        calc_acc(data, model)
 
-    data=make_data(MS_data, MS_choices, one_word=True)
-    calc_acc(data, model)
+        print('MS')
+        data=make_data(MS_data, MS_choices, one_word=False)
+        calc_acc(data, model)
+
+        data=make_data(MS_data, MS_choices, one_word=True)
+        calc_acc(data, model)
 
 
-    #選択肢なしテスト
-    #空所内の選択肢は全て1語のみ
-    print('\nNot use choices, from all words')
-    print('center')
-    data=make_data_from_all_words(center_data, center_choices, all_words)
-    calc_acc(data, model)
+        #選択肢なしテスト
+        #空所内の選択肢は全て1語のみ
+        print('\nNot use choices, from all words')
+        print('center')
+        data=make_data_from_all_words(center_data, center_choices, all_words)
+        calc_acc(data, model)
 
-    print('MS')
-    data=make_data_from_all_words(MS_data, MS_choices, all_words)
-    calc_acc(data, model)
+        print('MS')
+        data=make_data_from_all_words(MS_data, MS_choices, all_words)
+        calc_acc(data, model)
