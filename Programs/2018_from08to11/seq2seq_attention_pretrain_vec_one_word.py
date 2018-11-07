@@ -2,15 +2,15 @@
 
 '''
 pytorchのseq2seqチュートリアルを改変
-seq2seq_attention_batch_new_model.py から変更
-Embedding層に学習済みベクトルを利用
+seq2seq_attention_pretrain_vec.py から変更
+空所内1語のみ
+空所を表す記号{}を使わないモードについても対応
 
 
 動かしていたバージョン
 python  : 3.5.2 / 3.6.5
 pytorch : 2.0.4
 gensim  : 3.1.0 / 3.5.0
-
 
 '''
 
@@ -119,7 +119,7 @@ def unicodeToAscii(s):
 
 #データの前処理
 #strip()は文頭文末の改行や空白を取り除いてくれる
-def normalizeString(s, choices=False):
+def normalizeString(s, choices=False, use_mark=True):
     s = unicodeToAscii(s.lower().strip())
     #text8コーパスと同等の前処理
     s=s.replace('0', ' zero ')
@@ -133,9 +133,15 @@ def normalizeString(s, choices=False):
     s=s.replace('8', ' eight ')
     s=s.replace('9', ' nine ')
     if choices:
-        s = re.sub(r'[^a-z{}#]', ' ', s)
+        if use_mark:
+            s = re.sub(r'[^a-z{}#]', ' ', s)
+        else:
+            s = re.sub(r'[^a-z#]', ' ', s)
     else:
-        s = re.sub(r'[^a-z{}]', ' ', s)
+        if use_mark:
+            s = re.sub(r'[^a-z{}]', ' ', s)
+        else:
+            s = re.sub(r'[^a-z]', ' ', s)
     s = re.sub(r'[ ]+', ' ', s)
 
     return s.strip()
@@ -154,7 +160,7 @@ def readVocab(file):
 
 
 #入出力データ読み込み用
-def readData(input_file, target_file):
+def readData(input_file, target_file, use_cloze_mark):
     #print("Reading data...")
     pairs=[]
     i=0
@@ -162,7 +168,7 @@ def readData(input_file, target_file):
         with open(target_file, encoding='utf-8') as target:
             for line1, line2 in zip(input, target):
                 i+=1
-                pairs.append([normalizeString(line1), normalizeString(line2)])
+                pairs.append([normalizeString(line1, use_mark=use_cloze_mark), normalizeString(line2, use_mark=use_cloze_mark)])
     print("data: %s" % i)
 
     return pairs
@@ -175,6 +181,16 @@ def readData2(file):
     with open(file, encoding='utf-8') as f:
         for line in f:
             data.append(normalizeString(line))
+
+    return data
+
+#記号使わないの考慮するやつ
+def readData3(file, use_cloze_mark):
+    #print("Reading data...")
+    data=[]
+    with open(file, encoding='utf-8') as f:
+        for line in f:
+            data.append(normalizeString(line, use_mark=use_cloze_mark))
 
     return data
 
@@ -1215,6 +1231,12 @@ def test_choices_by_sent_score(lang, encoder, decoder, test_data, choices, saveA
     score(preds_choices, ans, file_output, save_path+'score_choices.txt')
 
 
+def use_mark(mark_flag):
+    if mark_flag==1:
+        return True
+    return False
+
+
 #コマンドライン引数の設定いろいろ
 def get_args():
     parser = argparse.ArgumentParser()
@@ -1224,6 +1246,8 @@ def get_args():
     parser.add_argument('--encoder', help='encoder file name (when load model, mode=test)')
     parser.add_argument('--decoder', help='decoder file name (when load model, mode=test)')
     parser.add_argument('--epoch', type=int, default=30)
+    parser.add_argument('--cloze_mark', type=int, default=1, help='flag for using cloze mark { } or not use. use=1, not use =0')
+
     #TODO ほかにも引数必要に応じて追加
     return parser.parse_args()
 
@@ -1233,9 +1257,14 @@ if __name__ == '__main__':
     #コマンドライン引数読み取り
     args = get_args()
     print(args.mode)
+    USE_CLOZE_MARK=use_mark(args.cloze_mark)
 
     # 1.語彙データ読み込み
     vocab_path=file_path+'enwiki_vocab30000.txt'
+    if not USE_CLOZE_MARK:
+        vocab_path=file_path+'enwiki_vocab30000_wordonly.txt'
+        print('Without using cloze mark')
+
     vocab = readVocab(vocab_path)
 
     # 2.モデル定義
@@ -1259,8 +1288,8 @@ if __name__ == '__main__':
 
         #all_data=readData(train_cloze, train_ans)
         print("Reading data...")
-        all_X=readData2(train_cloze)
-        all_Y=readData2(train_ans)
+        all_X=readData3(train_cloze, USE_CLOZE_MARK)
+        all_Y=readData3(train_ans, USE_CLOZE_MARK)
 
 
         if args.mode == 'mini':
@@ -1303,10 +1332,10 @@ if __name__ == '__main__':
     MS_choi=git_data_path+'microsoft_choices.txt'
 
     print("Reading data...")
-    center_data=readData(center_cloze, center_ans)
+    center_data=readData(center_cloze, center_ans, USE_CLOZE_MARK)
     center_choices=get_choices(center_choi)
 
-    MS_data=readData(MS_cloze, MS_ans)
+    MS_data=readData(MS_cloze, MS_ans, USE_CLOZE_MARK)
     MS_choices=get_choices(MS_choi)
 
     if args.mode == 'mini' or args.mode == 'mini_test':
@@ -1320,13 +1349,15 @@ if __name__ == '__main__':
     #選択肢を使ったテスト
     #これは前からの予測
     print('center')
-    test_choices(vocab, my_encoder, my_decoder, center_data, center_choices, saveAttention=False, file_output=True)
+    # TODO: 1語のみのテストモード，空所の記号の有無も
+    if USE_CLOZE_MARK:
+        test_choices(vocab, my_encoder, my_decoder, center_data, center_choices, saveAttention=False, file_output=True)
 
-    #これは文スコア
-    test_choices_by_sent_score(vocab, my_encoder, my_decoder, center_data, center_choices, saveAttention=False, file_output=False)
+        #これは文スコア
+        test_choices_by_sent_score(vocab, my_encoder, my_decoder, center_data, center_choices, saveAttention=False, file_output=False)
 
-    print('MS')
-    test_choices(vocab, my_encoder, my_decoder, MS_data, MS_choices, saveAttention=False, file_output=True)
+        print('MS')
+        test_choices(vocab, my_encoder, my_decoder, MS_data, MS_choices, saveAttention=False, file_output=True)
 
-    #これは文スコア
-    test_choices_by_sent_score(vocab, my_encoder, my_decoder, MS_data, MS_choices, saveAttention=False, file_output=False)
+        #これは文スコア
+        test_choices_by_sent_score(vocab, my_encoder, my_decoder, MS_data, MS_choices, saveAttention=False, file_output=False)
