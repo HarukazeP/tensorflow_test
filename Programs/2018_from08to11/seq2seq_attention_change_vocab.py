@@ -1330,6 +1330,7 @@ if __name__ == '__main__':
         #テストデータに対する予測と精度の計算
         #選択肢を使ったテスト
         #これは前からの予測
+        print(vocab_path)
         print('center')
         test_choices(vocab, my_encoder, my_decoder, center_data, center_choices, saveAttention=False, file_output=True)
 
