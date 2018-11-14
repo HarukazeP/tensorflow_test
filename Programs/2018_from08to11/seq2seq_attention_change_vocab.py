@@ -1286,7 +1286,8 @@ if __name__ == '__main__':
 
             #モデルとか結果とかを格納するディレクトリの作成
             tmp=vocab_path[:-4]
-            tmp=[tmp.index('_vocab'):]
+            idx=tmp.index('_vocab')
+            tmp=tmp[idx:]
             save_path=save_path+args.mode+'_seq2seq'+tmp
             if os.path.exists(save_path)==False:
                 os.mkdir(save_path)
