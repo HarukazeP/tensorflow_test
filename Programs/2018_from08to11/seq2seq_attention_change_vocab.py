@@ -1240,6 +1240,10 @@ if __name__ == '__main__':
     vocab_files=[vocab1, vocab2, vocab3]
 
     for vocab_path in vocab_files:
+        today1=datetime.datetime.today()
+        today_str=today1.strftime('%m_%d_%H%M')
+        save_path=file_path + '/' + today_str
+
         # 1.語彙データ読み込み
         vocab = readVocab(vocab_path)
 
@@ -1281,7 +1285,9 @@ if __name__ == '__main__':
             val_data = (val_X, val_Y)
 
             #モデルとか結果とかを格納するディレクトリの作成
-            save_path=save_path+args.mode+'_seq2seq'
+            tmp=vocab_path[:-4]
+            tmp=[tmp.index('_vocab'):]
+            save_path=save_path+args.mode+'_seq2seq'+tmp
             if os.path.exists(save_path)==False:
                 os.mkdir(save_path)
             save_path=save_path+'/'
