@@ -191,7 +191,7 @@ def get_weight_matrix(lang):
         vec_model= gensim.models.word2vec.Word2Vec(sentences, size=EMB_DIM)
         vec_model.save(model_path)
     else:
-        vec_model.load(model_path)
+        vec_model=gensim.models.word2vec.Word2Vec.load(model_path)
 
     print('Loading word vector ...')
     #ここのgensimの書き方がバージョンによって異なる
@@ -223,7 +223,7 @@ def get_weight_matrix(lang):
 #エンコーダのクラス
 class smallEncoderRNN(nn.Module):
     def __init__(self, input_dim, emb_dim, hid_dim, weights_matrix):
-        super(EncoderRNN, self).__init__()
+        super(smallEncoderRNN, self).__init__()
         self.input_dim = input_dim #入力語彙数
         self.embedding_dim = emb_dim
         self.hidden_dim = hid_dim
@@ -290,7 +290,7 @@ h=(batch_size, output_dim)
 #attentionの形式をluongのやつに
 class smallAttnDecoderRNN2(nn.Module):
     def __init__(self, emb_size, hidden_size, attn_size, output_size, weights_matrix):
-        super(AttnDecoderRNN2, self).__init__()
+        super(smallAttnDecoderRNN2, self).__init__()
         self.hidden_size = hidden_size
         self.output_size = output_size
 
