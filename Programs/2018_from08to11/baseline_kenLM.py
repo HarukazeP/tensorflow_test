@@ -36,6 +36,7 @@ BATCH_SIZE = 128
 
 #自分で定義したグローバル関数とか
 file_path='../../../pytorch_data/'
+model_path=file_path+'kenlm_models/'
 git_data_path='../../Data/'
 today1=datetime.datetime.today()
 today_str=today1.strftime('%m_%d_%H%M')
@@ -176,48 +177,12 @@ def make_data(data_pair, choices_lists, one_word=True):
 
     return data
 
-def make_data_from_all_words(data_pair, choices_lists, all_words):
-    data=[]
-    for sent, choices in zip(data_pair, choices_lists):
-        flag=1
-        for choice in choices:
-            if(len(choice.split(' '))>1):
-                flag=-1
-                #選択肢に2語以上のものがあるときはflagが負
-        if(flag>0):
-            test_data=make_sents(all_words, sent[0])
-            test_data.append(sent[1])
-            data.append(test_data)
-
-    return data
-
-
-def output_preds(file_name, preds):
-    with open(file_name, 'w') as f:
-        for p in preds:
-            f.write(p+'\n')
-
 
 def print_score(line, OK):
     print('  acc: ', '{0:.2f}'.format(1.0*OK/line*100),' %')
     print(' line: ',line)
     print('   OK: ',OK)
 
-
-def output_score(file_name, line, allOK, clozeOK, partOK, BLEU, miss):
-    output=''
-    output=output+'  acc(all): '+str(1.0*allOK/line*100)+' %\n'
-    output=output+'acc(cloze): '+str(1.0*clozeOK/line*100)+' %\n'
-    output=output+' acc(part): '+str(1.0*partOK/line*100)+' %\n\n'
-    output=output+'      BLEU: '+str(BLEU*100.0)+' %\n\n'
-    output=output+'       all: '+str(allOK)+'\n'
-    output=output+'     cloze: '+str(clozeOK)+'\n'
-    output=output+'      part: '+str(partOK)+'\n'
-    output=output+'      line: '+str(line)+'\n'
-    output=output+'      miss: '+str(miss)+'\n'
-
-    with open(file_name, 'w') as f:
-        f.write(output)
 
 
 def get_best_sent(sent_list, model):
@@ -281,10 +246,10 @@ if __name__ == '__main__':
 
 
     #kenLMモデル読み込み
-    model_N5=file_path+'text8_UNK_N5.klm'
-    model_N4=file_path+'text8_UNK_N4.klm'
-    model_N3=file_path+'text8_UNK_N3.klm'
-    models=[model_N5, model_N4, model_N3]
+    model1=model_path+'text8_twice_UNK30000.klm'
+    model2=model_path+'text8_half_UNK30000_N7.klm'
+    model3=model_path+'text8_twice_N7.klm'
+    models=[model1]
 
     for model_path in models:
         print(model_path)
@@ -312,6 +277,7 @@ if __name__ == '__main__':
 
         #選択肢なしテスト
         #空所内の選択肢は全て1語のみ
+        '''
         print('\nNot use choices, from all words')
         print('center')
         data=make_data_from_all_words(center_data, center_choices, all_words)
@@ -320,3 +286,4 @@ if __name__ == '__main__':
         print('MS')
         data=make_data_from_all_words(MS_data, MS_choices, all_words)
         calc_acc(data, model)
+        '''

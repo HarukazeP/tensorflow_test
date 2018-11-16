@@ -41,6 +41,7 @@ def get_words(file):
 def change_unk(input_data, output_data, vocab):
     with open(input_data, encoding='utf-8') as f_in:
         with open(output_data, 'w') as f_out:
+            print("Change UNK...")
             i=0
             ct=0
             #TODO text8コーパスは1行だからこの書き方だけど，それ以外ならiの初期化とか必要そう
@@ -71,8 +72,8 @@ start_time=print_time('all start')
 
 #データ
 tmp_path='../../../pytorch_data/'
-input_data=tmp_path+'text8.txt'
-output_data=tmp_path+'text8_UNK.txt'
+input_data=tmp_path+'data_for_kenlm/text8_twice.txt'
+output_data=tmp_path+'data_for_kenlm/text8_twice_UNK30000.txt'
 
 vocab_path=tmp_path+'enwiki_vocab30000_wordonly.txt'
 
