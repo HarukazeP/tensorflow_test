@@ -6,7 +6,7 @@ seq2seq2seq_attention_change_vocab_one_word.py および
 seq2seq_attention_small.py から変更
 語彙サイズ変更してループ処理行う
 空所内1語のみ
-空所を表す記号{}を使わないモードについても対応
+空所を表す記号{}を使わないモードもループで行う
 
 
 動かしていたバージョン
@@ -226,7 +226,7 @@ def get_weight_matrix(lang):
 ###########################
 
 #エンコーダのクラス
-class EncoderRNN(nn.Module):
+class smallEncoderRNN(nn.Module):
     def __init__(self, input_dim, emb_dim, hid_dim, weights_matrix):
         super(EncoderRNN, self).__init__()
         self.input_dim = input_dim #入力語彙数
@@ -239,12 +239,10 @@ class EncoderRNN(nn.Module):
         self.lstm = nn.LSTM(input_size=self.embedding_dim,
                             hidden_size=self.hidden_dim,
                             bidirectional=True,
-                            num_layers=2)
+                            num_layers=1)
         self.linear_h1 = nn.Linear(self.hidden_dim * 2, self.hidden_dim)
         self.linear_c1 = nn.Linear(self.hidden_dim * 2, self.hidden_dim)
 
-        self.linear_h2 = nn.Linear(self.hidden_dim * 2, self.hidden_dim)
-        self.linear_c2 = nn.Linear(self.hidden_dim * 2, self.hidden_dim)
 
     def forward(self, input_batch):
         """
@@ -257,47 +255,24 @@ class EncoderRNN(nn.Module):
         batch_size = input_batch.shape[1]
 
         embedded = self.embedding(input_batch)  # (s, b) -> (s, b, h)
-        output, (all_h, all_c) = self.lstm(embedded)
-
-        hidden_h1, hidden_h2=torch.chunk(all_h, 2, dim=0)
-        hidden_c1, hidden_c2=torch.chunk(all_c, 2, dim=0)
-
+        output, (hidden_h1,hidden_c1) = self.lstm(embedded)
 
         hidden_h1 = hidden_h1.transpose(1, 0)  # (2, b, h) -> (b, 2, h)
         hidden_h1 = hidden_h1.reshape(batch_size, -1)  # (b, 2, h) -> (b, 2h)
         hidden_h1 = F.dropout(hidden_h1, p=0.5, training=self.training)
         hidden_h1 = self.linear_h1(hidden_h1)  # (b, 2h) -> (b, h)
         hidden_h1 = F.relu(hidden_h1)
-        hidden_h1 = hidden_h1.unsqueeze(0)  # (b, h) -> (1, b, h)
+        hidden_h = hidden_h1.unsqueeze(0)  # (b, h) -> (1, b, h)
 
         hidden_c1 = hidden_c1.transpose(1, 0)
         hidden_c1 = hidden_c1.reshape(batch_size, -1)  # (b, 2, h) -> (b, 2h)
         hidden_c1 = F.dropout(hidden_c1, p=0.5, training=self.training)
         hidden_c1 = self.linear_c1(hidden_c1)
         hidden_c1 = F.relu(hidden_c1)
-        hidden_c1 = hidden_c1.unsqueeze(0)  # (b, h) -> (1, b, h)
-
-
-        hidden_h2 = hidden_h2.transpose(1, 0)  # (2, b, h) -> (b, 2, h)
-        hidden_h2 = hidden_h2.reshape(batch_size, -1)  # (b, 2, h) -> (b, 2h)
-        hidden_h2 = F.dropout(hidden_h2, p=0.5, training=self.training)
-        hidden_h2 = self.linear_h2(hidden_h2)  # (b, 2h) -> (b, h)
-        hidden_h2 = F.relu(hidden_h2)
-        hidden_h2 = hidden_h2.unsqueeze(0)  # (b, h) -> (1, b, h)
-
-        hidden_c2 = hidden_c2.transpose(1, 0)
-        hidden_c2 = hidden_c2.reshape(batch_size, -1)  # (b, 2, h) -> (b, 2h)
-        hidden_c2 = F.dropout(hidden_c2, p=0.5, training=self.training)
-        hidden_c2 = self.linear_c2(hidden_c2)
-        hidden_c2 = F.relu(hidden_c2)
-        hidden_c2 = hidden_c2.unsqueeze(0)  # (b, h) -> (1, b, h)
-
-        hidden_h = (hidden_h1, hidden_h2)
-        hidden_c = (hidden_c1, hidden_c2)
-
+        hidden_c = hidden_c1.unsqueeze(0)  # (b, h) -> (1, b, h)
 
         return output, (hidden_h, hidden_c)
-        # (s, b, 2h), (((1, b, h), (1, b, h)), ((1, b, h), (1, b, h)))
+        # (s, b, 2h), ((1, b, h), (1, b, h))
 
 
 '''
@@ -318,7 +293,7 @@ h=(batch_size, output_dim)
 '''
 #attentionつきデコーダのクラス
 #attentionの形式をluongのやつに
-class AttnDecoderRNN2(nn.Module):
+class smallAttnDecoderRNN2(nn.Module):
     def __init__(self, emb_size, hidden_size, attn_size, output_size, weights_matrix):
         super(AttnDecoderRNN2, self).__init__()
         self.hidden_size = hidden_size
@@ -327,7 +302,6 @@ class AttnDecoderRNN2(nn.Module):
         self.embedding = nn.Embedding(output_size, emb_size, padding_idx=PAD_token)
         self.embedding.weight.data.copy_(torch.from_numpy(weights_matrix))
         self.lstm = nn.LSTMCell(emb_size, hidden_size)
-        self.lstm2 = nn.LSTMCell(hidden_size, hidden_size)
 
         self.score_w = nn.Linear(2*hidden_size, 2*hidden_size)
         self.attn_w = nn.Linear(4*hidden_size, attn_size)
@@ -345,13 +319,11 @@ class AttnDecoderRNN2(nn.Module):
         embedded = self.embedding(input)  # (b) -> (b,e)
         embedded = F.dropout(embedded, p=0.5, training=self.training)
 
-        hidden1=hidden[0]
-        hidden2=hidden[1]
 
-        hidden1 = self.lstm(embedded, hidden1)  # (b,e),((b,h),(b,h)) -> ((b,h),(b,h))
-        hidden2 = self.lstm2(hidden1[0], hidden2)  # (b,h),((b,h),(b,h)) -> ((b,h),(b,h))
 
-        decoder_output = torch.cat(hidden2, dim=1)  # ((b,h),(b,h)) -> (b,2h)
+        hidden = self.lstm(embedded, hidden)  # (b,e),((b,h),(b,h)) -> ((b,h),(b,h))
+
+        decoder_output = torch.cat(hidden, dim=1)  # ((b,h),(b,h)) -> (b,2h)
         decoder_output = F.dropout(decoder_output, p=0.5, training=self.training)
 
         # score
@@ -379,8 +351,10 @@ class AttnDecoderRNN2(nn.Module):
         output = self.out_w(attentional)  # (b,a) -> (b,o)
         output = F.log_softmax(output, dim=1)
 
-        return output, (hidden1, hidden2), attn_weights.squeeze(2)
-        # (b,o), (((b,h),(b,h)), ((b,h),(b,h)), (b,il)
+        return output, hidden, attn_weights.squeeze(2)
+        # (b,o), ((b,h),(b,h)), (b,il)
+
+
 
 
 ###########################
@@ -449,8 +423,7 @@ def batch_train(X, Y, encoder, decoder, encoder_optimizer, decoder_optimizer, cr
     decoder_input = torch.tensor([[SOS_token] * batch_size], device=my_device)  # (1, b)
     decoder_inputs = torch.cat([decoder_input, Y], dim=0)  # (1,b), (n,b) -> (n+1, b)
 
-    decoder_hidden = ( (encoder_hidden[0][0].squeeze(0), encoder_hidden[0][1].squeeze(0)),
-                    (encoder_hidden[1][0].squeeze(0), encoder_hidden[1][1].squeeze(0)) )
+    decoder_hidden = (encoder_hidden[0].squeeze(0), encoder_hidden[1].squeeze(0))
 
     #teacher forcingを使用する割合
     teacher_forcing_ratio = 0.5
@@ -506,8 +479,7 @@ def batch_valid(X, Y, encoder, decoder, criterion, lang):
 
         encoder_outputs, encoder_hidden = encoder(X)  # (s, b, 2h), ((1, b, h), (1, b, h))
         decoder_input = torch.tensor([SOS_token] * batch_size, device=my_device)  # (b)
-        decoder_hidden = ( (encoder_hidden[0][0].squeeze(0), encoder_hidden[0][1].squeeze(0)),
-                (encoder_hidden[1][0].squeeze(0), encoder_hidden[1][1].squeeze(0)) )
+        decoder_hidden = (encoder_hidden[0].squeeze(0), encoder_hidden[1].squeeze(0))
 
         decoded_outputs = torch.zeros(target_length, batch_size, lang.n_words, device=my_device)
         decoded_words = torch.zeros(batch_size, target_length, device=my_device)
@@ -694,8 +666,7 @@ def evaluate(lang, encoder, decoder, sentence, use_mark, max_length=MAX_LENGTH):
         encoder_outputs, encoder_hidden = encoder(input_batch.transpose(0, 1))
 
         decoder_input = torch.tensor([SOS_token], device=my_device)  # SOS
-        decoder_hidden = ( (encoder_hidden[0][0].squeeze(0), encoder_hidden[0][1].squeeze(0)),
-                (encoder_hidden[1][0].squeeze(0), encoder_hidden[1][1].squeeze(0)) )
+        decoder_hidden = (encoder_hidden[0].squeeze(0), encoder_hidden[1].squeeze(0))
 
         decoded_words = []
         decoder_attentions = []
@@ -738,8 +709,7 @@ def evaluate_cloze_one_word(lang, encoder, decoder, sentence, use_mark, max_leng
 
         decoder_input = torch.tensor([SOS_token], device=my_device)  # SOS
 
-        decoder_hidden = ( (encoder_hidden[0][0].squeeze(0), encoder_hidden[0][1].squeeze(0)),
-                (encoder_hidden[1][0].squeeze(0), encoder_hidden[1][1].squeeze(0)) )
+        decoder_hidden = (encoder_hidden[0].squeeze(0), encoder_hidden[1].squeeze(0))
 
 
         decoded_words = []
@@ -866,8 +836,7 @@ def evaluate_choice_one_word(lang, encoder, decoder, sentence, choices, use_mark
 
         decoder_input = torch.tensor([SOS_token], device=my_device)  # SOS
 
-        decoder_hidden = ( (encoder_hidden[0][0].squeeze(0), encoder_hidden[0][1].squeeze(0)),
-                (encoder_hidden[1][0].squeeze(0), encoder_hidden[1][1].squeeze(0)) )
+        decoder_hidden = (encoder_hidden[0].squeeze(0), encoder_hidden[1].squeeze(0))
 
 
         decoded_words = []
@@ -1197,8 +1166,7 @@ def calc_sent_score(lang, encoder, decoder, sent, max_length=MAX_LENGTH):
 
         encoder_outputs, encoder_hidden = encoder(input_batch.transpose(0, 1))
         decoder_input = torch.tensor([SOS_token], device=my_device)  # SOS
-        decoder_hidden = ( (encoder_hidden[0][0].squeeze(0), encoder_hidden[0][1].squeeze(0)),
-                (encoder_hidden[1][0].squeeze(0), encoder_hidden[1][1].squeeze(0)) )
+        decoder_hidden = (encoder_hidden[0].squeeze(0), encoder_hidden[1].squeeze(0))
 
 
         for di in range(max_length):
@@ -1274,123 +1242,128 @@ if __name__ == '__main__':
     #コマンドライン引数読み取り
     args = get_args()
     print(args.mode)
-    USE_CLOZE_MARK=uses_clz_mark(args.cloze_mark)
-    vocab0=file_path+'enwiki_vocab30000.txt'
-    vocab1=file_path+'enwiki_vocab1000.txt'
-    vocab2=file_path+'enwiki_vocab100.txt'
-    vocab3=file_path+'enwiki_vocab10000.txt'
-
-    vocab_files=[vocab0, vocab1, vocab2, vocab3]
-
-    for vocab_path in vocab_files:
-
-        # 1.語彙データ読み込み
-        vocab_path=file_path+'enwiki_vocab30000.txt'
+    clz_flag=[1,0]
+    for mark in clz_flag:
+        USE_CLOZE_MARK=uses_clz_mark(mark)
+        vocab0=file_path+'enwiki_vocab30000.txt'
+        vocab1=file_path+'enwiki_vocab1000.txt'
+        vocab2=file_path+'enwiki_vocab100.txt'
+        vocab3=file_path+'enwiki_vocab10000.txt'
         if not USE_CLOZE_MARK:
-            vocab_path=file_path+'enwiki_vocab30000_wordonly.txt'
+            vocab0=file_path+'enwiki_vocab30000_wordonly.txt.txt'
+            vocab1=file_path+'enwiki_vocab1000_wordonly.txt.txt'
+            vocab2=file_path+'enwiki_vocab100_wordonly.txt.txt'
+            vocab3=file_path+'enwiki_vocab10000_wordonly.txt.txt'
             print('Without using cloze mark')
 
-        vocab = readVocab(vocab_path)
+        vocab_files=[vocab0, vocab1, vocab2, vocab3]
 
-        # 2.モデル定義
-        weights_matrix=get_weight_matrix(vocab)
-        my_encoder = EncoderRNN(vocab.n_words, EMB_DIM, HIDDEN_DIM, weights_matrix).to(my_device)
-        my_decoder = AttnDecoderRNN2(EMB_DIM, HIDDEN_DIM, ATTN_DIM, vocab.n_words, weights_matrix).to(my_device)
+        for vocab_path in vocab_files:
+            today1=datetime.datetime.today()
+            today_str=today1.strftime('%m_%d_%H%M')
+            save_path=file_path + '/' + today_str
 
-        #学習時
-        if args.mode == 'all' or args.mode == 'mini':
-            #train_cloze=file_path+'tmp_cloze.txt'
-            #train_ans=file_path+'tmp_ans.txt'
+            vocab = readVocab(vocab_path)
 
-            #text8全体
-            train_cloze=file_path+'text8_cloze_one_word.txt'
-            train_ans=file_path+'text8_ans_one_word.txt'
+            # 2.モデル定義
+            weights_matrix=get_weight_matrix(vocab)
+            my_encoder = smallEncoderRNN(vocab.n_words, EMB_DIM, HIDDEN_DIM, weights_matrix).to(my_device)
+            my_decoder = smallAttnDecoderRNN2(EMB_DIM, HIDDEN_DIM, ATTN_DIM, vocab.n_words, weights_matrix).to(my_device)
 
-            if args.mode == 'mini':
-                #合同ゼミ
-                train_cloze=file_path+'text8_cloze50000_one_word.txt'
-                train_ans=file_path+'text8_ans50000_one_word.txt'
+            #学習時
+            if args.mode == 'all' or args.mode == 'mini':
+                #train_cloze=file_path+'tmp_cloze.txt'
+                #train_ans=file_path+'tmp_ans.txt'
 
-            #all_data=readData(train_cloze, train_ans)
+                #text8全体
+                train_cloze=file_path+'text8_cloze_one_word.txt'
+                train_ans=file_path+'text8_ans_one_word.txt'
+
+                if args.mode == 'mini':
+                    #合同ゼミ
+                    train_cloze=file_path+'text8_cloze50000_one_word.txt'
+                    train_ans=file_path+'text8_ans50000_one_word.txt'
+
+                #all_data=readData(train_cloze, train_ans)
+                print("Reading data...")
+                all_X=readData3(train_cloze, USE_CLOZE_MARK)
+                all_Y=readData3(train_ans, USE_CLOZE_MARK)
+
+
+                if args.mode == 'mini':
+                    #all_data=all_data[:20]
+                    all_X=all_X[:20]
+                    all_Y=all_Y[:20]
+
+                #train_data, val_data = train_test_split(all_data, test_size=0.1)
+                train_X, val_X = train_test_split(all_X, test_size=0.1)
+                train_Y, val_Y = train_test_split(all_Y, test_size=0.1)
+
+                train_data = (train_X, train_Y)
+                val_data = (val_X, val_Y)
+
+                #モデルとか結果とかを格納するディレクトリの作成
+                tmp=vocab_path[:-4]
+                idx=tmp.index('_vocab')
+                tmp=tmp[idx:]
+                save_path=save_path+args.mode+'_seq2seq'+tmp
+                if not USE_CLOZE_MARK:
+                    save_path=save_path+'_without_mark'
+                if os.path.exists(save_path)==False:
+                    os.mkdir(save_path)
+                save_path=save_path+'/'
+
+                # 3.学習
+                my_encoder, my_decoder = trainIters(vocab, my_encoder, my_decoder, train_data, val_data, n_iters=args.epoch, saveModel=True)
+
+            #すでにあるモデルでテスト時
+            else:
+                save_path=args.model_dir+'/'
+
+                my_encoder.load_state_dict(torch.load(save_path+args.encoder))
+                my_decoder.load_state_dict(torch.load(save_path+args.decoder))
+
+                save_path=save_path+today_str
+
+            # 4.評価
+            center_cloze=git_data_path+'center_cloze.txt'
+            center_ans=git_data_path+'center_ans.txt'
+            center_choi=git_data_path+'center_choices.txt'
+
+            MS_cloze=git_data_path+'microsoft_cloze.txt'
+            MS_ans=git_data_path+'microsoft_ans.txt'
+            MS_choi=git_data_path+'microsoft_choices.txt'
+
             print("Reading data...")
-            all_X=readData3(train_cloze, USE_CLOZE_MARK)
-            all_Y=readData3(train_ans, USE_CLOZE_MARK)
+            #テストデータはここでは空所記号残したまま
+            center_data=readData(center_cloze, center_ans)
+            center_choices=get_choices(center_choi)
+
+            MS_data=readData(MS_cloze, MS_ans)
+            MS_choices=get_choices(MS_choi)
+
+            if args.mode == 'mini' or args.mode == 'mini_test':
+                center_data=center_data[:5]
+                center_choices=center_choices[:5]
+                MS_data=MS_data[:5]
+                MS_choices=MS_choices[:5]
 
 
-            if args.mode == 'mini':
-                #all_data=all_data[:20]
-                all_X=all_X[:20]
-                all_Y=all_Y[:20]
+            #テストデータに対する予測と精度の計算
+            #選択肢を使ったテスト
+            #これは前からの予測
+            print(vocab_path)
+            print('center')
+            tmp=save_path
+            save_path=tmp+'center_'
+            test_choices_one_word(vocab, my_encoder, my_decoder, center_data, center_choices, saveAttention=False, file_output=True, use_mark=USE_CLOZE_MARK)
 
-            #train_data, val_data = train_test_split(all_data, test_size=0.1)
-            train_X, val_X = train_test_split(all_X, test_size=0.1)
-            train_Y, val_Y = train_test_split(all_Y, test_size=0.1)
+            #これは文スコア
+            test_choices_by_sent_score(vocab, my_encoder, my_decoder, center_data, center_choices, saveAttention=False, file_output=False, use_mark=USE_CLOZE_MARK)
 
-            train_data = (train_X, train_Y)
-            val_data = (val_X, val_Y)
+            print('MS')
+            save_path=tmp+'MS_'
+            test_choices_one_word(vocab, my_encoder, my_decoder, MS_data, MS_choices, saveAttention=False, file_output=True, use_mark=USE_CLOZE_MARK)
 
-            #モデルとか結果とかを格納するディレクトリの作成
-            tmp=vocab_path[:-4]
-            idx=tmp.index('_vocab')
-            tmp=tmp[idx:]
-            save_path=save_path+args.mode+'_seq2seq'+tmp
-            if not USE_CLOZE_MARK:
-                save_path=save_path+'_without_mark'
-            if os.path.exists(save_path)==False:
-                os.mkdir(save_path)
-            save_path=save_path+'/'
-
-            # 3.学習
-            my_encoder, my_decoder = trainIters(vocab, my_encoder, my_decoder, train_data, val_data, n_iters=args.epoch, saveModel=True)
-
-        #すでにあるモデルでテスト時
-        else:
-            save_path=args.model_dir+'/'
-
-            my_encoder.load_state_dict(torch.load(save_path+args.encoder))
-            my_decoder.load_state_dict(torch.load(save_path+args.decoder))
-
-            save_path=save_path+today_str
-
-        # 4.評価
-        center_cloze=git_data_path+'center_cloze.txt'
-        center_ans=git_data_path+'center_ans.txt'
-        center_choi=git_data_path+'center_choices.txt'
-
-        MS_cloze=git_data_path+'microsoft_cloze.txt'
-        MS_ans=git_data_path+'microsoft_ans.txt'
-        MS_choi=git_data_path+'microsoft_choices.txt'
-
-        print("Reading data...")
-        #テストデータはここでは空所記号残したまま
-        center_data=readData(center_cloze, center_ans)
-        center_choices=get_choices(center_choi)
-
-        MS_data=readData(MS_cloze, MS_ans)
-        MS_choices=get_choices(MS_choi)
-
-        if args.mode == 'mini' or args.mode == 'mini_test':
-            center_data=center_data[:5]
-            center_choices=center_choices[:5]
-            MS_data=MS_data[:5]
-            MS_choices=MS_choices[:5]
-
-
-        #テストデータに対する予測と精度の計算
-        #選択肢を使ったテスト
-        #これは前からの予測
-        print(vocab_path)
-        print('center')
-        tmp=save_path
-        save_path=tmp+'center_'
-        test_choices_one_word(vocab, my_encoder, my_decoder, center_data, center_choices, saveAttention=False, file_output=True, use_mark=USE_CLOZE_MARK)
-
-        #これは文スコア
-        test_choices_by_sent_score(vocab, my_encoder, my_decoder, center_data, center_choices, saveAttention=False, file_output=False, use_mark=USE_CLOZE_MARK)
-
-        print('MS')
-        save_path=tmp+'MS_'
-        test_choices_one_word(vocab, my_encoder, my_decoder, MS_data, MS_choices, saveAttention=False, file_output=True, use_mark=USE_CLOZE_MARK)
-
-        #これは文スコア
-        test_choices_by_sent_score(vocab, my_encoder, my_decoder, MS_data, MS_choices, saveAttention=False, file_output=False, use_mark=USE_CLOZE_MARK)
+            #これは文スコア
+            test_choices_by_sent_score(vocab, my_encoder, my_decoder, MS_data, MS_choices, saveAttention=False, file_output=False, use_mark=USE_CLOZE_MARK)

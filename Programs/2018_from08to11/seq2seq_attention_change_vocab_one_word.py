@@ -6,7 +6,7 @@ seq2seq_attention_pretrain_vec_one_word.py および
 seq2seq_attention_pretrain_change_vocab.py から変更
 語彙サイズ変更してループ処理行う
 空所内1語のみ
-空所を表す記号{}を使わないモードについても対応
+空所を表す記号{}を使わないモードもループで行う
 
 
 動かしていたバージョン
@@ -1274,122 +1274,126 @@ if __name__ == '__main__':
     #コマンドライン引数読み取り
     args = get_args()
     print(args.mode)
-    USE_CLOZE_MARK=uses_clz_mark(args.cloze_mark)
-    vocab1=file_path+'enwiki_vocab1000.txt'
-    vocab2=file_path+'enwiki_vocab100.txt'
-    vocab3=file_path+'enwiki_vocab10000.txt'
-
-    vocab_files=[vocab1, vocab2, vocab3]
-
-    for vocab_path in vocab_files:
-
-        # 1.語彙データ読み込み
-        vocab_path=file_path+'enwiki_vocab30000.txt'
+    clz_flag=[1,0]
+    for mark in clz_flag:
+        USE_CLOZE_MARK=uses_clz_mark(mark)
+        vocab1=file_path+'enwiki_vocab1000.txt'
+        vocab2=file_path+'enwiki_vocab100.txt'
+        vocab3=file_path+'enwiki_vocab10000.txt'
         if not USE_CLOZE_MARK:
-            vocab_path=file_path+'enwiki_vocab30000_wordonly.txt'
+            vocab1=file_path+'enwiki_vocab1000_wordonly.txt.txt'
+            vocab2=file_path+'enwiki_vocab100_wordonly.txt.txt'
+            vocab3=file_path+'enwiki_vocab10000_wordonly.txt.txt'
             print('Without using cloze mark')
 
-        vocab = readVocab(vocab_path)
+        vocab_files=[vocab1, vocab2, vocab3]
 
-        # 2.モデル定義
-        weights_matrix=get_weight_matrix(vocab)
-        my_encoder = EncoderRNN(vocab.n_words, EMB_DIM, HIDDEN_DIM, weights_matrix).to(my_device)
-        my_decoder = AttnDecoderRNN2(EMB_DIM, HIDDEN_DIM, ATTN_DIM, vocab.n_words, weights_matrix).to(my_device)
+        for vocab_path in vocab_files:
+            today1=datetime.datetime.today()
+            today_str=today1.strftime('%m_%d_%H%M')
+            save_path=file_path + '/' + today_str
 
-        #学習時
-        if args.mode == 'all' or args.mode == 'mini':
-            #train_cloze=file_path+'tmp_cloze.txt'
-            #train_ans=file_path+'tmp_ans.txt'
+            vocab = readVocab(vocab_path)
 
-            #text8全体
-            train_cloze=file_path+'text8_cloze_one_word.txt'
-            train_ans=file_path+'text8_ans_one_word.txt'
+            # 2.モデル定義
+            weights_matrix=get_weight_matrix(vocab)
+            my_encoder = EncoderRNN(vocab.n_words, EMB_DIM, HIDDEN_DIM, weights_matrix).to(my_device)
+            my_decoder = AttnDecoderRNN2(EMB_DIM, HIDDEN_DIM, ATTN_DIM, vocab.n_words, weights_matrix).to(my_device)
 
-            if args.mode == 'mini':
-                #合同ゼミ
-                train_cloze=file_path+'text8_cloze50000_one_word.txt'
-                train_ans=file_path+'text8_ans50000_one_word.txt'
+            #学習時
+            if args.mode == 'all' or args.mode == 'mini':
+                #train_cloze=file_path+'tmp_cloze.txt'
+                #train_ans=file_path+'tmp_ans.txt'
 
-            #all_data=readData(train_cloze, train_ans)
+                #text8全体
+                train_cloze=file_path+'text8_cloze_one_word.txt'
+                train_ans=file_path+'text8_ans_one_word.txt'
+
+                if args.mode == 'mini':
+                    #合同ゼミ
+                    train_cloze=file_path+'text8_cloze50000_one_word.txt'
+                    train_ans=file_path+'text8_ans50000_one_word.txt'
+
+                #all_data=readData(train_cloze, train_ans)
+                print("Reading data...")
+                all_X=readData3(train_cloze, USE_CLOZE_MARK)
+                all_Y=readData3(train_ans, USE_CLOZE_MARK)
+
+
+                if args.mode == 'mini':
+                    #all_data=all_data[:20]
+                    all_X=all_X[:20]
+                    all_Y=all_Y[:20]
+
+                #train_data, val_data = train_test_split(all_data, test_size=0.1)
+                train_X, val_X = train_test_split(all_X, test_size=0.1)
+                train_Y, val_Y = train_test_split(all_Y, test_size=0.1)
+
+                train_data = (train_X, train_Y)
+                val_data = (val_X, val_Y)
+
+                #モデルとか結果とかを格納するディレクトリの作成
+                tmp=vocab_path[:-4]
+                idx=tmp.index('_vocab')
+                tmp=tmp[idx:]
+                save_path=save_path+args.mode+'_seq2seq'+tmp
+                if not USE_CLOZE_MARK:
+                    save_path=save_path+'_without_mark'
+                if os.path.exists(save_path)==False:
+                    os.mkdir(save_path)
+                save_path=save_path+'/'
+
+                # 3.学習
+                my_encoder, my_decoder = trainIters(vocab, my_encoder, my_decoder, train_data, val_data, n_iters=args.epoch, saveModel=True)
+
+            #すでにあるモデルでテスト時
+            else:
+                save_path=args.model_dir+'/'
+
+                my_encoder.load_state_dict(torch.load(save_path+args.encoder))
+                my_decoder.load_state_dict(torch.load(save_path+args.decoder))
+
+                save_path=save_path+today_str
+
+            # 4.評価
+            center_cloze=git_data_path+'center_cloze.txt'
+            center_ans=git_data_path+'center_ans.txt'
+            center_choi=git_data_path+'center_choices.txt'
+
+            MS_cloze=git_data_path+'microsoft_cloze.txt'
+            MS_ans=git_data_path+'microsoft_ans.txt'
+            MS_choi=git_data_path+'microsoft_choices.txt'
+
             print("Reading data...")
-            all_X=readData3(train_cloze, USE_CLOZE_MARK)
-            all_Y=readData3(train_ans, USE_CLOZE_MARK)
+            #テストデータはここでは空所記号残したまま
+            center_data=readData(center_cloze, center_ans)
+            center_choices=get_choices(center_choi)
+
+            MS_data=readData(MS_cloze, MS_ans)
+            MS_choices=get_choices(MS_choi)
+
+            if args.mode == 'mini' or args.mode == 'mini_test':
+                center_data=center_data[:5]
+                center_choices=center_choices[:5]
+                MS_data=MS_data[:5]
+                MS_choices=MS_choices[:5]
 
 
-            if args.mode == 'mini':
-                #all_data=all_data[:20]
-                all_X=all_X[:20]
-                all_Y=all_Y[:20]
+            #テストデータに対する予測と精度の計算
+            #選択肢を使ったテスト
+            #これは前からの予測
+            print(vocab_path)
+            print('center')
+            tmp=save_path
+            save_path=tmp+'center_'
+            test_choices_one_word(vocab, my_encoder, my_decoder, center_data, center_choices, saveAttention=False, file_output=True, use_mark=USE_CLOZE_MARK)
 
-            #train_data, val_data = train_test_split(all_data, test_size=0.1)
-            train_X, val_X = train_test_split(all_X, test_size=0.1)
-            train_Y, val_Y = train_test_split(all_Y, test_size=0.1)
+            #これは文スコア
+            test_choices_by_sent_score(vocab, my_encoder, my_decoder, center_data, center_choices, saveAttention=False, file_output=False, use_mark=USE_CLOZE_MARK)
 
-            train_data = (train_X, train_Y)
-            val_data = (val_X, val_Y)
+            print('MS')
+            save_path=tmp+'MS_'
+            test_choices_one_word(vocab, my_encoder, my_decoder, MS_data, MS_choices, saveAttention=False, file_output=True, use_mark=USE_CLOZE_MARK)
 
-            #モデルとか結果とかを格納するディレクトリの作成
-            tmp=vocab_path[:-4]
-            idx=tmp.index('_vocab')
-            tmp=tmp[idx:]
-            save_path=save_path+args.mode+'_seq2seq'+tmp
-            if not USE_CLOZE_MARK:
-                save_path=save_path+'_without_mark'
-            if os.path.exists(save_path)==False:
-                os.mkdir(save_path)
-            save_path=save_path+'/'
-
-            # 3.学習
-            my_encoder, my_decoder = trainIters(vocab, my_encoder, my_decoder, train_data, val_data, n_iters=args.epoch, saveModel=True)
-
-        #すでにあるモデルでテスト時
-        else:
-            save_path=args.model_dir+'/'
-
-            my_encoder.load_state_dict(torch.load(save_path+args.encoder))
-            my_decoder.load_state_dict(torch.load(save_path+args.decoder))
-
-            save_path=save_path+today_str
-
-        # 4.評価
-        center_cloze=git_data_path+'center_cloze.txt'
-        center_ans=git_data_path+'center_ans.txt'
-        center_choi=git_data_path+'center_choices.txt'
-
-        MS_cloze=git_data_path+'microsoft_cloze.txt'
-        MS_ans=git_data_path+'microsoft_ans.txt'
-        MS_choi=git_data_path+'microsoft_choices.txt'
-
-        print("Reading data...")
-        #テストデータはここでは空所記号残したまま
-        center_data=readData(center_cloze, center_ans)
-        center_choices=get_choices(center_choi)
-
-        MS_data=readData(MS_cloze, MS_ans)
-        MS_choices=get_choices(MS_choi)
-
-        if args.mode == 'mini' or args.mode == 'mini_test':
-            center_data=center_data[:5]
-            center_choices=center_choices[:5]
-            MS_data=MS_data[:5]
-            MS_choices=MS_choices[:5]
-
-
-        #テストデータに対する予測と精度の計算
-        #選択肢を使ったテスト
-        #これは前からの予測
-        print(vocab_path)
-        print('center')
-        tmp=save_path
-        save_path=tmp+'center_'
-        test_choices_one_word(vocab, my_encoder, my_decoder, center_data, center_choices, saveAttention=False, file_output=True, use_mark=USE_CLOZE_MARK)
-
-        #これは文スコア
-        test_choices_by_sent_score(vocab, my_encoder, my_decoder, center_data, center_choices, saveAttention=False, file_output=False, use_mark=USE_CLOZE_MARK)
-
-        print('MS')
-        save_path=tmp+'MS_'
-        test_choices_one_word(vocab, my_encoder, my_decoder, MS_data, MS_choices, saveAttention=False, file_output=True, use_mark=USE_CLOZE_MARK)
-
-        #これは文スコア
-        test_choices_by_sent_score(vocab, my_encoder, my_decoder, MS_data, MS_choices, saveAttention=False, file_output=False, use_mark=USE_CLOZE_MARK)
+            #これは文スコア
+            test_choices_by_sent_score(vocab, my_encoder, my_decoder, MS_data, MS_choices, saveAttention=False, file_output=False, use_mark=USE_CLOZE_MARK)
