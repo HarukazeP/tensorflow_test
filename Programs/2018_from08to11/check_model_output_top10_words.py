@@ -1,18 +1,17 @@
 # -*- coding: utf-8 -*-
 
 '''
-pytorchのseq2seqチュートリアルを改変
-seq2seq_attention_pretrain_vec_one_word.py および
-seq2seq_attention_pretrain_change_vocab.py から変更
-語彙サイズ変更してループ処理行う
-空所内1語のみ
-空所を表す記号{}を使わないモードもループで行う
-
+seq2seq_attention_change_vocab.py から変更
+学習はせずテストのみ
+モデルが空所に予測する(選択肢無し順方向予測スコアの先頭？を利用)単語上位10件の和を算出し，その上位10件
+および，モデルが正答している問題の，空所内の単語上位10件
+を調べる
 
 動かしていたバージョン
 python  : 3.5.2 / 3.6.5
 pytorch : 2.0.4
 gensim  : 3.1.0 / 3.5.0
+
 
 '''
 
@@ -121,7 +120,7 @@ def unicodeToAscii(s):
 
 #データの前処理
 #strip()は文頭文末の改行や空白を取り除いてくれる
-def normalizeString(s, choices=False, use_mark=True):
+def normalizeString(s, choices=False):
     s = unicodeToAscii(s.lower().strip())
     #text8コーパスと同等の前処理
     s=s.replace('0', ' zero ')
@@ -135,15 +134,9 @@ def normalizeString(s, choices=False, use_mark=True):
     s=s.replace('8', ' eight ')
     s=s.replace('9', ' nine ')
     if choices:
-        if use_mark:
-            s = re.sub(r'[^a-z{}#]', ' ', s)
-        else:
-            s = re.sub(r'[^a-z#]', ' ', s)
+        s = re.sub(r'[^a-z{}#]', ' ', s)
     else:
-        if use_mark:
-            s = re.sub(r'[^a-z{}]', ' ', s)
-        else:
-            s = re.sub(r'[^a-z]', ' ', s)
+        s = re.sub(r'[^a-z{}]', ' ', s)
     s = re.sub(r'[ ]+', ' ', s)
 
     return s.strip()
@@ -183,16 +176,6 @@ def readData2(file):
     with open(file, encoding='utf-8') as f:
         for line in f:
             data.append(normalizeString(line))
-
-    return data
-
-#記号使わないの考慮するやつ
-def readData3(file, use_cloze_mark):
-    #print("Reading data...")
-    data=[]
-    with open(file, encoding='utf-8') as f:
-        for line in f:
-            data.append(normalizeString(line, use_mark=use_cloze_mark))
 
     return data
 
@@ -684,10 +667,9 @@ def showPlot2(loss, val_loss):
 ###########################
 
 # 1データに対する予測
-def evaluate(lang, encoder, decoder, sentence, use_mark, max_length=MAX_LENGTH):
+def evaluate(lang, encoder, decoder, sentence, max_length=MAX_LENGTH):
     with torch.no_grad():
         #no_grad()の間はパラメータが固定される（更新されない）
-        sentence=normalizeString(sentence, use_mark=use_mark)
         input_indexes = pad_indexes(lang, sentence)
         input_batch = torch.tensor([input_indexes], dtype=torch.long, device=my_device)  # (1, s)
 
@@ -725,14 +707,15 @@ def evaluate(lang, encoder, decoder, sentence, use_mark, max_length=MAX_LENGTH):
 2a.「}」が出るまでデコーダに予測させる
 2b.答えを見て空所内の単語数は固定
 
-ひとまず2aの方でevaluate_cloze_one_word()は実装してる
+ひとまず2aの方でevaluate_cloze()は実装してる
 '''
 #空所内のみを予想
 #evaluate()の拡張
-def evaluate_cloze_one_word(lang, encoder, decoder, sentence, use_mark, max_length=MAX_LENGTH):
+def evaluate_cloze(lang, encoder, decoder, sentence, max_length=MAX_LENGTH):
     with torch.no_grad():
-        input_indexes = pad_indexes(lang, normalizeString(sentence, use_mark=use_mark))
+        input_indexes = pad_indexes(lang, sentence)
         input_batch = torch.tensor([input_indexes], dtype=torch.long, device=my_device)  # (1, s)
+
 
         encoder_outputs, encoder_hidden = encoder(input_batch.transpose(0, 1))
 
@@ -745,19 +728,12 @@ def evaluate_cloze_one_word(lang, encoder, decoder, sentence, use_mark, max_leng
         decoded_words = []
         decoder_attentions = []
 
-        #これは必ず空所の記号付き
         tmp_list=normalizeString(sentence).split(' ')
-        cloze_start=tmp_list.index('{')
-        cloze_flag=0
-
-        if not use_mark:
-            tmp_list=normalizeString(sentence, use_mark=use_mark).split(' ')
-            cloze_start=cloze_start-1
-            if cloze_start<0:
-                cloze_start=0
-
         tmp_list.append('<EOS>')
-
+        cloze_start=tmp_list.index('{')
+        cloze_end=tmp_list.index('}')
+        cloze_flag=0
+        cloze_ct=0
 
         for di in range(max_length):
             decoder_output, decoder_hidden, attention = decoder(decoder_input, decoder_hidden, encoder_outputs)  # (1,outdim), ((1,h),(1,h)), (l,1)
@@ -780,17 +756,19 @@ def evaluate_cloze_one_word(lang, encoder, decoder, sentence, use_mark, max_leng
                     word=lang.index2word[topi.item()]
                     decoded_words.append(word)
                     decoder_input = topi[0]
-                    #空所は1語のみ
-                    cloze_flag=1
+                    if word == '}':
+                        cloze_flag=1
+                    else:
+                        cloze_ct+=1
 
             #空所後の予測
             else:
-                word=tmp_list[di-1]
+                word=tmp_list[di-cloze_ct]
                 decoded_words.append(word)
                 if word == '<EOS>':
                     break
                 else:
-                    decoder_input = torch.tensor([input_indexes[di-1]], device=my_device)
+                    decoder_input = torch.tensor([input_indexes[di-cloze_ct]], device=my_device)
 
         decoder_attentions = torch.cat(decoder_attentions, dim=0)  # (l, n)
 
@@ -856,9 +834,9 @@ def pred_next_word(lang, next_word_list, decoder_output_data):
 
 #空所内のみを予想かつ選択肢の利用
 #evaluate_clozeの拡張
-def evaluate_choice_one_word(lang, encoder, decoder, sentence, choices, use_mark,  max_length=MAX_LENGTH):
+def evaluate_choice(lang, encoder, decoder, sentence, choices, max_length=MAX_LENGTH):
     with torch.no_grad():
-        input_indexes = pad_indexes(lang, normalizeString(sentence, use_mark=use_mark))
+        input_indexes = pad_indexes(lang, sentence)
         input_batch = torch.tensor([input_indexes], dtype=torch.long, device=my_device)  # (1, s)
 
 
@@ -873,18 +851,13 @@ def evaluate_choice_one_word(lang, encoder, decoder, sentence, choices, use_mark
         decoded_words = []
         decoder_attentions = []
 
-        #これは必ず空所の記号付き
         tmp_list=normalizeString(sentence).split(' ')
-        cloze_start=tmp_list.index('{')
-        cloze_flag=0
-
-        if not use_mark:
-            tmp_list=normalizeString(sentence, use_mark=use_mark).split(' ')
-            cloze_start=cloze_start-1
-            if cloze_start<0:
-                cloze_start=0
-
         tmp_list.append('<EOS>')
+        cloze_start=tmp_list.index('{')
+        cloze_end=tmp_list.index('}')
+        cloze_flag=0
+        cloze_ct=0
+        cloze_words=[]
 
         for di in range(max_length):
             decoder_output, decoder_hidden, attention = decoder(decoder_input, decoder_hidden, encoder_outputs)  # (1,outdim), ((1,h),(1,h)), (l,1)
@@ -896,24 +869,32 @@ def evaluate_choice_one_word(lang, encoder, decoder, sentence, choices, use_mark
                 decoded_words.append(tmp_list[di])
                 decoder_input = torch.tensor([input_indexes[di]], device=my_device)
 
-
             #空所内の予測
             # } までdecorded_wordに格納
             elif cloze_flag == 0:
-                word=pred_next_word(lang, choices, decoder_output.data)
+                # TODO: ここ変更して上位10件とか？
+                #これまでの予測と選択肢から次の１語候補リストを作成
+                next_word_list=make_next_word(cloze_ct, cloze_words, choices)
+                #候補リストから確率最大の1語を返す
+                word=pred_next_word(lang, next_word_list, decoder_output.data)
+                cloze_words.append(word)
                 decoded_words.append(word)
                 word_tensor=torch.tensor([lang.check_word2index(word)], device=my_device)
                 decoder_input = word_tensor
-                cloze_flag=1
+
+                if word == '}':
+                    cloze_flag=1
+                else:
+                    cloze_ct+=1
 
             #空所後の予測
             else:
-                word=tmp_list[di-1]
+                word=tmp_list[di-cloze_ct]
                 decoded_words.append(word)
                 if word == '<EOS>':
                     break
                 else:
-                    decoder_input = torch.tensor([input_indexes[di-1]], device=my_device)
+                    decoder_input = torch.tensor([input_indexes[di-cloze_ct]], device=my_device)
 
         decoder_attentions = torch.cat(decoder_attentions, dim=0)  # (l, n)
 
@@ -953,14 +934,13 @@ def get_ngrams(segment, max_order):
     return ngram_counts
 
 
-def compute_bleu(preds_sentences, ans_sentences, use_mark, max_order=4,
+def compute_bleu(preds_sentences, ans_sentences, max_order=4,
                  smooth=False):
     matches_by_order = [0] * max_order
     possible_matches_by_order = [0] * max_order
     pred_length = 0
     ans_length = 0
     for (preds, ans) in zip(preds_sentences, ans_sentences):
-        ans=normalizeString(ans, use_mark=use_mark)
         pred_length += len(preds)
         ans_length += len(ans)
 
@@ -1040,40 +1020,37 @@ def match(pred_cloze, ans_cloze):
 
 #精度いろいろ計算
 #問題文、完全一致文、空所の完答文、空所の一部正答文、BLEU値、空所ミス文
-def calc_score(preds_sentences, ans_sentences, use_mark):
+def calc_score(preds_sentences, ans_sentences):
     line_num=0
     allOK=0
     clozeOK=0
     partOK=0
     miss=0
+    # TODO: ここ編集して正解している，空所に含まれる単語上位とか？
 
     for pred, ans in zip(preds_sentences, ans_sentences):
         pred=pred.replace(' <EOS>', '')
-        ans=normalizeString(ans, use_mark=use_mark)
         flag=0
         if pred == ans:
             allOK+=1
             flag=1
+        pred_cloze = get_cloze(pred)
+        ans_cloze = get_cloze(ans)
+        tmp_ans_length=len(ans_cloze.split(' '))
         line_num+=1
-        #空所記号使わないときは完全一致のみで判定
-        if use_mark:
-            pred_cloze = get_cloze(pred)
-            ans_cloze = get_cloze(ans)
-            tmp_ans_length=len(ans_cloze.split(' '))
+        if is_correct_cloze(pred):
+            tmp_match=match(pred_cloze, ans_cloze)
+            if tmp_match > 0:
+                partOK+=1
+            if pred_cloze == ans_cloze:
+                clozeOK+=1
+                if flag==0:
+                    print(pred)
+                    print(ans)
+        else:
+            miss+=1
 
-            if is_correct_cloze(pred):
-                tmp_match=match(pred_cloze, ans_cloze)
-                if tmp_match > 0:
-                    partOK+=1
-                if pred_cloze == ans_cloze:
-                    clozeOK+=1
-                    if flag==0:
-                        print(pred)
-                        print(ans)
-            else:
-                miss+=1
-
-    BLEU=compute_bleu(preds_sentences, ans_sentences, use_mark)
+    BLEU=compute_bleu(preds_sentences, ans_sentences)
 
     return line_num, allOK, clozeOK, partOK, BLEU, miss
 
@@ -1086,14 +1063,14 @@ def output_preds(file_name, preds):
 
 def print_score(line, allOK, clozeOK, partOK, BLEU, miss):
     print('  acc(all): ', '{0:.2f}'.format(1.0*allOK/line*100),' %')
-    print('acc(cloze): ', '{0:.2f}'.format(1.0*clozeOK/line*100),' %')
+    #print('acc(cloze): ', '{0:.2f}'.format(1.0*clozeOK/line*100),' %')
     #print(' acc(part): ', '{0:.2f}'.format(1.0*partOK/line*100),' %')
 
-    print(' BLEU: ','{0:.2f}'.format(BLEU*100.0))
+    #print(' BLEU: ','{0:.2f}'.format(BLEU*100.0))
     print('  all: ', allOK)
-    print('cloze: ',clozeOK)
+    #print('cloze: ',clozeOK)
     #print(' part: ',partOK)
-    #print(' line: ',line)
+    print(' line: ',line)
     print(' miss: ',miss)
 
 
@@ -1124,9 +1101,9 @@ def get_choices(file_name):
     return choices
 
 
-def score(preds, ans, file_output, file_name, use_mark=True):
+def score(preds, ans, file_output, file_name):
     #精度のprintとファイル出力
-    line, allOK, clozeOK, partOK, BLEU, miss = calc_score(preds, ans, use_mark)
+    line, allOK, clozeOK, partOK, BLEU, miss = calc_score(preds, ans)
     print_score(line, allOK, clozeOK, partOK, BLEU, miss)
     if file_output:
         output_score(file_name, line, allOK, clozeOK, partOK, BLEU, miss)
@@ -1135,7 +1112,7 @@ def score(preds, ans, file_output, file_name, use_mark=True):
 #テストデータに対する予測と精度計算
 #空所内のみを予測するモード
 #および、選択肢を利用するモード
-def test_choices_one_word(lang, encoder, decoder, test_data, choices, saveAttention=False, file_output=False, use_mark=True):
+def test_choices(lang, encoder, decoder, test_data, choices, saveAttention=False, file_output=False):
     print("Test ...")
     #input_sentence や ansは文字列であるのに対し、output_wordsはリストであることに注意
     preds=[]
@@ -1143,47 +1120,40 @@ def test_choices_one_word(lang, encoder, decoder, test_data, choices, saveAttent
     preds_cloze=[]
     preds_choices=[]
     for pair, choi in zip(test_data, choices):
-        flag=0
-        for words in choi:
-            #2語以上の選択肢がある場合はしない
-            if len(words.split(' '))>1:
-                flag=1
-                break
-        if flag==0:
-            input_sentence=pair[0]
-            ans.append(normalizeString(pair[1], use_mark=use_mark))
+        input_sentence=pair[0]
+        ans.append(pair[1])
 
-            output_words, attentions = evaluate(lang, encoder, decoder, input_sentence, use_mark)
-            preds.append(' '.join(output_words))
+        #output_words, attentions = evaluate(lang, encoder, decoder, input_sentence)
+        #preds.append(' '.join(output_words))
 
-            output_cloze_ct, cloze_attentions = evaluate_cloze_one_word(lang, encoder, decoder, input_sentence, use_mark)
-            preds_cloze.append(' '.join(output_cloze_ct))
+        #output_cloze_ct, cloze_attentions = evaluate_cloze(lang, encoder, decoder, input_sentence)
+        #preds_cloze.append(' '.join(output_cloze_ct))
 
-            output_choice_words, choice_attentions = evaluate_choice_one_word(lang, encoder, decoder, input_sentence, choi, use_mark)
-            preds_choices.append(' '.join(output_choice_words))
+        output_choice_words, choice_attentions = evaluate_choice(lang, encoder, decoder, input_sentence, choi)
+        preds_choices.append(' '.join(output_choice_words))
 
-            if saveAttention:
-                showAttention('all', input_sentence, output_words, attentions)
-                showAttention('cloze', input_sentence, output_cloze_ct, cloze_attentions)
-                showAttention('choice', input_sentence, output_choice_words, choice_attentions)
-            if file_output:
-                output_preds(save_path+'preds.txt', preds)
-                output_preds(save_path+'preds_cloze.txt', preds_cloze)
-                output_preds(save_path+'preds_choices.txt', preds_choices)
+        if saveAttention:
+            #showAttention('all', input_sentence, output_words, attentions)
+            #showAttention('cloze', input_sentence, output_cloze_ct, cloze_attentions)
+            showAttention('choice', input_sentence, output_choice_words, choice_attentions)
+        if file_output:
+            #output_preds(save_path+'preds.txt', preds)
+            #output_preds(save_path+'preds_cloze.txt', preds_cloze)
+            output_preds(save_path+'preds_choices.txt', preds_choices)
     print("Calc scores ...")
-    score(preds, ans, file_output, save_path+'score.txt', use_mark)
-    score(preds_cloze, ans, file_output, save_path+'score_cloze.txt', use_mark)
-    score(preds_choices, ans, file_output, save_path+'score_choices.txt', use_mark)
+    #score(preds, ans, file_output, save_path+'score.txt')
+    #score(preds_cloze, ans, file_output, save_path+'score_cloze.txt')
+    score(preds_choices, ans, file_output, save_path+'score_choices.txt')
 
 
 #選択肢を使って4つの文を生成
-def make_sents_with_cloze_mark(sentence, choices, use_mark):
+def make_sents_with_cloze_mark(sentence, choices):
     sents=[]
     before=re.sub(r'{.*', '{ ', sentence)
     after=re.sub(r'.*}', ' }', sentence)
     for choice in choices:
         tmp=before + choice + after
-        sents.append(normalizeString(tmp, use_mark=use_mark))
+        sents.append(tmp.strip())
 
     return sents
 
@@ -1225,8 +1195,8 @@ def get_best_sent(lang, encoder, decoder, sents):
     return sents[scores.index(max(scores))]
 
 #一旦1語以上，選択肢ありモード
-#TODO あとで文スコア全単語からもできるように，前から予測はすでに全単語実装ずみというかデフォ
-def test_choices_by_sent_score(lang, encoder, decoder, test_data, choices, saveAttention=False, file_output=False, use_mark=True):
+#TODO あとで全単語からもできるように
+def test_choices_by_sent_score(lang, encoder, decoder, test_data, choices, saveAttention=False, file_output=False):
     print("Test by sent score...")
     #input_sentence や ansは文字列であるのに対し、output_wordsはリストであることに注意
     preds=[]
@@ -1237,7 +1207,7 @@ def test_choices_by_sent_score(lang, encoder, decoder, test_data, choices, saveA
         input_sentence=pair[0]
         ans.append(pair[1])
 
-        sents=make_sents_with_cloze_mark(input_sentence, choi, use_mark)
+        sents=make_sents_with_cloze_mark(input_sentence, choi)
         pred=get_best_sent(lang, encoder, decoder, sents)
 
         preds_choices.append(pred)
@@ -1245,13 +1215,7 @@ def test_choices_by_sent_score(lang, encoder, decoder, test_data, choices, saveA
         if file_output:
             output_preds(save_path+'preds_choices.txt', preds_choices)
     print("Calc scores ...")
-    score(preds_choices, ans, file_output, save_path+'score_choices.txt', use_mark)
-
-
-def uses_clz_mark(mark_flag):
-    if mark_flag==1:
-        return True
-    return False
+    score(preds_choices, ans, file_output, save_path+'score_choices.txt')
 
 
 #コマンドライン引数の設定いろいろ
@@ -1263,8 +1227,6 @@ def get_args():
     parser.add_argument('--encoder', help='encoder file name (when load model, mode=test)')
     parser.add_argument('--decoder', help='decoder file name (when load model, mode=test)')
     parser.add_argument('--epoch', type=int, default=30)
-    parser.add_argument('--cloze_mark', type=int, default=1, help='flag for using cloze mark { } . use=1, not use =0')
-
     #TODO ほかにも引数必要に応じて追加
     return parser.parse_args()
 
@@ -1274,126 +1236,72 @@ if __name__ == '__main__':
     #コマンドライン引数読み取り
     args = get_args()
     print(args.mode)
-    clz_flag=[1,0]
-    for mark in clz_flag:
-        USE_CLOZE_MARK=uses_clz_mark(mark)
-        vocab1=file_path+'enwiki_vocab1000.txt'
-        vocab2=file_path+'enwiki_vocab100.txt'
-        vocab3=file_path+'enwiki_vocab10000.txt'
-        if not USE_CLOZE_MARK:
-            vocab1=file_path+'enwiki_vocab1000_wordonly.txt.txt'
-            vocab2=file_path+'enwiki_vocab100_wordonly.txt.txt'
-            vocab3=file_path+'enwiki_vocab10000_wordonly.txt.txt'
-            print('Without using cloze mark')
+    vocab0=git_data_path+'enwiki_vocab30000.txt'
+    vocab1=git_data_path+'enwiki_vocab1000.txt'
+    vocab2=git_data_path+'enwiki_vocab100.txt'
+    vocab3=git_data_path+'enwiki_vocab10000.txt'
 
-        vocab_files=[vocab1, vocab2, vocab3]
-
-        for vocab_path in vocab_files:
-            today1=datetime.datetime.today()
-            today_str=today1.strftime('%m_%d_%H%M')
-            save_path=file_path + '/' + today_str
-
-            vocab = readVocab(vocab_path)
-
-            # 2.モデル定義
-            weights_matrix=get_weight_matrix(vocab)
-            my_encoder = EncoderRNN(vocab.n_words, EMB_DIM, HIDDEN_DIM, weights_matrix).to(my_device)
-            my_decoder = AttnDecoderRNN2(EMB_DIM, HIDDEN_DIM, ATTN_DIM, vocab.n_words, weights_matrix).to(my_device)
-
-            #学習時
-            if args.mode == 'all' or args.mode == 'mini':
-                #train_cloze=file_path+'tmp_cloze.txt'
-                #train_ans=file_path+'tmp_ans.txt'
-
-                #text8全体
-                train_cloze=file_path+'text8_cloze_one_word.txt'
-                train_ans=file_path+'text8_ans_one_word.txt'
-
-                if args.mode == 'mini':
-                    #合同ゼミ
-                    train_cloze=file_path+'text8_cloze50000_one_word.txt'
-                    train_ans=file_path+'text8_ans50000_one_word.txt'
-
-                #all_data=readData(train_cloze, train_ans)
-                print("Reading data...")
-                all_X=readData3(train_cloze, USE_CLOZE_MARK)
-                all_Y=readData3(train_ans, USE_CLOZE_MARK)
+    # TODO: モデルのパスとか明記
+    encoder0=''
+    decoder0=''
+    dir0=''
 
 
-                if args.mode == 'mini':
-                    #all_data=all_data[:20]
-                    all_X=all_X[:20]
-                    all_Y=all_Y[:20]
 
-                #train_data, val_data = train_test_split(all_data, test_size=0.1)
-                train_X, val_X = train_test_split(all_X, test_size=0.1)
-                train_Y, val_Y = train_test_split(all_Y, test_size=0.1)
+    files=[(vocab0, encoder0, decoder0, dir0),
+            (vocab1, encoder1, decoder1, dir1),
+            (vocab2, encoder2, decoder2, dir2),
+            (vocab3, encoder3, decoder3, dir3)]
 
-                train_data = (train_X, train_Y)
-                val_data = (val_X, val_Y)
+    for model in files:
+        today1=datetime.datetime.today()
+        today_str=today1.strftime('%m_%d_%H%M')
+        save_path=file_path + '/' + today_str
 
-                #モデルとか結果とかを格納するディレクトリの作成
-                tmp=vocab_path[:-4]
-                idx=tmp.index('_vocab')
-                tmp=tmp[idx:]
-                save_path=save_path+args.mode+'_seq2seq_one_word'+tmp
-                if not USE_CLOZE_MARK:
-                    save_path=save_path+'_without_mark'
-                if os.path.exists(save_path)==False:
-                    os.mkdir(save_path)
-                save_path=save_path+'/'
+        # 1.語彙データ読み込み
+        vocab = readVocab(model[0])
 
-                # 3.学習
-                my_encoder, my_decoder = trainIters(vocab, my_encoder, my_decoder, train_data, val_data, n_iters=args.epoch, saveModel=True)
+        # 2.モデル定義
+        weights_matrix=get_weight_matrix(vocab)
+        my_encoder = EncoderRNN(vocab.n_words, EMB_DIM, HIDDEN_DIM, weights_matrix).to(my_device)
+        my_decoder = AttnDecoderRNN2(EMB_DIM, HIDDEN_DIM, ATTN_DIM, vocab.n_words, weights_matrix).to(my_device)
 
-            #すでにあるモデルでテスト時
-            else:
-                save_path=args.model_dir+'/'
+        save_path=model[3]+'/'
 
-                my_encoder.load_state_dict(torch.load(save_path+args.encoder))
-                my_decoder.load_state_dict(torch.load(save_path+args.decoder))
+        my_encoder.load_state_dict(torch.load(save_path+model[1]))
+        my_decoder.load_state_dict(torch.load(save_pathmodel[2]))
 
-                save_path=save_path+today_str
+        save_path=save_path+today_str
 
-            # 4.評価
-            center_cloze=git_data_path+'center_cloze.txt'
-            center_ans=git_data_path+'center_ans.txt'
-            center_choi=git_data_path+'center_choices.txt'
+        # 4.評価
+        center_cloze=git_data_path+'center_cloze.txt'
+        center_ans=git_data_path+'center_ans.txt'
+        center_choi=git_data_path+'center_choices.txt'
 
-            MS_cloze=git_data_path+'microsoft_cloze.txt'
-            MS_ans=git_data_path+'microsoft_ans.txt'
-            MS_choi=git_data_path+'microsoft_choices.txt'
+        MS_cloze=git_data_path+'microsoft_cloze.txt'
+        MS_ans=git_data_path+'microsoft_ans.txt'
+        MS_choi=git_data_path+'microsoft_choices.txt'
 
-            print("Reading data...")
-            #テストデータはここでは空所記号残したまま
-            center_data=readData(center_cloze, center_ans)
-            center_choices=get_choices(center_choi)
+        print("Reading data...")
+        center_data=readData(center_cloze, center_ans)
+        center_choices=get_choices(center_choi)
 
-            MS_data=readData(MS_cloze, MS_ans)
-            MS_choices=get_choices(MS_choi)
-
-            if args.mode == 'mini' or args.mode == 'mini_test':
-                center_data=center_data[:5]
-                center_choices=center_choices[:5]
-                MS_data=MS_data[:5]
-                MS_choices=MS_choices[:5]
+        MS_data=readData(MS_cloze, MS_ans)
+        MS_choices=get_choices(MS_choi)
 
 
-            #テストデータに対する予測と精度の計算
-            #選択肢を使ったテスト
-            #これは前からの予測
-            print(vocab_path)
-            print('center')
-            tmp=save_path
-            save_path=tmp+'center_'
-            test_choices_one_word(vocab, my_encoder, my_decoder, center_data, center_choices, saveAttention=False, file_output=True, use_mark=USE_CLOZE_MARK)
+        #テストデータに対する予測と精度の計算
+        #選択肢を使ったテスト
+        #これは前からの予測
+        print(vocab_path)
+        print('center')
+        test_choices(vocab, my_encoder, my_decoder, center_data, center_choices, saveAttention=False, file_output=False)
 
-            #これは文スコア
-            test_choices_by_sent_score(vocab, my_encoder, my_decoder, center_data, center_choices, saveAttention=False, file_output=False, use_mark=USE_CLOZE_MARK)
+        #これは文スコア
+        test_choices_by_sent_score(vocab, my_encoder, my_decoder, center_data, center_choices, saveAttention=False, file_output=False)
 
-            print('MS')
-            save_path=tmp+'MS_'
-            test_choices_one_word(vocab, my_encoder, my_decoder, MS_data, MS_choices, saveAttention=False, file_output=True, use_mark=USE_CLOZE_MARK)
+        print('MS')
+        test_choices(vocab, my_encoder, my_decoder, MS_data, MS_choices, saveAttention=False, file_output=False)
 
-            #これは文スコア
-            test_choices_by_sent_score(vocab, my_encoder, my_decoder, MS_data, MS_choices, saveAttention=False, file_output=False, use_mark=USE_CLOZE_MARK)
+        #これは文スコア
+        test_choices_by_sent_score(vocab, my_encoder, my_decoder, MS_data, MS_choices, saveAttention=False, file_output=False)

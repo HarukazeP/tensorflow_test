@@ -1306,7 +1306,7 @@ if __name__ == '__main__':
                 tmp=vocab_path[:-4]
                 idx=tmp.index('_vocab')
                 tmp=tmp[idx:]
-                save_path=save_path+args.mode+'_seq2seq'+tmp
+                save_path=save_path+args.mode+'_seq2seq_one_word'+tmp
                 if not USE_CLOZE_MARK:
                     save_path=save_path+'_without_mark'
                 if os.path.exists(save_path)==False:
