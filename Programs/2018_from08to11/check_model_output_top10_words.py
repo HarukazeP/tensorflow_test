@@ -1070,6 +1070,7 @@ def calc_score_and_top10_words(preds_sentences, ans_sentences):
 
     BLEU=compute_bleu(preds_sentences, ans_sentences)
     words_list = sorted(word_dic.items(), key=lambda x: x[1], reverse=True)
+    print('OK top10 words')
     for i in range(10):
         print(words_list[i])
 
@@ -1162,13 +1163,14 @@ def test_choices_and_top10_words(lang, encoder, decoder, test_data, choices, sav
             #output_preds(save_path+'preds.txt', preds)
             #output_preds(save_path+'preds_cloze.txt', preds_cloze)
             output_preds(save_path+'preds_choices.txt', preds_choices)
+    print('model output top10 words')
+    for i in range(10):
+        print(words_list[i])
     print("Calc scores ...")
     #score(preds, ans, file_output, save_path+'score.txt')
     #score(preds_cloze, ans, file_output, save_path+'score_cloze.txt')
     score(preds_choices, ans, file_output, save_path+'score_choices.txt')
     words_list = sorted(words_d.items(), key=lambda x: x[1], reverse=True)
-    for i in range(10):
-        print(words_list[i])
 
 
 #選択肢を使って4つの文を生成
