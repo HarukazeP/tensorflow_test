@@ -1069,7 +1069,7 @@ def calc_score_and_top10_words(preds_sentences, ans_sentences):
             miss+=1
 
     BLEU=compute_bleu(preds_sentences, ans_sentences)
-    words_list = sorted(words_dic.items(), key=lambda x: x[1], reverse=True)
+    words_list = sorted(word_dic.items(), key=lambda x: x[1], reverse=True)
     for i in range(10):
         print(words_list[i])
 
