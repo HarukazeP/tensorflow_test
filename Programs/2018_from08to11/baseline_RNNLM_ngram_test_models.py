@@ -634,7 +634,7 @@ def get_best_word(lang, ngram, choices, model, N):
         #print(ids)
         zeros=[[0]*(N)]*(batch-1)
         input_idx=[ids]+zeros
-        print(input_idx)
+        #print(input_idx)
         input = torch.tensor(input_idx, dtype=torch.long).to(device)
         #input = input.unsqueeze(0)  #(1, N)
         output, hidden_out = model(input, hidden)    #(5, 語彙数)
