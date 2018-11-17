@@ -205,6 +205,13 @@ def get_weight_matrix(lang):
 #model.py内
 class RNNModel(nn.Module):
     """Container module with an encoder, a recurrent module, and a decoder."""
+    '''
+    ntoken : 語彙数
+    ninp   : embedingの次元数
+    nhid   : 隠れ層の次元数
+    nlayers: LSTMの層の数
+
+    '''
 
     def __init__(self, ntoken, ninp, nhid, nlayers, weights_matrix, dropout=0.5, tie_weights=False):
         super(RNNModel, self).__init__()
@@ -384,11 +391,12 @@ def input_ngram(cloze_sent, N):
     before=before.strip()
     if before=='':
         before="<PAD>"
-    length=len(before)
+    words=before.split(' ')
+    length=len(words)
     if length < N+1:
-        before=["<PAD>"]*(N-1-length)+before
+        words=["<PAD>"]*(N-1-length)+words
 
-    return before
+    return words
 
 
 def get_ans_word(ans_sent):
