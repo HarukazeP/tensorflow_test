@@ -379,6 +379,45 @@ def get_cloze(line):
 
 
 #選択肢を補充した文4つを返す
+def input_ngram(cloze_sent, N):
+    before=re.sub(r'{.*', '', cloze_sent)
+    before=before.strip()
+    if before=='':
+        before="<PAD>"
+    length=len(before)
+    if length < N+1:
+        before=["<PAD>"]*(N-1-length)+before
+
+    return before
+
+
+def get_ans_word(ans_sent):
+    word=re.sub(r'.*{ ', '', ans_sent)
+    word=re.sub(r' }.*', '', word)
+    word=word.strip()
+
+    return word
+
+
+#ファイルから選択肢補充済みn-gramと答えのセット
+def make_data_for_fw_score(data_pair, choices_lists, N):
+    data=[]
+    for sent, choices in zip(data_pair, choices_lists):
+        flag=1
+        for choice in choices:
+            if(len(choice.split(' '))>1):
+                flag=-1
+                #選択肢に2語以上のものがあるときはflagが負
+        if(flag>0):
+            test_data=input_ngram(sent[0], N) #ngram
+            test_data.append(choices) #選択肢
+            test_data.append(get_ans_word(sent[1])) #答え
+            data.append(test_data)
+
+    return data # [input_ngram, choices_list, ans_word]
+
+
+#選択肢を補充した文4つを返す
 def make_sents(choices, cloze_sent):
     sents=[]
     before=re.sub(r'{.*', '', cloze_sent)
@@ -435,8 +474,26 @@ def print_score(line, OK):
     print(' line: ',line)
     print('   OK: ',OK)
 
+
 #正答率の算出
-def calc_acc(lang, data, model, N):
+def calc_acc_for_fw_score(lang, data_fw, model, N):
+    line=0
+    OK=0
+    for one_data in data_fw:
+        line+=1
+        if line%50==0:
+            print('line:',line)
+        input_ngram=one_data[0]
+        choices=one_data[1]
+        ans_word=one_data[2]
+        pred_word=get_best_word(lang, input_ngram, choices, model, N)
+        if pred_word == ans_word:
+            OK+=1
+    print_score(line, OK)
+
+
+#正答率の算出
+def calc_acc_for_sent_score(lang, data, model, N):
     line=0
     OK=0
     for one_data in data:
@@ -486,7 +543,6 @@ def sent_to_idxs(sent, lang):
 def calc_sent_score2(lang, ngram_pair, model):
     score=0
     batch=1
-    #TODO これあってる？
     #ほんとはbatch=1のはずだが，ngramと同じにしないとエラーでる
     hidden = model.init_hidden(batch)
     with torch.no_grad():
@@ -508,7 +564,6 @@ def calc_sent_score2(lang, ngram_pair, model):
 def calc_sent_score(lang, ngram_pair, model):
     score=0
     batch=args.ngrams
-    #TODO これあってる？
     #ほんとはbatch=1のはずだが，ngramと同じにしないとエラーでる
     hidden = model.init_hidden(batch)
     with torch.no_grad():
@@ -545,6 +600,38 @@ def get_best_sent(lang, sents, model, N):
         scores.append(score)
 
     return sents[scores.index(max(scores))]
+
+
+def compare_choices(lang, probs, choices):
+    scores=[]
+    for word in choices
+        word_idx=lang.check_word2idx(word)
+        scores.appned(probs[word_idx].item())
+
+    return choices[scores.index(max(scores))]
+
+
+
+#1つの問題に対する，選択肢補充済み文複数から
+#ベスト1文を返す
+def get_best_word(lang, ngram, choices, model, N):
+    batch=args.ngrams
+    #ほんとはbatch=1のはずだが，ngramと同じにしないとエラーでる
+    hidden = model.init_hidden(batch)
+    with torch.no_grad():
+        for one_pair in ngram_pair:
+        ids=sent_to_idxs(ngram, lang)
+        zeros=[[0]*(args.ngrams)]*(batch-1)
+        input_idx=[ids]+zeros
+        input = torch.tensor(input_idx, dtype=torch.long).to(device)
+        #input = input.unsqueeze(0)  #(1, N)
+        output, hidden_out = model(input, hidden)    #(5, 語彙数)
+        probs=F.log_softmax(output.squeeze(),dim=1)
+
+        best_word=compare_choices(lang, probs[0], choices)
+
+    return best_word
+
 
 
 
@@ -695,51 +782,51 @@ if __name__ == '__main__':
     MS_data=readData(MS_cloze, MS_ans)
     MS_choices=get_choices(MS_choi)
 
+    all_words=vocab.idx2word.values()
 
 
     #前から予測スコア（方法A）
     #空所内1単語のみ（選択肢ありなし両方）
-    #print('\npreds by prob from top')
-    '''
-    #こっちは学習にパディングの処理とか入れてから？
-    #いったん後回しにする
-    前から予測用（1語限定）
-    モデルの入力部分作成
-        |___空所の直前まで（選択肢は見なくてOK）
-        |___空所の前がnに満たない場合はどうする？
-    モデルの出力する確率確認
-        |___確率一覧を見て，最大の語（選択肢なし），選択肢のうち最大の語（選択肢あり）
-    '''
+    print('\npreds by forward score')
+    print('Use choices(one_words)')
+    print('center')
+    data_fw=make_data_for_fw_score(center_data, center_choices, args.ngrams)
+    # data_fwは [input_ngram_list, choices_list, ans_word(str)] のリスト
+    calc_acc_for_fw_score(vocab, data_fw, model)
+
+    print('MS')
+    data_fw=make_data_for_fw_score(MS_data, MS_choices, args.ngrams)
+    # data_fwは [input_ngram_list, choices_list, ans_word(str)] のリスト
+    calc_acc_for_fw_score(vocab, data_fw, model)
 
     #文スコア（方法B）
     #空所内1単語以上（選択肢あり）
     #空所内1単語のみ（選択肢ありなし両方）
     print('\npreds by sent score')
-    all_words=vocab.idx2word.values()
 
     print('Use choices(one_words)')
     print('center')
     data=make_data_for_sent_score(center_data, center_choices, one_word=True)
-    calc_acc(vocab, data, model, args.ngrams)
+    calc_acc_for_sent_score(vocab, data, model, args.ngrams)
 
     print('MS')
     data=make_data_for_sent_score(MS_data, MS_choices, one_word=True)
-    calc_acc(vocab, data, model, args.ngrams)
+    calc_acc_for_sent_score(vocab, data, model, args.ngrams)
 
 
     print('Use choices(over one_words)')
     print('center')
     data=make_data_for_sent_score(center_data, center_choices, one_word=False)
-    calc_acc(vocab, data, model, args.ngrams)
+    calc_acc_for_sent_score(vocab, data, model, args.ngrams)
 
     print('MS')
     data=make_data_for_sent_score(MS_data, MS_choices, one_word=False)
-    calc_acc(vocab, data, model, args.ngrams)
+    calc_acc_for_sent_score(vocab, data, model, args.ngrams)
 
     '''
     print('\nNot use choices, from all words(one_words)')
     data=make_data_for_sent_score_from_all_words(center_data, center_choices, all_words)
-    calc_acc(vocab, data, model, args.ngrams)
+    calc_acc_for_sent_score(vocab, data, model, args.ngrams)
     '''
 
     pass

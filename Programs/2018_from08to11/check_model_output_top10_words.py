@@ -1299,7 +1299,8 @@ if __name__ == '__main__':
         vocab = readVocab(model[0])
 
         # 2.モデル定義
-        weights_matrix=get_weight_matrix(vocab)
+        #テスト時なのでembedding初期値読み込まなくていい
+        weights_matrix=np.zeros((vocab.n_words, EMB_DIM))
         my_encoder = EncoderRNN(vocab.n_words, EMB_DIM, HIDDEN_DIM, weights_matrix).to(my_device)
         my_decoder = AttnDecoderRNN2(EMB_DIM, HIDDEN_DIM, ATTN_DIM, vocab.n_words, weights_matrix).to(my_device)
 
