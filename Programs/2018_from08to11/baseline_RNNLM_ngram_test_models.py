@@ -623,13 +623,15 @@ def compare_choices(lang, probs, choices):
 #1つの問題に対する，選択肢補充済み文複数から
 #ベスト1文を返す
 def get_best_word(lang, ngram, choices, model, N):
-    batch=N*2
+    batch=N
     #ほんとはbatch=1のはずだが，ngramと同じにしないとエラーでる
     hidden = model.init_hidden(batch)
     with torch.no_grad():
         ids=sent_to_idxs(ngram, lang)
+        print(ids)
         zeros=[[0]*(N)]*(batch-1)
         input_idx=[ids]+zeros
+        print(input_idx)
         input = torch.tensor(input_idx, dtype=torch.long).to(device)
         #input = input.unsqueeze(0)  #(1, N)
         output, hidden_out = model(input, hidden)    #(5, 語彙数)
