@@ -897,8 +897,7 @@ def evaluate_choice_and_top10_words(lang, encoder, decoder, sentence, choices, w
                 else:
                     cloze_ct+=1
                     _, top10 = decoder_output.topk(10)
-                    print(top10.size())
-                    count_up_top10_words(lang, top10, words_dict)
+                    count_up_top10_words(lang, top10[0], words_dict)
 
             #空所後の予測
             else:
