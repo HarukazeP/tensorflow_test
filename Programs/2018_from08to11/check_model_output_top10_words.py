@@ -1304,8 +1304,8 @@ if __name__ == '__main__':
         my_encoder = EncoderRNN(vocab.n_words, EMB_DIM, HIDDEN_DIM, weights_matrix).to(my_device)
         my_decoder = AttnDecoderRNN2(EMB_DIM, HIDDEN_DIM, ATTN_DIM, vocab.n_words, weights_matrix).to(my_device)
 
-        my_encoder.load_state_dict(torch.load(save_path+model[1]))
-        my_decoder.load_state_dict(torch.load(save_pathmodel[2]))
+        my_encoder.load_state_dict(torch.load(model[3]+'/'+model[1]))
+        my_decoder.load_state_dict(torch.load(model[3]+'/'+model[2]))
 
         # 4.評価
         center_cloze=git_data_path+'center_cloze.txt'
