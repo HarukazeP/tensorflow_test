@@ -616,7 +616,7 @@ def compare_choices(lang, probs, choices):
     scores=[]
     for word in choices:
         word_idx=lang.check_word2idx(word)
-        scores.appned(probs[word_idx].item())
+        scores.appned(probs[word_idx])
 
     return choices[scores.index(max(scores))]
 
