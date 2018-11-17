@@ -392,8 +392,10 @@ def input_ngram(cloze_sent, N):
         before="<PAD>"
     words=before.split(' ')
     length=len(words)
-    if length < N+1:
+    if length < N-1:
         words=["<PAD>"]*(N-1-length)+words
+    elif length > N-1:
+        words=words[length-N+1:]
 
     return words
 
