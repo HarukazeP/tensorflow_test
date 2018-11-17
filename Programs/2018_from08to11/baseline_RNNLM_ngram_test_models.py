@@ -415,7 +415,8 @@ def make_data_for_fw_score(data_pair, choices_lists, N):
                 flag=-1
                 #選択肢に2語以上のものがあるときはflagが負
         if(flag>0):
-            test_data=input_ngram(sent[0], N) #ngram
+            test_data=[]
+            test_data.append(input_ngram(sent[0], N)) #ngram
             test_data.append(choices) #選択肢
             test_data.append(get_ans_word(sent[1])) #答え
             data.append(test_data)
