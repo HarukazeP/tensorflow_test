@@ -1269,8 +1269,6 @@ if __name__ == '__main__':
     vocab3=git_data_path+'enwiki_vocab100.txt'
 
 
-    # TODO: モデルのパスとか明記
-
     encoder0='encoder_15.pth'
     decoder0='decoder_15.pth'
     dir0='11_04_2242all_seq2seq_vocab30000'
