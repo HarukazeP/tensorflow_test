@@ -623,7 +623,7 @@ def compare_choices(lang, probs, choices):
 #1つの問題に対する，選択肢補充済み文複数から
 #ベスト1文を返す
 def get_best_word(lang, ngram, choices, model, N):
-    batch=N
+    batch=N*2
     #ほんとはbatch=1のはずだが，ngramと同じにしないとエラーでる
     hidden = model.init_hidden(batch)
     with torch.no_grad():
