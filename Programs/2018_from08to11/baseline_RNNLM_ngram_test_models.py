@@ -392,10 +392,10 @@ def input_ngram(cloze_sent, N):
         before="<PAD>"
     words=before.split(' ')
     length=len(words)
-    if length < N-1:
-        words=["<PAD>"]*(N-1-length)+words
-    elif length > N-1:
-        words=words[length-N+1:]
+    if length < N:
+        words=["<PAD>"]*(N-length)+words
+    elif length > N:
+        words=words[length-N:]
 
     return words
 
@@ -632,7 +632,7 @@ def get_best_word(lang, ngram, choices, model, N):
         #print(ngram)
         ids=sent_to_idxs(ngram, lang)
         #print(ids)
-        zeros=[[0]*(N-1)]*(batch-1)
+        zeros=[[0]*(N)]*(batch-1)
         input_idx=[ids]+zeros
         print(input_idx)
         input = torch.tensor(input_idx, dtype=torch.long).to(device)
