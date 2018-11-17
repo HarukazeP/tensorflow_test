@@ -58,7 +58,7 @@ file_path='../../../pytorch_data/'
 git_data_path='../../Data/'
 today1=datetime.datetime.today()
 today_str=today1.strftime('%m_%d_%H%M')
-save_path=file_path + '/' + today_str
+save_path=file_path + today_str
 PAD_token = 0
 SOS_token = 1
 EOS_token = 2
@@ -1293,7 +1293,7 @@ if __name__ == '__main__':
     for model in files:
         today1=datetime.datetime.today()
         today_str=today1.strftime('%m_%d_%H%M')
-        save_path=model[3]+'/'+today_str
+        save_path=file_path+model[3]+'/'+today_str
 
         # 1.語彙データ読み込み
         vocab = readVocab(model[0])
@@ -1304,8 +1304,8 @@ if __name__ == '__main__':
         my_encoder = EncoderRNN(vocab.n_words, EMB_DIM, HIDDEN_DIM, weights_matrix).to(my_device)
         my_decoder = AttnDecoderRNN2(EMB_DIM, HIDDEN_DIM, ATTN_DIM, vocab.n_words, weights_matrix).to(my_device)
 
-        my_encoder.load_state_dict(torch.load(model[3]+'/'+model[1]))
-        my_decoder.load_state_dict(torch.load(model[3]+'/'+model[2]))
+        my_encoder.load_state_dict(torch.load(file_path+model[3]+'/'+model[1]))
+        my_decoder.load_state_dict(torch.load(file_path+model[3]+'/'+model[2]))
 
         # 4.評価
         center_cloze=git_data_path+'center_cloze.txt'
