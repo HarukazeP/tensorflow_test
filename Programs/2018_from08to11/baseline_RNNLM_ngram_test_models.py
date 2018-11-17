@@ -579,7 +579,7 @@ def calc_sent_score(lang, ngram_pair, model):
     with torch.no_grad():
         for one_pair in ngram_pair:
             ids=sent_to_idxs(one_pair[0], lang)
-            zeros=[[0]*(N-1)]*(batch-1)
+            zeros=[[0]*(N)]*(batch-1)
             input_idx=[ids]+zeros
             input = torch.tensor(input_idx, dtype=torch.long).to(device)
             #input = input.unsqueeze(0)  #(1, N)
@@ -629,10 +629,10 @@ def get_best_word(lang, ngram, choices, model, N):
     #ほんとはbatch=1のはずだが，ngramと同じにしないとエラーでる
     hidden = model.init_hidden(batch)
     with torch.no_grad():
-        print(ngram)
+        #print(ngram)
         ids=sent_to_idxs(ngram, lang)
-        print(ids)
-        zeros=[[0]*(N)]*(batch-1)
+        #print(ids)
+        zeros=[[0]*(N-1)]*(batch-1)
         input_idx=[ids]+zeros
         print(input_idx)
         input = torch.tensor(input_idx, dtype=torch.long).to(device)
