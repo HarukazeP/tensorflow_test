@@ -204,6 +204,13 @@ def get_weight_matrix(lang):
 #model.py内
 class RNNModel(nn.Module):
     """Container module with an encoder, a recurrent module, and a decoder."""
+    '''
+    ntoken : 語彙数
+    ninp   : embedingの次元数
+    nhid   : 隠れ層の次元数
+    nlayers: LSTMの層の数
+
+    '''
 
     def __init__(self, ntoken, ninp, nhid, nlayers, weights_matrix, dropout=0.5, tie_weights=False):
         super(RNNModel, self).__init__()
@@ -212,7 +219,7 @@ class RNNModel(nn.Module):
         self.encoder.weight.data.copy_(torch.from_numpy(weights_matrix))
         self.rnn = nn.LSTM(ninp, nhid, nlayers, dropout=dropout, bidirectional=True)
 
-        self.decoder = nn.Linear(nhid*args.ngrams*2, ntoken) #(入力次元数, 出力次元数)
+        self.decoder = nn.Linear(nhid*N*2, ntoken) #(入力次元数, 出力次元数)
 
         # Optionally tie weights as in:
         # "Using the Output Embedding to Improve Language Models" (Press & Wolf 2016)
@@ -547,7 +554,7 @@ def calc_sent_score2(lang, ngram_pair, model):
     with torch.no_grad():
         for one_pair in ngram_pair:
             ids=sent_to_idxs(one_pair[0], lang)
-            #zeros=[[0]*(args.ngrams)]*(batch-1)
+            #zeros=[[0]*(N)]*(batch-1)
             #input_idx=[ids]+zeros
             input = torch.tensor(ids, dtype=torch.long).to(device)
             input = input.unsqueeze(0)  #(1, N)
@@ -562,13 +569,13 @@ def calc_sent_score2(lang, ngram_pair, model):
 #ngramのペアからモデルの返す尤度をもとにスコアを算出
 def calc_sent_score(lang, ngram_pair, model):
     score=0
-    batch=args.ngrams
+    batch=N
     #ほんとはbatch=1のはずだが，ngramと同じにしないとエラーでる
     hidden = model.init_hidden(batch)
     with torch.no_grad():
         for one_pair in ngram_pair:
             ids=sent_to_idxs(one_pair[0], lang)
-            zeros=[[0]*(args.ngrams)]*(batch-1)
+            zeros=[[0]*(N)]*(batch-1)
             input_idx=[ids]+zeros
             input = torch.tensor(input_idx, dtype=torch.long).to(device)
             #input = input.unsqueeze(0)  #(1, N)
@@ -614,12 +621,12 @@ def compare_choices(lang, probs, choices):
 #1つの問題に対する，選択肢補充済み文複数から
 #ベスト1文を返す
 def get_best_word(lang, ngram, choices, model, N):
-    batch=args.ngrams
+    batch=N
     #ほんとはbatch=1のはずだが，ngramと同じにしないとエラーでる
     hidden = model.init_hidden(batch)
     with torch.no_grad():
         ids=sent_to_idxs(ngram, lang)
-        zeros=[[0]*(args.ngrams)]*(batch-1)
+        zeros=[[0]*(N)]*(batch-1)
         input_idx=[ids]+zeros
         input = torch.tensor(input_idx, dtype=torch.long).to(device)
         #input = input.unsqueeze(0)  #(1, N)
@@ -672,8 +679,7 @@ def get_args():
                         help='directory name which has best model(at test only  mode)')
     parser.add_argument('--model_name', type=str, default='model_95.pth',
                         help='best model name(at test only  mode)')
-    parser.add_argument('--ngrams', type=int, default=5,
-                        help='select N for N-grams')
+    #parser.add_argument('--ngrams', type=int, default=5, help='select N for N-grams')
 
     return parser.parse_args()
 
@@ -726,6 +732,7 @@ if __name__ == '__main__':
     files=[(dir0, model0), (dir1, model1), (dir2, model2), (dir3, model3)]
 
     for best_model in files:
+        N=int(best_model[0][-1])
 
         model = RNNModel(ntokens, args.emsize, args.nhid, args.nlayers, weights_matrix, args.dropout, args.tied).to(device)
 
@@ -741,12 +748,12 @@ if __name__ == '__main__':
         print('\npreds by forward score')
         print('Use choices(one_words)')
         print('center')
-        data_fw=make_data_for_fw_score(center_data, center_choices, args.ngrams)
+        data_fw=make_data_for_fw_score(center_data, center_choices, N)
         # data_fwは [input_ngram_list, choices_list, ans_word(str)] のリスト
         calc_acc_for_fw_score(vocab, data_fw, model)
 
         print('MS')
-        data_fw=make_data_for_fw_score(MS_data, MS_choices, args.ngrams)
+        data_fw=make_data_for_fw_score(MS_data, MS_choices, N)
         # data_fwは [input_ngram_list, choices_list, ans_word(str)] のリスト
         calc_acc_for_fw_score(vocab, data_fw, model)
 
@@ -758,24 +765,24 @@ if __name__ == '__main__':
         print('Use choices(one_words)')
         print('center')
         data=make_data_for_sent_score(center_data, center_choices, one_word=True)
-        calc_acc_for_sent_score(vocab, data, model, args.ngrams)
+        calc_acc_for_sent_score(vocab, data, model, N)
 
         print('MS')
         data=make_data_for_sent_score(MS_data, MS_choices, one_word=True)
-        calc_acc_for_sent_score(vocab, data, model, args.ngrams)
+        calc_acc_for_sent_score(vocab, data, model, N)
 
 
         print('Use choices(over one_words)')
         print('center')
         data=make_data_for_sent_score(center_data, center_choices, one_word=False)
-        calc_acc_for_sent_score(vocab, data, model, args.ngrams)
+        calc_acc_for_sent_score(vocab, data, model, N)
 
         print('MS')
         data=make_data_for_sent_score(MS_data, MS_choices, one_word=False)
-        calc_acc_for_sent_score(vocab, data, model, args.ngrams)
+        calc_acc_for_sent_score(vocab, data, model, N)
 
         '''
         print('\nNot use choices, from all words(one_words)')
         data=make_data_for_sent_score_from_all_words(center_data, center_choices, all_words)
-        calc_acc_for_sent_score(vocab, data, model, args.ngrams)
+        calc_acc_for_sent_score(vocab, data, model, N)
         '''
