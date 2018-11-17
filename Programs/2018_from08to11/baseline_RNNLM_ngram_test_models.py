@@ -627,6 +627,7 @@ def get_best_word(lang, ngram, choices, model, N):
     #ほんとはbatch=1のはずだが，ngramと同じにしないとエラーでる
     hidden = model.init_hidden(batch)
     with torch.no_grad():
+        print(ngram)
         ids=sent_to_idxs(ngram, lang)
         print(ids)
         zeros=[[0]*(N)]*(batch-1)
