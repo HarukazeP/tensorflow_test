@@ -1164,13 +1164,13 @@ def test_choices_and_top10_words(lang, encoder, decoder, test_data, choices, sav
             #output_preds(save_path+'preds_cloze.txt', preds_cloze)
             output_preds(save_path+'preds_choices.txt', preds_choices)
     print('model output top10 words')
+    words_list = sorted(words_d.items(), key=lambda x: x[1], reverse=True)
     for i in range(10):
         print(words_list[i])
     print("Calc scores ...")
     #score(preds, ans, file_output, save_path+'score.txt')
     #score(preds_cloze, ans, file_output, save_path+'score_cloze.txt')
     score(preds_choices, ans, file_output, save_path+'score_choices.txt')
-    words_list = sorted(words_d.items(), key=lambda x: x[1], reverse=True)
 
 
 #選択肢を使って4つの文を生成
