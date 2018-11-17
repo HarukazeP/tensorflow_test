@@ -763,7 +763,7 @@ if __name__ == '__main__':
         data_fw=make_data_for_fw_score(MS_data, MS_choices, N)
         # data_fwは [input_ngram_list, choices_list, ans_word(str)] のリスト
         calc_acc_for_fw_score(vocab, data_fw, model, N)
-
+        '''
         #文スコア（方法B）
         #空所内1単語以上（選択肢あり）
         #空所内1単語のみ（選択肢ありなし両方）
@@ -787,6 +787,8 @@ if __name__ == '__main__':
         print('MS')
         data=make_data_for_sent_score(MS_data, MS_choices, one_word=False)
         calc_acc_for_sent_score(vocab, data, model, N)
+        '''
+
 
         '''
         print('\nNot use choices, from all words(one_words)')
