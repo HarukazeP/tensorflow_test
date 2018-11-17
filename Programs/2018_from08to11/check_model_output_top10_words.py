@@ -3,7 +3,7 @@
 '''
 seq2seq_attention_change_vocab.py から変更
 学習はせずテストのみ
-モデルが空所に予測する(選択肢無し順方向予測スコアの先頭？を利用)単語上位10件の和を算出し，その上位10件
+モデルが空所に予測する(順方向予測スコアを利用)単語上位10件の和を算出し，その上位10件
 および，モデルが正答している問題の，空所内の単語上位10件
 を調べる
 
@@ -832,9 +832,20 @@ def pred_next_word(lang, next_word_list, decoder_output_data):
     return max_word
 
 
+def count_up_top10_words(lang, top10_id, words_dict):
+    for i in range(10):
+        x=lang.index2word[top10_id[i].item()]
+        if x in words_dict:
+            words_dict[x]+=1
+        else:
+            words_dict[x]=1
+
+
+
+
 #空所内のみを予想かつ選択肢の利用
 #evaluate_clozeの拡張
-def evaluate_choice(lang, encoder, decoder, sentence, choices, max_length=MAX_LENGTH):
+def evaluate_choice_and_top10_words(lang, encoder, decoder, sentence, choices, words_dict max_length=MAX_LENGTH):
     with torch.no_grad():
         input_indexes = pad_indexes(lang, sentence)
         input_batch = torch.tensor([input_indexes], dtype=torch.long, device=my_device)  # (1, s)
@@ -872,7 +883,6 @@ def evaluate_choice(lang, encoder, decoder, sentence, choices, max_length=MAX_LE
             #空所内の予測
             # } までdecorded_wordに格納
             elif cloze_flag == 0:
-                # TODO: ここ変更して上位10件とか？
                 #これまでの予測と選択肢から次の１語候補リストを作成
                 next_word_list=make_next_word(cloze_ct, cloze_words, choices)
                 #候補リストから確率最大の1語を返す
@@ -886,6 +896,8 @@ def evaluate_choice(lang, encoder, decoder, sentence, choices, max_length=MAX_LE
                     cloze_flag=1
                 else:
                     cloze_ct+=1
+                    _, top10 = decoder_output.topk(10)
+                    count_up_top10_words(lang, top10, words_dict)
 
             #空所後の予測
             else:
@@ -1020,13 +1032,13 @@ def match(pred_cloze, ans_cloze):
 
 #精度いろいろ計算
 #問題文、完全一致文、空所の完答文、空所の一部正答文、BLEU値、空所ミス文
-def calc_score(preds_sentences, ans_sentences):
+def calc_score_and_top10_words(preds_sentences, ans_sentences):
     line_num=0
     allOK=0
     clozeOK=0
     partOK=0
     miss=0
-    # TODO: ここ編集して正解している，空所に含まれる単語上位とか？
+    word_dic=dict()
 
     for pred, ans in zip(preds_sentences, ans_sentences):
         pred=pred.replace(' <EOS>', '')
@@ -1036,6 +1048,12 @@ def calc_score(preds_sentences, ans_sentences):
             flag=1
         pred_cloze = get_cloze(pred)
         ans_cloze = get_cloze(ans)
+        if flag==1:
+            for x in ans_cloze.split(' '):
+                if x in word_dic:
+                    word_dic[x]+=1
+                else:
+                    word_dic[x]=1
         tmp_ans_length=len(ans_cloze.split(' '))
         line_num+=1
         if is_correct_cloze(pred):
@@ -1051,6 +1069,9 @@ def calc_score(preds_sentences, ans_sentences):
             miss+=1
 
     BLEU=compute_bleu(preds_sentences, ans_sentences)
+    words_list = sorted(words_dic.items(), key=lambda x: x[1], reverse=True)
+    for i in range(10):
+        print(words_list[i])
 
     return line_num, allOK, clozeOK, partOK, BLEU, miss
 
@@ -1103,7 +1124,7 @@ def get_choices(file_name):
 
 def score(preds, ans, file_output, file_name):
     #精度のprintとファイル出力
-    line, allOK, clozeOK, partOK, BLEU, miss = calc_score(preds, ans)
+    line, allOK, clozeOK, partOK, BLEU, miss = calc_score_and_top10_words(preds, ans)
     print_score(line, allOK, clozeOK, partOK, BLEU, miss)
     if file_output:
         output_score(file_name, line, allOK, clozeOK, partOK, BLEU, miss)
@@ -1112,13 +1133,14 @@ def score(preds, ans, file_output, file_name):
 #テストデータに対する予測と精度計算
 #空所内のみを予測するモード
 #および、選択肢を利用するモード
-def test_choices(lang, encoder, decoder, test_data, choices, saveAttention=False, file_output=False):
+def test_choices_and_top10_words(lang, encoder, decoder, test_data, choices, saveAttention=False, file_output=False):
     print("Test ...")
     #input_sentence や ansは文字列であるのに対し、output_wordsはリストであることに注意
     preds=[]
     ans=[]
     preds_cloze=[]
     preds_choices=[]
+    words_d=dict()
     for pair, choi in zip(test_data, choices):
         input_sentence=pair[0]
         ans.append(pair[1])
@@ -1129,7 +1151,7 @@ def test_choices(lang, encoder, decoder, test_data, choices, saveAttention=False
         #output_cloze_ct, cloze_attentions = evaluate_cloze(lang, encoder, decoder, input_sentence)
         #preds_cloze.append(' '.join(output_cloze_ct))
 
-        output_choice_words, choice_attentions = evaluate_choice(lang, encoder, decoder, input_sentence, choi)
+        output_choice_words, choice_attentions = evaluate_choice_and_top10_words(lang, encoder, decoder, input_sentence, choi, words_d)
         preds_choices.append(' '.join(output_choice_words))
 
         if saveAttention:
@@ -1144,6 +1166,9 @@ def test_choices(lang, encoder, decoder, test_data, choices, saveAttention=False
     #score(preds, ans, file_output, save_path+'score.txt')
     #score(preds_cloze, ans, file_output, save_path+'score_cloze.txt')
     score(preds_choices, ans, file_output, save_path+'score_choices.txt')
+    words_list = sorted(words_d.items(), key=lambda x: x[1], reverse=True)
+    for i in range(10):
+        print(words_list[i])
 
 
 #選択肢を使って4つの文を生成
@@ -1237,16 +1262,28 @@ if __name__ == '__main__':
     args = get_args()
     print(args.mode)
     vocab0=git_data_path+'enwiki_vocab30000.txt'
-    vocab1=git_data_path+'enwiki_vocab1000.txt'
-    vocab2=git_data_path+'enwiki_vocab100.txt'
-    vocab3=git_data_path+'enwiki_vocab10000.txt'
+    vocab1=git_data_path+'enwiki_vocab10000.txt'
+    vocab2=git_data_path+'enwiki_vocab1000.txt'
+    vocab3=git_data_path+'enwiki_vocab100.txt'
+
 
     # TODO: モデルのパスとか明記
-    encoder0=''
-    decoder0=''
-    dir0=''
 
+    encoder0='encoder_15.pth'
+    decoder0='decoder_15.pth'
+    dir0='11_04_2242all_seq2seq_vocab30000'
 
+    encoder1='encoder_15.pth'
+    decoder1='decoder_15.pth'
+    dir1='11_15_1757all_seq2seq_vocab10000'
+
+    encoder2='encoder_16.pth'
+    decoder2='decoder_16.pth'
+    dir2='11_14_1820all_seq2seq_vocab1000'
+
+    encoder3='encoder_14.pth'
+    decoder3='decoder_14.pth'
+    dir3='11_15_0604all_seq2seq_vocab100'
 
     files=[(vocab0, encoder0, decoder0, dir0),
             (vocab1, encoder1, decoder1, dir1),
@@ -1256,7 +1293,7 @@ if __name__ == '__main__':
     for model in files:
         today1=datetime.datetime.today()
         today_str=today1.strftime('%m_%d_%H%M')
-        save_path=file_path + '/' + today_str
+        save_path=model[3]+'/'+today_str
 
         # 1.語彙データ読み込み
         vocab = readVocab(model[0])
@@ -1266,12 +1303,8 @@ if __name__ == '__main__':
         my_encoder = EncoderRNN(vocab.n_words, EMB_DIM, HIDDEN_DIM, weights_matrix).to(my_device)
         my_decoder = AttnDecoderRNN2(EMB_DIM, HIDDEN_DIM, ATTN_DIM, vocab.n_words, weights_matrix).to(my_device)
 
-        save_path=model[3]+'/'
-
         my_encoder.load_state_dict(torch.load(save_path+model[1]))
         my_decoder.load_state_dict(torch.load(save_pathmodel[2]))
-
-        save_path=save_path+today_str
 
         # 4.評価
         center_cloze=git_data_path+'center_cloze.txt'
@@ -1295,13 +1328,13 @@ if __name__ == '__main__':
         #これは前からの予測
         print(vocab_path)
         print('center')
-        test_choices(vocab, my_encoder, my_decoder, center_data, center_choices, saveAttention=False, file_output=False)
+        test_choices_and_top10_words(vocab, my_encoder, my_decoder, center_data, center_choices, saveAttention=False, file_output=False)
 
         #これは文スコア
         test_choices_by_sent_score(vocab, my_encoder, my_decoder, center_data, center_choices, saveAttention=False, file_output=False)
 
         print('MS')
-        test_choices(vocab, my_encoder, my_decoder, MS_data, MS_choices, saveAttention=False, file_output=False)
+        test_choices_and_top10_words(vocab, my_encoder, my_decoder, MS_data, MS_choices, saveAttention=False, file_output=False)
 
         #これは文スコア
         test_choices_by_sent_score(vocab, my_encoder, my_decoder, MS_data, MS_choices, saveAttention=False, file_output=False)
