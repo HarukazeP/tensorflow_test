@@ -491,8 +491,8 @@ def calc_acc_for_fw_score(lang, data_fw, model, N):
     OK=0
     for one_data in data_fw:
         line+=1
-        if line%50==0:
-            print('line:',line)
+        #if line%50==0:
+        #    print('line:',line)
         input_ngram=one_data[0]
         choices=one_data[1]
         ans_word=one_data[2]
@@ -508,8 +508,8 @@ def calc_acc_for_sent_score(lang, data, model, N):
     OK=0
     for one_data in data:
         line+=1
-        if line%50==0:
-            print('line:',line)
+        #if line%50==0:
+        #    print('line:',line)
         ans=one_data[-1]
         ans=ans.replace('{ ', '')
         ans=ans.replace(' }', '')
