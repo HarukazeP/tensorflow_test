@@ -740,6 +740,7 @@ if __name__ == '__main__':
 
     for best_model in files:
         N=int(best_model[0][-1])
+        print(best_model[0])
 
         model = RNNModel(ntokens, args.emsize, args.nhid, args.nlayers, weights_matrix, args.dropout, args.tied).to(device)
 
