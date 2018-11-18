@@ -848,6 +848,7 @@ def count_up_top10_words(lang, top10_id, words_dict):
 #evaluate_clozeの拡張
 def evaluate_choice_and_top10_words(lang, encoder, decoder, sentence, choices, words_dict,  max_length=MAX_LENGTH):
     with torch.no_grad():
+        global all_ct
         input_indexes = pad_indexes(lang, sentence)
         input_batch = torch.tensor([input_indexes], dtype=torch.long, device=my_device)  # (1, s)
 
