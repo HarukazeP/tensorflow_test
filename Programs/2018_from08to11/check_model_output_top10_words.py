@@ -1294,6 +1294,8 @@ if __name__ == '__main__':
             (vocab3, encoder3, decoder3, dir3)]
 
     for model in files:
+        global all_ct
+        all_ct=0
         today1=datetime.datetime.today()
         today_str=today1.strftime('%m_%d_%H%M')
         save_path=file_path+model[3]+'/'+today_str
@@ -1333,6 +1335,8 @@ if __name__ == '__main__':
         print(model[0])
         print('center')
         test_choices_and_top10_words(vocab, my_encoder, my_decoder, center_data, center_choices, saveAttention=False, file_output=False)
+        print(all_ct)
+        
 
         #これは文スコア
         test_choices_by_sent_score(vocab, my_encoder, my_decoder, center_data, center_choices, saveAttention=False, file_output=False)
