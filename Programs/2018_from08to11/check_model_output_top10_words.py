@@ -52,6 +52,7 @@ HIDDEN_DIM = 128
 ATTN_DIM = 128
 EMB_DIM = 300
 BATCH_SIZE = 128
+all_ct=0
 
 #自分で定義したグローバル関数とか
 file_path='../../../pytorch_data/'
@@ -898,6 +899,7 @@ def evaluate_choice_and_top10_words(lang, encoder, decoder, sentence, choices, w
                     cloze_ct+=1
                     _, top10 = decoder_output.topk(10)
                     count_up_top10_words(lang, top10[0], words_dict)
+                    all_ct+=1
 
             #空所後の予測
             else:
