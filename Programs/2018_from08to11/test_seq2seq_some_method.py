@@ -75,7 +75,7 @@ else:
     my_device= torch.device("cpu")
 
 stopword_set = set(stopwords.words('english')
-ex_word=set(['one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'zero', '{', '}', 'SOS', 'SOS', 'SOS'])
+ex_word=set(['one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'zero', '{', '}', 'SOS', 'EOS', '<UNK>'])
 stopword_set |= ex_word #和集合
 
 print('stopwords set', stopword_set)
@@ -97,7 +97,7 @@ class Lang:
     def __init__(self):
         self.word2index = {"<UNK>": UNK_token}
         self.word2count = {"<UNK>": 0}
-        self.index2word = {PAD_token: "PAD", SOS_token: "SOS", EOS_token: "SOS", UNK_token: "SOS"}
+        self.index2word = {PAD_token: "PAD", SOS_token: "SOS", EOS_token: "EOS", UNK_token: "<UNK>"}
         self.n_words = 4  # PAD と SOS と EOS と UNK
 
     #文から単語を語彙へ
