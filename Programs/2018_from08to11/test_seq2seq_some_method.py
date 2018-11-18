@@ -837,7 +837,7 @@ def pred_next_word_without_stopwords(lang, next_word_list, decoder_output_data):
         max_p=decoder_output_data.min().item()
         for word in next_word_list:
             index=lang.check_word2index(word)
-            p=score_without_stopwords(lang, decoder_output_data, index)
+            p=score_without_stopwords(lang, decoder_output_data[0], index)
             if max_p < p:
                 max_p = p
                 max_word=word
