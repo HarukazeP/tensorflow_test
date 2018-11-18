@@ -1268,7 +1268,7 @@ def calc_sent_score_without_stopwords(lang, encoder, decoder, sent, max_length=M
         for di in range(max_length):
             decoder_output, decoder_hidden, attention = decoder(decoder_input, decoder_hidden, encoder_outputs)  # (1,outdim), ((1,h),(1,h)), (l,1)
 
-            score+=score_without_stopwords(lang, decoder_output.data[0], input_indexes[di]):
+            score+=score_without_stopwords(lang, decoder_output.data[0], input_indexes[di])
 
             if input_indexes[di] == EOS_token:
                 break
