@@ -831,6 +831,7 @@ def make_next_word(cloze_ct, cloze_words, choices):
 
 #候補リストから確率最大の1語を返す
 def pred_next_word_without_stopwords(lang, next_word_list, decoder_output_data):
+    max_word=''
     if len(next_word_list)==1:
         max_word=next_word_list[0]
     else:
