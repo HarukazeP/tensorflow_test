@@ -911,8 +911,16 @@ def evaluate_choice_and_top10_words(lang, encoder, decoder, sentence, choices, w
                     cloze_flag=1
                 else:
                     cloze_ct+=1
-                    _, top10 = decoder_output.topk(10)
-                    count_up_top10_words(lang, top10[0], words_dict)
+                    tmp=decoder_output[0]
+                    min_p=tmp.min().item()-1
+                    for word in stopword_set:
+                        id=lang.check_word2index(word)
+                        tmp[id]=min_p
+                    _, top10 = tmp.topk(10)
+
+
+
+                    count_up_top10_words(lang, top10, words_dict)
 
             #空所後の予測
             else:
@@ -1221,6 +1229,7 @@ def make_sents_with_cloze_mark_with_grammer(sentence, choices, raw_sentence, raw
 
 def score_without_stopwords(lang, decoder_output_data, word_id):
     min_p=decoder_output_data.min().item()
+
     for word in stopword_set:
         id=lang.check_word2index(word)
         decoder_output_data[id]=min_p
