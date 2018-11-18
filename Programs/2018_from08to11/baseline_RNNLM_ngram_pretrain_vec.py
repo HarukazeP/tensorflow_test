@@ -220,7 +220,7 @@ class RNNModel(nn.Module):
         self.encoder.weight.data.copy_(torch.from_numpy(weights_matrix))
         self.rnn = nn.LSTM(ninp, nhid, nlayers, dropout=dropout, bidirectional=True)
 
-        self.decoder = nn.Linear(nhid*args.ngrams*2, ntoken) #(入力次元数, 出力次元数)
+        self.decoder = nn.Linear(nhid*(args.ngrams-1)*2, ntoken) #(入力次元数, 出力次元数)
 
         # Optionally tie weights as in:
         # "Using the Output Embedding to Improve Language Models" (Press & Wolf 2016)
@@ -556,7 +556,7 @@ def calc_sent_score2(lang, ngram_pair, model):
     with torch.no_grad():
         for one_pair in ngram_pair:
             ids=sent_to_idxs(one_pair[0], lang)
-            #zeros=[[0]*(args.ngrams)]*(batch-1)
+            #zeros=[[0]*((args.ngrams-1))]*(batch-1)
             #input_idx=[ids]+zeros
             input = torch.tensor(ids, dtype=torch.long).to(device)
             input = input.unsqueeze(0)  #(1, N)
@@ -571,13 +571,13 @@ def calc_sent_score2(lang, ngram_pair, model):
 #ngramのペアからモデルの返す尤度をもとにスコアを算出
 def calc_sent_score(lang, ngram_pair, model):
     score=0
-    batch=args.ngrams
+    batch=(args.ngrams-1)
     #ほんとはbatch=1のはずだが，ngramと同じにしないとエラーでる
     hidden = model.init_hidden(batch)
     with torch.no_grad():
         for one_pair in ngram_pair:
             ids=sent_to_idxs(one_pair[0], lang)
-            zeros=[[0]*(args.ngrams)]*(batch-1)
+            zeros=[[0]*((args.ngrams-1))]*(batch-1)
             input_idx=[ids]+zeros
             input = torch.tensor(input_idx, dtype=torch.long).to(device)
             #input = input.unsqueeze(0)  #(1, N)
@@ -623,13 +623,13 @@ def compare_choices(lang, probs, choices):
 #1つの問題に対する，選択肢補充済み文複数から
 #ベスト1文を返す
 def get_best_word(lang, ngram, choices, model, N):
-    batch=args.ngrams
+    batch=(args.ngrams-1)
     #ほんとはbatch=1のはずだが，ngramと同じにしないとエラーでる
     hidden = model.init_hidden(batch)
     with torch.no_grad():
         for one_pair in ngram_pair:
         ids=sent_to_idxs(ngram, lang)
-        zeros=[[0]*(args.ngrams)]*(batch-1)
+        zeros=[[0]*((args.ngrams-1))]*(batch-1)
         input_idx=[ids]+zeros
         input = torch.tensor(input_idx, dtype=torch.long).to(device)
         #input = input.unsqueeze(0)  #(1, N)
@@ -715,7 +715,7 @@ if __name__ == '__main__':
         all_data=data_tokenize(train_file, vocab)
 
         #ID列からX, Yの組を作成して，学習データと検証データ作成
-        train_data, val_data=make_data(all_data, args.ngrams)
+        train_data, val_data=make_data(all_data, (args.ngrams-1))
 
         criterion = nn.CrossEntropyLoss()
 
@@ -798,12 +798,12 @@ if __name__ == '__main__':
     print('\npreds by forward score')
     print('Use choices(one_words)')
     print('center')
-    data_fw=make_data_for_fw_score(center_data, center_choices, args.ngrams)
+    data_fw=make_data_for_fw_score(center_data, center_choices, (args.ngrams-1))
     # data_fwは [input_ngram_list, choices_list, ans_word(str)] のリスト
     calc_acc_for_fw_score(vocab, data_fw, model)
 
     print('MS')
-    data_fw=make_data_for_fw_score(MS_data, MS_choices, args.ngrams)
+    data_fw=make_data_for_fw_score(MS_data, MS_choices, (args.ngrams-1))
     # data_fwは [input_ngram_list, choices_list, ans_word(str)] のリスト
     calc_acc_for_fw_score(vocab, data_fw, model)
 
@@ -815,26 +815,26 @@ if __name__ == '__main__':
     print('Use choices(one_words)')
     print('center')
     data=make_data_for_sent_score(center_data, center_choices, one_word=True)
-    calc_acc_for_sent_score(vocab, data, model, args.ngrams)
+    calc_acc_for_sent_score(vocab, data, model, (args.ngrams-1))
 
     print('MS')
     data=make_data_for_sent_score(MS_data, MS_choices, one_word=True)
-    calc_acc_for_sent_score(vocab, data, model, args.ngrams)
+    calc_acc_for_sent_score(vocab, data, model, (args.ngrams-1))
 
 
     print('Use choices(over one_words)')
     print('center')
     data=make_data_for_sent_score(center_data, center_choices, one_word=False)
-    calc_acc_for_sent_score(vocab, data, model, args.ngrams)
+    calc_acc_for_sent_score(vocab, data, model, (args.ngrams-1))
 
     print('MS')
     data=make_data_for_sent_score(MS_data, MS_choices, one_word=False)
-    calc_acc_for_sent_score(vocab, data, model, args.ngrams)
+    calc_acc_for_sent_score(vocab, data, model, (args.ngrams-1))
 
     '''
     print('\nNot use choices, from all words(one_words)')
     data=make_data_for_sent_score_from_all_words(center_data, center_choices, all_words)
-    calc_acc_for_sent_score(vocab, data, model, args.ngrams)
+    calc_acc_for_sent_score(vocab, data, model, (args.ngrams-1))
     '''
 
     pass
