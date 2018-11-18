@@ -830,19 +830,20 @@ def make_next_word(cloze_ct, cloze_words, choices):
 
 
 #候補リストから確率最大の1語を返す
-def pred_next_word(lang, next_word_list, decoder_output_data):
+def pred_next_word_without_stopwords(lang, next_word_list, decoder_output_data):
     if len(next_word_list)==1:
         max_word=next_word_list[0]
     else:
         max_p=decoder_output_data.min().item()
         for word in next_word_list:
             index=lang.check_word2index(word)
-            p=decoder_output_data[0][index].item()
+            p=score_without_stopwords(lang, decoder_output_data, index)
             if max_p < p:
                 max_p = p
                 max_word=word
 
     return max_word
+
 
 
 def count_up_top10_words(lang, top10_id, words_dict):
@@ -899,7 +900,7 @@ def evaluate_choice_and_top10_words(lang, encoder, decoder, sentence, choices, w
                 #これまでの予測と選択肢から次の１語候補リストを作成
                 next_word_list=make_next_word(cloze_ct, cloze_words, choices)
                 #候補リストから確率最大の1語を返す
-                word=pred_next_word(lang, next_word_list, decoder_output.data)
+                word=pred_next_word_without_stopwords(lang, next_word_list, decoder_output.data)
                 cloze_words.append(word)
                 decoded_words.append(word)
                 word_tensor=torch.tensor([lang.check_word2index(word)], device=my_device)
@@ -1136,7 +1137,7 @@ def score(preds, ans, file_output, file_name):
 #テストデータに対する予測と精度計算
 #空所内のみを予測するモード
 #および、選択肢を利用するモード
-def test_choices_and_top10_words(lang, encoder, decoder, test_data, choices, saveAttention=False, file_output=False):
+def test_choices_and_top10_words_without_stopwords(lang, encoder, decoder, test_data, choices, saveAttention=False, file_output=False):
     print("Test ...")
     #input_sentence や ansは文字列であるのに対し、output_wordsはリストであることに注意
     preds=[]
@@ -1423,19 +1424,20 @@ if __name__ == '__main__':
         #これは前からの予測
         print(model[0])
         print('center')
-        #test_choices_and_top10_words(vocab, my_encoder, my_decoder, center_data, center_choices, saveAttention=False, file_output=False)
+        print('without stopwords')
+        test_choices_and_top10_words_without_stopwords(vocab, my_encoder, my_decoder, center_data, center_choices, saveAttention=False, file_output=False)
 
         #これは文スコア
-        print('without stopwords')
-        test_choices_by_sent_score_without_stopwords(vocab, my_encoder, my_decoder, center_data, center_choices, saveAttention=False, file_output=False)
+        #print('without stopwords')
+        #test_choices_by_sent_score_without_stopwords(vocab, my_encoder, my_decoder, center_data, center_choices, saveAttention=False, file_output=False)
         #test_choices_by_sent_score_with_grammar(vocab, my_encoder, my_decoder, center_data, center_choices, center_raw_data, center_raw_choices, saveAttention=False, file_output=False, use_stopwords=False)
         #test_choices_by_sent_score_with_grammar(vocab, my_encoder, my_decoder, center_data, center_choices, center_raw_data, center_raw_choices, saveAttention=False, file_output=False, use_stopwords=True)
 
         print('MS')
-        #test_choices_and_top10_words(vocab, my_encoder, my_decoder, MS_data, MS_choices, saveAttention=False, file_output=False)
+        test_choices_and_top10_words_without_stopwords(vocab, my_encoder, my_decoder, MS_data, MS_choices, saveAttention=False, file_output=False)
 
         #これは文スコア
-        print('without stopwords')
-        test_choices_by_sent_score_without_stopwords(vocab, my_encoder, my_decoder, MS_data, MS_choices, saveAttention=False, file_output=False)
+        #print('without stopwords')
+        #test_choices_by_sent_score_without_stopwords(vocab, my_encoder, my_decoder, MS_data, MS_choices, saveAttention=False, file_output=False)
         #test_choices_by_sent_score_with_grammar(vocab, my_encoder, my_decoder, MS_data, MS_choices, MS_raw_data, MS_raw_choices, saveAttention=False, file_output=False, use_stopwords=False)
         #test_choices_by_sent_score_with_grammar(vocab, my_encoder, my_decoder, MS_data, MS_choices, MS_raw_data, MS_raw_choices, saveAttention=False, file_output=False, use_stopwords=True)
