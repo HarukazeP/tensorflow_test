@@ -1145,14 +1145,13 @@ def score(preds, ans, file_output, file_name):
 #テストデータに対する予測と精度計算
 #空所内のみを予測するモード
 #および、選択肢を利用するモード
-def test_choices_and_top10_words_without_stopwords(lang, encoder, decoder, test_data, choices, saveAttention=False, file_output=False):
+def test_choices(lang, encoder, decoder, test_data, choices, saveAttention=False, file_output=False):
     print("Test ...")
     #input_sentence や ansは文字列であるのに対し、output_wordsはリストであることに注意
     preds=[]
     ans=[]
     preds_cloze=[]
     preds_choices=[]
-    words_d=dict()
     for pair, choi in zip(test_data, choices):
         input_sentence=pair[0]
         ans.append(pair[1])
@@ -1163,7 +1162,7 @@ def test_choices_and_top10_words_without_stopwords(lang, encoder, decoder, test_
         #output_cloze_ct, cloze_attentions = evaluate_cloze(lang, encoder, decoder, input_sentence)
         #preds_cloze.append(' '.join(output_cloze_ct))
 
-        output_choice_words, choice_attentions = evaluate_choice_and_top10_words(lang, encoder, decoder, input_sentence, choi, words_d)
+        output_choice_words, choice_attentions = evaluate_choice(lang, encoder, decoder, input_sentence, choi)
         preds_choices.append(' '.join(output_choice_words))
 
         if saveAttention:
@@ -1174,10 +1173,6 @@ def test_choices_and_top10_words_without_stopwords(lang, encoder, decoder, test_
             #output_preds(save_path+'preds.txt', preds)
             #output_preds(save_path+'preds_cloze.txt', preds_cloze)
             output_preds(save_path+'preds_choices.txt', preds_choices)
-    print('model output top10 words')
-    words_list = sorted(words_d.items(), key=lambda x: x[1], reverse=True)
-    for i in range(10):
-        print(words_list[i])
     print("Calc scores ...")
     #score(preds, ans, file_output, save_path+'score.txt')
     #score(preds_cloze, ans, file_output, save_path+'score_cloze.txt')
@@ -1194,46 +1189,6 @@ def make_sents_with_cloze_mark(sentence, choices):
         sents.append(tmp.strip())
 
     return sents
-
-#from linkgrammar import Sentence, ParseOptions, Dictionary, Clinkgrammar as clg
-
-def is_grammer_OK(text):
-    sent=linkgrammar.Sentence(text, en_dir, po)
-    linkages = sent.parse()
-
-    if sent.null_count() >0:
-        return False
-
-    return True
-
-
-def make_sents_with_cloze_mark_with_grammer(sentence, choices, raw_sentence, raw_choices):
-    sents=[]
-    flag=0
-    raw_before=re.sub(r'{.*', '{ ', raw_sentence)
-    raw_after=re.sub(r'.*}', ' }', raw_sentence)
-    before=re.sub(r'{.*', '{ ', sentence)
-    after=re.sub(r'.*}', ' }', sentence)
-    for r_choi, choi in zip(raw_choices, choices):
-        raw_tmp=raw_before + r_choi + raw_after
-        tmp=before + choi + after
-        if is_grammer_OK(raw_tmp.strip()):
-            sents.append(tmp.strip())
-            flag=1
-
-    if flag==0:
-        sents=make_sents_with_cloze_mark(sentence, choices)
-
-    return sents
-
-def score_without_stopwords(lang, decoder_output_data, word_id):
-    min_p=decoder_output_data.min().item()
-
-    for word in stopword_set:
-        id=lang.check_word2index(word)
-        decoder_output_data[id]=min_p
-
-    return decoder_output_data[word_id]
 
 #1文に対して文スコアを算出
 def calc_sent_score(lang, encoder, decoder, sent, max_length=MAX_LENGTH):
@@ -1261,40 +1216,11 @@ def calc_sent_score(lang, encoder, decoder, sent, max_length=MAX_LENGTH):
     return score/len(sent.split(' '))
 
 
-#1文に対して文スコアを算出
-def calc_sent_score_without_stopwords(lang, encoder, decoder, sent, max_length=MAX_LENGTH):
-    #evaluate_choiceから改変
-    score=0
-    with torch.no_grad():
-        input_indexes = pad_indexes(lang, sent)
-        input_batch = torch.tensor([input_indexes], dtype=torch.long, device=my_device)  # (1, s)
 
-        encoder_outputs, encoder_hidden = encoder(input_batch.transpose(0, 1))
-        decoder_input = torch.tensor([SOS_token], device=my_device)  # SOS
-        decoder_hidden = ( (encoder_hidden[0][0].squeeze(0), encoder_hidden[0][1].squeeze(0)),
-                (encoder_hidden[1][0].squeeze(0), encoder_hidden[1][1].squeeze(0)) )
-
-
-        for di in range(max_length):
-            decoder_output, decoder_hidden, attention = decoder(decoder_input, decoder_hidden, encoder_outputs)  # (1,outdim), ((1,h),(1,h)), (l,1)
-
-            score+=score_without_stopwords(lang, decoder_output.data[0], input_indexes[di])
-
-            if input_indexes[di] == EOS_token:
-                break
-            decoder_input = torch.tensor([input_indexes[di]], device=my_device)
-
-    return score/len(sent.split(' '))
-
-
-
-def get_best_sent(lang, encoder, decoder, sents, use_stopwords):
+def get_best_sent(lang, encoder, decoder, sents):
     scores=[]
     for sent in sents:
-        if use_stopwords:
-            score=calc_sent_score_without_stopwords(lang, encoder, decoder, sent)
-        else:
-            score=calc_sent_score(lang, encoder, decoder, sent)
+        score=calc_sent_score(lang, encoder, decoder, sent)
         scores.append(score)
 
     #scoreが最大の分を返す
@@ -1302,8 +1228,8 @@ def get_best_sent(lang, encoder, decoder, sents, use_stopwords):
     return sents[scores.index(max(scores))]
 
 #一旦1語以上，選択肢ありモード
-#ストップワードの確率を最低にする
-def test_choices_by_sent_score_without_stopwords(lang, encoder, decoder, test_data, choices, saveAttention=False, file_output=False):
+#TODO あとで全単語からもできるように
+def test_choices_by_sent_score(lang, encoder, decoder, test_data, choices, saveAttention=False, file_output=False):
     print("Test by sent score...")
     #input_sentence や ansは文字列であるのに対し、output_wordsはリストであることに注意
     preds=[]
@@ -1315,31 +1241,7 @@ def test_choices_by_sent_score_without_stopwords(lang, encoder, decoder, test_da
         ans.append(pair[1])
 
         sents=make_sents_with_cloze_mark(input_sentence, choi)
-        pred=get_best_sent(lang, encoder, decoder, sents, use_stopwords=True)
-
-        preds_choices.append(pred)
-
-        if file_output:
-            output_preds(save_path+'preds_choices.txt', preds_choices)
-    print("Calc scores ...")
-    score(preds_choices, ans, file_output, save_path+'score_choices.txt')
-
-
-#一旦1語以上，選択肢ありモード
-#ストップワードの確率を最低にする
-def test_choices_by_sent_score_with_grammar(lang, encoder, decoder, test_data, choices, raw_data, raw_choices, saveAttention=False, file_output=False, use_stopwords=False):
-    print("Test by sent score...")
-    #input_sentence や ansは文字列であるのに対し、output_wordsはリストであることに注意
-    preds=[]
-    ans=[]
-    preds_cloze=[]
-    preds_choices=[]
-    for pair, choi, raw_cloze, raw_choi in zip(test_data, choices, raw_data, raw_choices):
-        input_sentence=pair[0]
-        ans.append(pair[1])
-
-        sents=make_sents_with_cloze_mark_with_grammer(input_sentence, choi, raw_cloze, raw_choi)
-        pred=get_best_sent(lang, encoder, decoder, sents, use_stopwords=use_stopwords)
+        pred=get_best_sent(lang, encoder, decoder, sents)
 
         preds_choices.append(pred)
 
@@ -1414,11 +1316,11 @@ if __name__ == '__main__':
         # 4.評価
         center_cloze=git_data_path+'center_cloze.txt'
         center_ans=git_data_path+'center_ans.txt'
-        center_choi=git_data_path+'center_choices.txt'
+        center_choi=git_data_path+'center_choices_linkgrammar.txt'
 
         MS_cloze=git_data_path+'microsoft_cloze.txt'
         MS_ans=git_data_path+'microsoft_ans.txt'
-        MS_choi=git_data_path+'microsoft_choices.txt'
+        MS_choi=git_data_path+'microsoft_choices_linkgrammar.txt'
 
         print("Reading data...")
         center_data=readData(center_cloze, center_ans)
@@ -1433,20 +1335,13 @@ if __name__ == '__main__':
         #これは前からの予測
         print(model[0])
         print('center')
-        print('without stopwords')
-        test_choices_and_top10_words_without_stopwords(vocab, my_encoder, my_decoder, center_data, center_choices, saveAttention=False, file_output=False)
+        #test_choices(vocab, my_encoder, my_decoder, center_data, center_choices, saveAttention=False, file_output=True)
 
         #これは文スコア
-        #print('without stopwords')
-        #test_choices_by_sent_score_without_stopwords(vocab, my_encoder, my_decoder, center_data, center_choices, saveAttention=False, file_output=False)
-        #test_choices_by_sent_score_with_grammar(vocab, my_encoder, my_decoder, center_data, center_choices, center_raw_data, center_raw_choices, saveAttention=False, file_output=False, use_stopwords=False)
-        #test_choices_by_sent_score_with_grammar(vocab, my_encoder, my_decoder, center_data, center_choices, center_raw_data, center_raw_choices, saveAttention=False, file_output=False, use_stopwords=True)
+        test_choices_by_sent_score(vocab, my_encoder, my_decoder, center_data, center_choices, saveAttention=False, file_output=False)
 
         print('MS')
-        test_choices_and_top10_words_without_stopwords(vocab, my_encoder, my_decoder, MS_data, MS_choices, saveAttention=False, file_output=False)
+        #test_choices(vocab, my_encoder, my_decoder, MS_data, MS_choices, saveAttention=False, file_output=True)
 
         #これは文スコア
-        #print('without stopwords')
-        #test_choices_by_sent_score_without_stopwords(vocab, my_encoder, my_decoder, MS_data, MS_choices, saveAttention=False, file_output=False)
-        #test_choices_by_sent_score_with_grammar(vocab, my_encoder, my_decoder, MS_data, MS_choices, MS_raw_data, MS_raw_choices, saveAttention=False, file_output=False, use_stopwords=False)
-        #test_choices_by_sent_score_with_grammar(vocab, my_encoder, my_decoder, MS_data, MS_choices, MS_raw_data, MS_raw_choices, saveAttention=False, file_output=False, use_stopwords=True)
+        test_choices_by_sent_score(vocab, my_encoder, my_decoder, MS_data, MS_choices, saveAttention=False, file_output=False)
