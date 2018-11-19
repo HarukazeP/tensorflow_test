@@ -133,6 +133,7 @@ def make_choices_file_and_calc_baseline_acc(ans_path, choi_path, output_path):
     #ここまでは空所の記号ついたまま
     with open(output_path, 'w') as f:
         for ans, choices in zip(ans_sents, all_choices):
+            line_num+=1
             OKchoices, flag, max_flag, output_line=check_grammar_and_calc_baseline_acc(ans, choices)
             baseline_OK+=flag
             max_OK+=max_flag
