@@ -22,14 +22,43 @@ from linkgrammar import Sentence, ParseOptions, Dictionary
 locale.setlocale(locale.LC_ALL, "en_US.UTF-8")
 po = ParseOptions()
 
+def desc(lkg):
+    #print lkg.diagram()
+    #print 'Postscript:'
+    print '(RIGHT-WALL)]' in lkg.postscript()
+
+    #print '---'
+
+def s(q):
+    return '' if q == 1 else 's'
+
+def linkage_stat(psent, lang):
+    """
+    This function mimics the linkage status report style of link-parser
+    """
+    random = ' of {0} random linkages'. \
+             format(psent.num_linkages_post_processed()) \
+             if psent.num_valid_linkages() < psent.num_linkages_found() else ''
+
+    print '{0}: Found {1} linkage{2} ({3}{4} had no P.P. violations)'. \
+          format(lang, psent.num_linkages_found(),
+                 s(psent.num_linkages_found()),
+                 psent.num_valid_linkages(), random)
+
+
 def is_grammar_OK(text):
+    flag=0
     sent = Sentence(text, Dictionary(), po)
     linkages = sent.parse()
+    linkage_stat(sent, 'English')
+    for linkage in linkages:
+        if '(RIGHT-WALL)]' in linkage.postscript():
+            flag=1
 
-    if sent.null_count() >0:
-        return False
+    if flag==1:
+        return True
 
-    return True
+    return False
 
 
 #ペアじゃなくて単独で読み取るやつ
