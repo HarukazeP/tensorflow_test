@@ -45,10 +45,10 @@ from torch.utils.data import TensorDataset, DataLoader
 
 #----- グローバル変数一覧 -----
 MAX_LENGTH = 200
-HIDDEN_DIM = 64
-ATTN_DIM = 64
-EMB_DIM = 64
-BATCH_SIZE = 64
+HIDDEN_DIM = 50
+ATTN_DIM = 50
+EMB_DIM = 50
+BATCH_SIZE = 32
 
 #自分で定義したグローバル関数とか
 file_path='../../../pytorch_data/'
