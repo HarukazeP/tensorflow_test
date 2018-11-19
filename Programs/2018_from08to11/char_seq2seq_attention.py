@@ -48,7 +48,11 @@ MAX_LENGTH = 200
 HIDDEN_DIM = 64
 ATTN_DIM = 64
 EMB_DIM = 64
+<<<<<<< HEAD
 BATCH_SIZE = 512
+=======
+BATCH_SIZE = 32
+>>>>>>> 38dc299007a5abc31e0bfe950b02306401d172d3
 
 #自分で定義したグローバル関数とか
 file_path='../../../pytorch_data/'
@@ -502,6 +506,8 @@ def trainIters(lang, encoder, decoder, train_pairs, val_pairs, n_iters, print_ev
     loader_train = DataLoader(ds_train, batch_size=BATCH_SIZE, shuffle=True)
     loader_val = DataLoader(ds_val, batch_size=BATCH_SIZE, shuffle=False)
 
+    print(len(loader_train))
+    #print(len(ds_train))
 
 
     criterion = nn.NLLLoss(ignore_index=PAD_token)
@@ -608,7 +614,7 @@ def showPlot2(loss, val_loss):
 ###########################
 # 5.モデルによる予測(以下はテスト)
 ###########################
-
+'''
 
 #前方一致の確認
 def forward_match(chars, cloze_chars, cloze_ct):
@@ -822,6 +828,54 @@ def calc_score(preds_sentences, ans_sentences):
     return line_num, allOK, clozeOK, partOK, BLEU, miss
 
 
+
+
+
+
+
+
+def get_choices(file_name):
+    print("Reading data...")
+    choices=[]
+    with open(file_name, encoding='utf-8') as f:
+        for line in f:
+            line=get_cloze(normalizeString(line, choices=True))
+            choices.append(line.split(' ### '))     #選択肢を区切る文字列
+
+    return choices
+
+
+
+
+
+#テストデータに対する予測と精度計算
+#空所内のみを予測するモード
+#および、選択肢を利用するモード
+def test_choices(lang, encoder, decoder, test_data, choices, saveAttention=False, file_output=False):
+    print("Test ...")
+    #input_sentence や ansは文字列であるのに対し、output_charsはリストであることに注意
+    preds=[]
+    ans=[]
+    preds_cloze=[]
+    preds_choices=[]
+    for pair, choi in zip(test_data, choices):
+        input_sentence=pair[0]
+        ans.append(pair[1])
+
+        output_choice_chars, choice_attentions = evaluate_choice(lang, encoder, decoder, input_sentence, choi)
+        preds_choices.append(' '.join(output_choice_chars))
+
+        if saveAttention:
+
+            showAttention('choice', input_sentence, output_choice_chars, choice_attentions)
+        if file_output:
+
+            output_preds(save_path+'preds_choices.txt', preds_choices)
+    print("Calc scores ...")
+
+    score(preds_choices, ans, file_output, save_path+'score_choices.txt')
+'''
+
 def output_preds(file_name, preds):
     with open(file_name, 'w') as f:
         for p in preds:
@@ -857,17 +911,6 @@ def output_score(file_name, line, allOK, clozeOK, partOK, BLEU, miss):
         f.write(output)
 
 
-def get_choices(file_name):
-    print("Reading data...")
-    choices=[]
-    with open(file_name, encoding='utf-8') as f:
-        for line in f:
-            line=get_cloze(normalizeString(line, choices=True))
-            choices.append(line.split(' ### '))     #選択肢を区切る文字列
-
-    return choices
-
-
 def score(preds, ans, file_output, file_name):
     #精度のprintとファイル出力
     line, allOK, clozeOK, partOK, BLEU, miss = calc_score(preds, ans)
@@ -875,33 +918,6 @@ def score(preds, ans, file_output, file_name):
     if file_output:
         output_score(file_name, line, allOK, clozeOK, partOK, BLEU, miss)
 
-
-#テストデータに対する予測と精度計算
-#空所内のみを予測するモード
-#および、選択肢を利用するモード
-def test_choices(lang, encoder, decoder, test_data, choices, saveAttention=False, file_output=False):
-    print("Test ...")
-    #input_sentence や ansは文字列であるのに対し、output_charsはリストであることに注意
-    preds=[]
-    ans=[]
-    preds_cloze=[]
-    preds_choices=[]
-    for pair, choi in zip(test_data, choices):
-        input_sentence=pair[0]
-        ans.append(pair[1])
-
-        output_choice_chars, choice_attentions = evaluate_choice(lang, encoder, decoder, input_sentence, choi)
-        preds_choices.append(' '.join(output_choice_chars))
-
-        if saveAttention:
-
-            showAttention('choice', input_sentence, output_choice_chars, choice_attentions)
-        if file_output:
-
-            output_preds(save_path+'preds_choices.txt', preds_choices)
-    print("Calc scores ...")
-
-    score(preds_choices, ans, file_output, save_path+'score_choices.txt')
 
 
 #選択肢を使って4つの文を生成
@@ -916,7 +932,7 @@ def make_sents_with_cloze_mark(sentence, choices):
     return sents
 
 #1文に対して文スコアを算出
-def calc_sent_score(lang, encoder, decoder, sent, max_length=MAX_LENGTH):
+def calc_sent_score_char(lang, encoder, decoder, sent, max_length=MAX_LENGTH):
     #evaluate_choiceから改変
     score=0
     with torch.no_grad():
@@ -937,14 +953,14 @@ def calc_sent_score(lang, encoder, decoder, sent, max_length=MAX_LENGTH):
                 break
             decoder_input = torch.tensor([input_indexes[di]], device=my_device)
 
-    return score/len(sent.split(' '))
+    return score/len(sent)
 
 
 
 def get_best_sent(lang, encoder, decoder, sents):
     scores=[]
     for sent in sents:
-        score=calc_sent_score(lang, encoder, decoder, sent)
+        score=calc_sent_score_char(lang, encoder, decoder, sent)
         scores.append(score)
 
     #scoreが最大の分を返す
@@ -1055,8 +1071,11 @@ if __name__ == '__main__':
 
         save_path=save_path+today_str
 
+    '''
     print('train only')
     exit()
+    '''
+
     # 4.評価
     center_cloze=git_data_path+'center_cloze.txt'
     center_ans=git_data_path+'center_ans.txt'
