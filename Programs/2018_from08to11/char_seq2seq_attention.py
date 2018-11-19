@@ -45,10 +45,10 @@ from torch.utils.data import TensorDataset, DataLoader
 
 #----- グローバル変数一覧 -----
 MAX_LENGTH = 200
-HIDDEN_DIM = 256
-ATTN_DIM = 256
-EMB_DIM = 256
-BATCH_SIZE = 128
+HIDDEN_DIM = 64
+ATTN_DIM = 64
+EMB_DIM = 64
+BATCH_SIZE = 512
 
 #自分で定義したグローバル関数とか
 file_path='../../../pytorch_data/'
@@ -142,8 +142,8 @@ def normalizeString(s, choices=False):
 def readVocab():
     lang = Lang()
     lang.addSentence('abcdefghijklmnopqrstuvwxyz{} ')
-    print("Vocab: %s" % lang.n_chars)
-    print("Vocab: %s" % lang.index2char)
+    #print("Vocab: %s" % lang.n_chars)
+    #print("Vocab: %s" % lang.index2char)
     return lang
 
 
@@ -506,9 +506,15 @@ def trainIters(lang, encoder, decoder, train_pairs, val_pairs, n_iters, print_ev
 
     criterion = nn.NLLLoss(ignore_index=PAD_token)
     print("iter start...")
+    print(len(loader_train))
+
 
     for iter in range(1, n_iters + 1):
+        iii=0
         for x, y in loader_train:
+            iii+=1
+            if iii%100==0:
+                print(iii)
             '''
             x:(バッチサイズ, 文長)
             y:(バッチサイズ, 文長)
