@@ -125,7 +125,7 @@ def check_grammar_and_calc_baseline_acc(ans, choices):
 
 def make_choices_file_and_calc_baseline_acc(ans_path, choi_path, output_path):
     all_choices=get_choices_from_raw_data(choi_path)
-    ans_sents=read_rawData()
+    ans_sents=read_rawData(ans_path)
     line_num=0
     baseline_OK=0
     max_OK=0
