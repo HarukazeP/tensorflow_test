@@ -141,7 +141,7 @@ def normalizeString(s, choices=False):
 #アルファベット与える
 def readVocab():
     lang = Lang()
-    lang.addSentence('abcdefghijklmnopqrstuvwxyz\{\} ')
+    lang.addSentence('abcdefghijklmnopqrstuvwxyz{} ')
     print("Vocab: %s" % lang.n_chars)
     print("Vocab: %s" % lang.index2char)
     return lang
