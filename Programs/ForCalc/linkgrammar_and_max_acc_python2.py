@@ -33,10 +33,10 @@ def linkage_stat(psent, lang):
              format(psent.num_linkages_post_processed()) \
              if psent.num_valid_linkages() < psent.num_linkages_found() else ''
 
-    print '{0}: Found {1} linkage{2} ({3}{4} had no P.P. violations)'. \
+    print('{0}: Found {1} linkage{2} ({3}{4} had no P.P. violations)'. \
           format(lang, psent.num_linkages_found(),
                  s(psent.num_linkages_found()),
-                 psent.num_valid_linkages(), random)
+                 psent.num_valid_linkages(), random))
 
 
 def is_grammar_OK(text):
