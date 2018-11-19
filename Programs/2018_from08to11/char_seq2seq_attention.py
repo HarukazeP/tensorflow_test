@@ -513,11 +513,9 @@ def trainIters(lang, encoder, decoder, train_pairs, val_pairs, n_iters, print_ev
 
 
     for iter in range(1, n_iters + 1):
-        iii=0
+        print('iter=',iter)
         for x, y in loader_train:
-            iii+=1
-            if iii%100==0:
-                print(iii)
+
             '''
             x:(バッチサイズ, 文長)
             y:(バッチサイズ, 文長)
@@ -571,6 +569,10 @@ def trainIters(lang, encoder, decoder, train_pairs, val_pairs, n_iters, print_ev
             best_encoder_weight = copy.deepcopy(encoder.state_dict())
             best_decoder_weight = copy.deepcopy(decoder.state_dict())
 
+            if saveModel:
+                torch.save(encoder.state_dict(), save_path+'encoder_'+str(iter)+'.pth')
+                torch.save(decoder.state_dict(), save_path+'decoder_'+str(iter)+'.pth')
+
     #全学習終わり
     #lossグラフ描画
     showPlot2(plot_losses, plot_val_losses)
@@ -581,8 +583,8 @@ def trainIters(lang, encoder, decoder, train_pairs, val_pairs, n_iters, print_ev
     print('best iter='+str(best_iter))
 
     if saveModel:
-        torch.save(encoder.state_dict(), save_path+'encoder_'+str(best_iter)+'.pth')
-        torch.save(decoder.state_dict(), save_path+'decoder_'+str(best_iter)+'.pth')
+        torch.save(encoder.state_dict(), save_path+'BESTencoder_'+str(best_iter)+'.pth')
+        torch.save(decoder.state_dict(), save_path+'BESTdecoder_'+str(best_iter)+'.pth')
 
     return encoder, decoder
 
