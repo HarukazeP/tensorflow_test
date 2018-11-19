@@ -21,6 +21,7 @@ from linkgrammar import Sentence, ParseOptions, Dictionary
 
 locale.setlocale(locale.LC_ALL, "en_US.UTF-8")
 po = ParseOptions()
+en_dir = Dictionary()
 
 def s(q):
     return '' if q == 1 else 's'
@@ -41,7 +42,7 @@ def linkage_stat(psent, lang):
 
 def is_grammar_OK(text):
     flag=0
-    sent = Sentence(text, Dictionary(), po)
+    sent = Sentence(text, en_dir, po)
     linkages = sent.parse()
     linkage_stat(sent, 'English')
     for linkage in linkages:
@@ -87,7 +88,7 @@ def get_choices_from_raw_data(file_name):
 def randamOK(ans, OKchoices):
     flag=0
     max_flag=0
-    ans_word=get_cloze(line)
+    ans_word=get_cloze(ans)
     if ans_word in OKchoices:
         max_flag=1
     rand_choi=random.choice(OKchoices)
