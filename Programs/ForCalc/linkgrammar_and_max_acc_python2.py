@@ -111,7 +111,7 @@ def check_grammar_and_calc_baseline_acc(ans, choices):
     if not OKchoices:
         #pythonではlistが空だとFalseになることを利用
         #どの選択肢も文法エラーの場合は全て使う
-        print('allNG')
+        #print('allNG')
         allNG_flag=1
         OKchoices=choices
 
