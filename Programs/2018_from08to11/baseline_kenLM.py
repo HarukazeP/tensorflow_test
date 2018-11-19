@@ -249,7 +249,9 @@ if __name__ == '__main__':
     model1=model_path+'text8_twice_UNK30000.klm'
     model2=model_path+'text8_half_UNK30000_N7.klm'
     model3=model_path+'text8_twice_N7.klm'
-    models=[model1]
+
+    model='/media/tamaki/HDCL-UT/tamaki/M2/kenlm_models/vocab30000/enwiki1GB_UNK30000_N7.klm'
+    models=[model]
 
     for model_path in models:
         print(model_path)
@@ -264,15 +266,15 @@ if __name__ == '__main__':
         data=make_data(center_data, center_choices, one_word=False)
         calc_acc(data, model)
 
-        data=make_data(center_data, center_choices, one_word=True)
-        calc_acc(data, model)
+        #data=make_data(center_data, center_choices, one_word=True)
+        #calc_acc(data, model)
 
-        print('MS')
-        data=make_data(MS_data, MS_choices, one_word=False)
-        calc_acc(data, model)
+        #print('MS')
+        #data=make_data(MS_data, MS_choices, one_word=False)
+        #calc_acc(data, model)
 
-        data=make_data(MS_data, MS_choices, one_word=True)
-        calc_acc(data, model)
+        #data=make_data(MS_data, MS_choices, one_word=True)
+        #calc_acc(data, model)
 
 
         #選択肢なしテスト

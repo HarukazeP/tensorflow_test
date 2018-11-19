@@ -72,8 +72,12 @@ start_time=print_time('all start')
 
 #データ
 tmp_path='../../../pytorch_data/'
-input_data=tmp_path+'data_for_kenlm/text8_twice.txt'
-output_data=tmp_path+'data_for_kenlm/text8_twice_UNK30000.txt'
+#input_data=tmp_path+'data_for_kenlm/text8_twice.txt'
+#output_data=tmp_path+'data_for_kenlm/text8_twice_UNK30000.txt'
+
+input_data='/media/tamaki/HDCL-UT/tamaki/M2/data_for_kenlm/enwiki1GB.txt'
+output_data='/media/tamaki/HDCL-UT/tamaki/M2/data_for_kenlm/enwiki1GB_UNK30000.txt'
+
 
 vocab_path=tmp_path+'enwiki_vocab30000_wordonly.txt'
 

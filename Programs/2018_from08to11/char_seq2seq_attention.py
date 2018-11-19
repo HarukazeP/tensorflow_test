@@ -10,8 +10,6 @@ seq2seq_attention_small.py から大きく変更
 動かしていたバージョン
 python  : 3.5.2 / 3.6.5
 pytorch : 2.0.4
-gensim  : 3.1.0 / 3.5.0
-
 
 '''
 
@@ -38,13 +36,12 @@ import matplotlib.ticker as ticker
 import numpy as np
 import os
 import argparse
-import collections
+
 from sklearn.model_selection import train_test_split
 import copy
 
 from torch.utils.data import TensorDataset, DataLoader
 
-import gensim
 
 #----- グローバル変数一覧 -----
 MAX_LENGTH = 200
@@ -145,7 +142,7 @@ def normalizeString(s, choices=False):
 def readVocab():
     lang = Lang()
     lang.addSentence('abcdefghijklmnopqrstuvwxyz\{\} ')
-    #print("Vocab: %s" % lang.n_chars)
+    print("Vocab: %s" % lang.n_chars)
 
     return lang
 
@@ -183,7 +180,7 @@ def readData2(file):
 
 #エンコーダのクラス
 class charEncoderRNN(nn.Module):
-    def __init__(self, input_dim, emb_dim, hid_dim, weights_matrix):
+    def __init__(self, input_dim, emb_dim, hid_dim):
         super(charEncoderRNN, self).__init__()
         self.input_dim = input_dim #入力語彙数
         self.embedding_dim = emb_dim
@@ -249,7 +246,7 @@ h=(batch_size, output_dim)
 #attentionつきデコーダのクラス
 #attentionの形式をluongのやつに
 class charAttnDecoderRNN(nn.Module):
-    def __init__(self, emb_size, hidden_size, attn_size, output_size, weights_matrix):
+    def __init__(self, emb_size, hidden_size, attn_size, output_size):
         super(charAttnDecoderRNN, self).__init__()
         self.hidden_size = hidden_size
         self.output_size = output_size
@@ -466,7 +463,7 @@ def timeSince(since, percent):
 
 
 #学習をn_iters回，残り時間の算出をlossグラフの描画も
-def trainIters(lang, encoder, decoder, train_pairs, val_pairs, n_iters, print_every=10, learning_rate=0.01, saveModel=False):
+def trainIters(lang, encoder, decoder, train_pairs, val_pairs, n_iters, print_every=10, learning_rate=0.01, saveModel=True):
     print("Training...")
     start = time.time()
     plot_losses = []
@@ -508,6 +505,7 @@ def trainIters(lang, encoder, decoder, train_pairs, val_pairs, n_iters, print_ev
 
 
     criterion = nn.NLLLoss(ignore_index=PAD_token)
+    print("iter start...")
 
     for iter in range(1, n_iters + 1):
         for x, y in loader_train:
@@ -998,9 +996,8 @@ if __name__ == '__main__':
     vocab = readVocab()
 
     # 2.モデル定義
-    weights_matrix=get_weight_matrix(vocab)
-    my_encoder = charEncoderRNN(vocab.n_chars, EMB_DIM, HIDDEN_DIM, weights_matrix).to(my_device)
-    my_decoder = charAttnDecoderRNN(EMB_DIM, HIDDEN_DIM, ATTN_DIM, vocab.n_chars, weights_matrix).to(my_device)
+    my_encoder = charEncoderRNN(vocab.n_chars, EMB_DIM, HIDDEN_DIM).to(my_device)
+    my_decoder = charAttnDecoderRNN(EMB_DIM, HIDDEN_DIM, ATTN_DIM, vocab.n_chars).to(my_device)
 
     #学習時
     if args.mode == 'all' or args.mode == 'mini':
