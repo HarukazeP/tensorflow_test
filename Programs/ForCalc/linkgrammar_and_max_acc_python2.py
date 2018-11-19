@@ -44,7 +44,7 @@ def is_grammar_OK(text):
     flag=0
     sent = Sentence(text, en_dir, po)
     linkages = sent.parse()
-    linkage_stat(sent, 'English')
+    #linkage_stat(sent, 'English')
     for linkage in linkages:
         if '(RIGHT-WALL)]' in linkage.postscript():
             flag=1
