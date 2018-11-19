@@ -15,7 +15,7 @@ po = ParseOptions()
 def desc(lkg):
     #print lkg.diagram()
     #print 'Postscript:'
-    print lkg.postscript()[0]
+    print lkg.postscript()[:find('\n')]
 
     #print '---'
 
