@@ -99,6 +99,7 @@ def randamOK(ans, OKchoices):
 
 def check_grammar_and_calc_baseline_acc(ans, choices):
     OKchoices=[]
+    allNG_flag=0
     before=re.sub(r'{.*', '', ans)
     after=re.sub(r'.*}', '', ans)
 
@@ -110,6 +111,8 @@ def check_grammar_and_calc_baseline_acc(ans, choices):
     if not OKchoices:
         #pythonではlistが空だとFalseになることを利用
         #どの選択肢も文法エラーの場合は全て使う
+        print('allNG')
+        allNG_flag=1
         OKchoices=choices
 
     flag, max_flag=randamOK(ans, OKchoices)
@@ -120,7 +123,7 @@ def check_grammar_and_calc_baseline_acc(ans, choices):
     mid=' ### '.join(OKchoices)
     output_line=before_with_cloze+mid+after_with_cloze
 
-    return OKchoices, flag, max_flag, output_line
+    return OKchoices, flag, max_flag, output_line, allNG_flag
 
 
 
@@ -130,15 +133,17 @@ def make_choices_file_and_calc_baseline_acc(ans_path, choi_path, output_path):
     line_num=0
     baseline_OK=0
     max_OK=0
+    allNG=0
     #ここまでは空所の記号ついたまま
     with open(output_path, 'w') as f:
         for ans, choices in zip(ans_sents, all_choices):
             line_num+=1
-            OKchoices, flag, max_flag, output_line=check_grammar_and_calc_baseline_acc(ans, choices)
+            OKchoices, flag, max_flag, output_line, allNG_flag=check_grammar_and_calc_baseline_acc(ans, choices)
             baseline_OK+=flag
             max_OK+=max_flag
+            allNG+=allNG_flag
             f.write(output_line+'\n')
-
+    print('allNG',allNG)
     print('baseline: ',1.0*baseline_OK/line_num*100)
     print('max_acc : ',1.0*max_OK/line_num*100)
 
