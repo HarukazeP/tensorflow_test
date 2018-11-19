@@ -138,13 +138,17 @@ def make_choices_file_and_calc_baseline_acc(ans_path, choi_path, output_path):
     with open(output_path, 'w') as f:
         for ans, choices in zip(ans_sents, all_choices):
             line_num+=1
+            if(line_num%100==0):
+                print('line',line_num)
             OKchoices, flag, max_flag, output_line, allNG_flag=check_grammar_and_calc_baseline_acc(ans, choices)
             baseline_OK+=flag
             max_OK+=max_flag
             allNG+=allNG_flag
             f.write(output_line+'\n')
     print('allNG',allNG)
+    print('baseline_OK: ',baseline_OK)
     print('baseline: ',1.0*baseline_OK/line_num*100)
+    print('max_OK : ',max_OK)
     print('max_acc : ',1.0*max_OK/line_num*100)
 
 
