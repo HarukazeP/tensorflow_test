@@ -13,10 +13,11 @@ po = ParseOptions()
 #po = ParseOptions(linkage_limit=3)
 
 def desc(lkg):
-    print lkg.diagram()
-    print 'Postscript:'
-    print lkg.postscript()
-    print '---'
+    #print lkg.diagram()
+    #print 'Postscript:'
+    print lkg.postscript()[0]
+
+    #print '---'
 
 def s(q):
     return '' if q == 1 else 's'
@@ -38,9 +39,6 @@ def linkage_stat(psent, lang):
 # English is the default language
 sent = Sentence("This is a test.", Dictionary(), po)
 linkages = sent.parse()
-print('-------------------------------')
 linkage_stat(sent, 'English')
-print('-------------------------------')
 for linkage in linkages:
     desc(linkage)
-print('-------------------------------')

@@ -63,12 +63,16 @@ def get_choices_from_raw_data(file_name):
 
 
 def randamOK(ans, OKchoices):
+    flag=0
+    max_flag=0
     ans_word=get_cloze(line)
+    if ans_word in OKchoices:
+        max_flag=1
     rand_choi=random.choice(OKchoices)
     if ans_word==rand_choi:
-        return 1
+        flag=1
 
-    return 0
+    return flag, max_flag
 
 def check_grammar_and_calc_baseline_acc(ans, choices):
     OKchoices=[]
@@ -85,7 +89,7 @@ def check_grammar_and_calc_baseline_acc(ans, choices):
         #どの選択肢も文法エラーの場合は全て使う
         OKchoices=choices
 
-    flag=randamOK(ans, OKchoices)
+    flag, max_flag=randamOK(ans, OKchoices)
 
     before_with_cloze=re.sub(r'{.*', '{ ', ans)
     after_with_cloze=re.sub(r'.*}', ' }', ans)
@@ -93,7 +97,7 @@ def check_grammar_and_calc_baseline_acc(ans, choices):
     mid=' ### '.join(OKchoices)
     output_line=before_with_cloze+mid+after_with_cloze
 
-    return OKchoices, flag, output_line
+    return OKchoices, flag, max_flag, output_line
 
 
 
@@ -102,11 +106,13 @@ def make_choices_file_and_calc_baseline_acc(ans_path, choi_path, output_path):
     ans_sents=read_rawData()
     line_num=0
     baseline_OK=0
+    max_OK=0
     #ここまでは空所の記号ついたまま
     with open(output_path, 'w') as f:
         for ans, choices in zip(ans_sents, all_choices):
-            OKchoices, flag, output_line=check_grammar_and_calc_baseline_acc(ans, choices)
+            OKchoices, flag, max_flag, output_line=check_grammar_and_calc_baseline_acc(ans, choices)
             baseline_OK+=flag
+            max_OK+=max_flag
             f.write(output_line+'\n')
 
     print('baseline: ',1.0*baseline_OK/line_num*100)
