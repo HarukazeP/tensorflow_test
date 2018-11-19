@@ -1,9 +1,10 @@
 # -*- coding: utf-8 -*-
 
 '''
-check_model_output_top10_words.py から変更
-学習はせずテストのみ
-文法チェック済みのchoicesファイルを用いて予測
+pytorchのseq2seqチュートリアルを改変
+seq2seq_attention_small.py から大きく変更
+語彙ループを削除
+モデルの入出力を単語レベルに
 
 
 動かしていたバージョン
@@ -45,12 +46,11 @@ from torch.utils.data import TensorDataset, DataLoader
 
 import gensim
 
-
 #----- グローバル変数一覧 -----
-MAX_LENGTH = 40
-HIDDEN_DIM = 128
-ATTN_DIM = 128
-EMB_DIM = 300
+MAX_LENGTH = 200
+HIDDEN_DIM = 256
+ATTN_DIM = 256
+EMB_DIM = 256
 BATCH_SIZE = 128
 
 #自分で定義したグローバル関数とか
@@ -62,7 +62,7 @@ save_path=file_path + today_str
 PAD_token = 0
 SOS_token = 1
 EOS_token = 2
-UNK_token = 3
+
 
 #事前処理いろいろ
 print('Start: '+today_str)
@@ -72,12 +72,6 @@ if torch.cuda.is_available():
 else:
     my_device= torch.device("cpu")
 
-
-'''
-# TODO: なんかlinkgrammerのインストールできない
-en_dir = linkgrammar.Dictionary()
-po = linkgrammar.ParseOptions(min_null_count=0, max_null_count=999)
-'''
 #----- 関数群 -----
 
 
@@ -88,31 +82,30 @@ po = linkgrammar.ParseOptions(min_null_count=0, max_null_count=999)
 #seq2seqモデルで用いる語彙に関するクラス
 class Lang:
     def __init__(self):
-        self.word2index = {"<UNK>": UNK_token}
-        self.word2count = {"<UNK>": 0}
-        self.index2word = {PAD_token: "PAD", SOS_token: "SOS", EOS_token: "EOS", UNK_token: "<UNK>"}
-        self.n_words = 4  # PAD と SOS と EOS と UNK
+        self.char2index = {}
+        self.index2char = {PAD_token: "P", SOS_token: "S", EOS_token: "E"}
+        self.n_chars = 3  # PAD と SOS と EOS
 
     #文から単語を語彙へ
     def addSentence(self, sentence):
-        for word in sentence.split(' '):
-            self.addWord(word)
+        for i in range(len(sentence)):
+            self.addChar(sentence[i])
 
     #語彙のカウント
-    def addWord(self, word):
-        if word not in self.word2index:
-            self.word2index[word] = self.n_words
-            self.word2count[word] = 1
-            self.index2word[self.n_words] = word
-            self.n_words += 1
-        else:
-            self.word2count[word] += 1
+    def addChar(self, char):
+        if char not in self.char2index:
+            self.char2index[char] = self.n_chars
+            self.index2char[self.n_chars] = char
+            self.n_chars += 1
 
-    def check_word2index(self, word):
-        if word in self.word2index:
-            return self.word2index[word]
-        else:
-            return self.word2index["<UNK>"]
+    def char2id(self, char):
+        try:
+            id = self.char2index[char]
+        except KeyError:
+            id = PAD_token
+            #そもそもKeyErrorになるはずないけど一応
+        return id
+
 
 
 #半角カナとか特殊記号とかを正規化
@@ -148,14 +141,11 @@ def normalizeString(s, choices=False):
     return s.strip()
 
 
-#与えた語彙読み込み(自作)
-def readVocab(file):
+#アルファベット与える
+def readVocab():
     lang = Lang()
-    print("Reading vocab...")
-    with open(file, encoding='utf-8') as f:
-        for line in f:
-            lang.addSentence(normalizeString(line))
-    #print("Vocab: %s" % lang.n_words)
+    lang.addSentence('abcdefghijklmnopqrstuvwxyz\{\} ')
+    #print("Vocab: %s" % lang.n_chars)
 
     return lang
 
@@ -185,29 +175,6 @@ def readData2(file):
 
     return data
 
-#Googleのword2vec読み取り
-def get_weight_matrix(lang):
-    print('Loading word vector ...')
-    #ここのgensimの書き方がバージョンによって異なる
-    vec_model = gensim.models.KeyedVectors.load_word2vec_format(file_path+'GoogleNews-vectors-negative300.bin', binary=True)
-    # https://code.google.com/archive/p/word2vec/ ここからダウンロード&解凍
-
-    weights_matrix = np.zeros((lang.n_words, EMB_DIM))
-
-    for i, word in lang.index2word.items():
-        try:
-            weights_matrix[i] = vec_model.wv[word]
-        except KeyError:
-            weights_matrix[i] = np.random.normal(size=(EMB_DIM, ))
-
-    del vec_model
-    #これメモリ解放的なことらしい、なくてもいいかも
-
-    #パディングのところを初期化
-    #Emneddingで引数のpad_index指定は、そこだけ更新(微分)しないらしい？
-    weights_matrix[PAD_token]=np.zeros(EMB_DIM)
-
-    return weights_matrix
 
 
 ###########################
@@ -215,25 +182,22 @@ def get_weight_matrix(lang):
 ###########################
 
 #エンコーダのクラス
-class EncoderRNN(nn.Module):
+class charEncoderRNN(nn.Module):
     def __init__(self, input_dim, emb_dim, hid_dim, weights_matrix):
-        super(EncoderRNN, self).__init__()
+        super(charEncoderRNN, self).__init__()
         self.input_dim = input_dim #入力語彙数
         self.embedding_dim = emb_dim
         self.hidden_dim = hid_dim
 
         self.embedding = nn.Embedding(self.input_dim, self.embedding_dim, padding_idx=PAD_token) #語彙数×次元数
-        self.embedding.weight.data.copy_(torch.from_numpy(weights_matrix))
 
         self.lstm = nn.LSTM(input_size=self.embedding_dim,
                             hidden_size=self.hidden_dim,
                             bidirectional=True,
-                            num_layers=2)
+                            num_layers=1)
         self.linear_h1 = nn.Linear(self.hidden_dim * 2, self.hidden_dim)
         self.linear_c1 = nn.Linear(self.hidden_dim * 2, self.hidden_dim)
 
-        self.linear_h2 = nn.Linear(self.hidden_dim * 2, self.hidden_dim)
-        self.linear_c2 = nn.Linear(self.hidden_dim * 2, self.hidden_dim)
 
     def forward(self, input_batch):
         """
@@ -246,47 +210,24 @@ class EncoderRNN(nn.Module):
         batch_size = input_batch.shape[1]
 
         embedded = self.embedding(input_batch)  # (s, b) -> (s, b, h)
-        output, (all_h, all_c) = self.lstm(embedded)
-
-        hidden_h1, hidden_h2=torch.chunk(all_h, 2, dim=0)
-        hidden_c1, hidden_c2=torch.chunk(all_c, 2, dim=0)
-
+        output, (hidden_h1,hidden_c1) = self.lstm(embedded)
 
         hidden_h1 = hidden_h1.transpose(1, 0)  # (2, b, h) -> (b, 2, h)
         hidden_h1 = hidden_h1.reshape(batch_size, -1)  # (b, 2, h) -> (b, 2h)
         hidden_h1 = F.dropout(hidden_h1, p=0.5, training=self.training)
         hidden_h1 = self.linear_h1(hidden_h1)  # (b, 2h) -> (b, h)
         hidden_h1 = F.relu(hidden_h1)
-        hidden_h1 = hidden_h1.unsqueeze(0)  # (b, h) -> (1, b, h)
+        hidden_h = hidden_h1.unsqueeze(0)  # (b, h) -> (1, b, h)
 
         hidden_c1 = hidden_c1.transpose(1, 0)
         hidden_c1 = hidden_c1.reshape(batch_size, -1)  # (b, 2, h) -> (b, 2h)
         hidden_c1 = F.dropout(hidden_c1, p=0.5, training=self.training)
         hidden_c1 = self.linear_c1(hidden_c1)
         hidden_c1 = F.relu(hidden_c1)
-        hidden_c1 = hidden_c1.unsqueeze(0)  # (b, h) -> (1, b, h)
-
-
-        hidden_h2 = hidden_h2.transpose(1, 0)  # (2, b, h) -> (b, 2, h)
-        hidden_h2 = hidden_h2.reshape(batch_size, -1)  # (b, 2, h) -> (b, 2h)
-        hidden_h2 = F.dropout(hidden_h2, p=0.5, training=self.training)
-        hidden_h2 = self.linear_h2(hidden_h2)  # (b, 2h) -> (b, h)
-        hidden_h2 = F.relu(hidden_h2)
-        hidden_h2 = hidden_h2.unsqueeze(0)  # (b, h) -> (1, b, h)
-
-        hidden_c2 = hidden_c2.transpose(1, 0)
-        hidden_c2 = hidden_c2.reshape(batch_size, -1)  # (b, 2, h) -> (b, 2h)
-        hidden_c2 = F.dropout(hidden_c2, p=0.5, training=self.training)
-        hidden_c2 = self.linear_c2(hidden_c2)
-        hidden_c2 = F.relu(hidden_c2)
-        hidden_c2 = hidden_c2.unsqueeze(0)  # (b, h) -> (1, b, h)
-
-        hidden_h = (hidden_h1, hidden_h2)
-        hidden_c = (hidden_c1, hidden_c2)
-
+        hidden_c = hidden_c1.unsqueeze(0)  # (b, h) -> (1, b, h)
 
         return output, (hidden_h, hidden_c)
-        # (s, b, 2h), (((1, b, h), (1, b, h)), ((1, b, h), (1, b, h)))
+        # (s, b, 2h), ((1, b, h), (1, b, h))
 
 
 '''
@@ -307,16 +248,14 @@ h=(batch_size, output_dim)
 '''
 #attentionつきデコーダのクラス
 #attentionの形式をluongのやつに
-class AttnDecoderRNN2(nn.Module):
+class charAttnDecoderRNN(nn.Module):
     def __init__(self, emb_size, hidden_size, attn_size, output_size, weights_matrix):
-        super(AttnDecoderRNN2, self).__init__()
+        super(charAttnDecoderRNN, self).__init__()
         self.hidden_size = hidden_size
         self.output_size = output_size
 
         self.embedding = nn.Embedding(output_size, emb_size, padding_idx=PAD_token)
-        self.embedding.weight.data.copy_(torch.from_numpy(weights_matrix))
         self.lstm = nn.LSTMCell(emb_size, hidden_size)
-        self.lstm2 = nn.LSTMCell(hidden_size, hidden_size)
 
         self.score_w = nn.Linear(2*hidden_size, 2*hidden_size)
         self.attn_w = nn.Linear(4*hidden_size, attn_size)
@@ -334,13 +273,11 @@ class AttnDecoderRNN2(nn.Module):
         embedded = self.embedding(input)  # (b) -> (b,e)
         embedded = F.dropout(embedded, p=0.5, training=self.training)
 
-        hidden1=hidden[0]
-        hidden2=hidden[1]
 
-        hidden1 = self.lstm(embedded, hidden1)  # (b,e),((b,h),(b,h)) -> ((b,h),(b,h))
-        hidden2 = self.lstm2(hidden1[0], hidden2)  # (b,h),((b,h),(b,h)) -> ((b,h),(b,h))
 
-        decoder_output = torch.cat(hidden2, dim=1)  # ((b,h),(b,h)) -> (b,2h)
+        hidden = self.lstm(embedded, hidden)  # (b,e),((b,h),(b,h)) -> ((b,h),(b,h))
+
+        decoder_output = torch.cat(hidden, dim=1)  # ((b,h),(b,h)) -> (b,2h)
         decoder_output = F.dropout(decoder_output, p=0.5, training=self.training)
 
         # score
@@ -368,8 +305,8 @@ class AttnDecoderRNN2(nn.Module):
         output = self.out_w(attentional)  # (b,a) -> (b,o)
         output = F.log_softmax(output, dim=1)
 
-        return output, (hidden1, hidden2), attn_weights.squeeze(2)
-        # (b,o), (((b,h),(b,h)), ((b,h),(b,h)), (b,il)
+        return output, hidden, attn_weights.squeeze(2)
+        # (b,o), ((b,h),(b,h)), (b,il)
 
 
 ###########################
@@ -377,30 +314,28 @@ class AttnDecoderRNN2(nn.Module):
 ###########################
 
 #単語列をID列に
-def indexesFromSentence(lang, sentence):
-    return [lang.check_word2index(word) for word in sentence.split(' ')]
-
-
-#単語列からモデルの入力へのテンソルに
-def tensorFromSentence(lang, sentence):
-    indexes = indexesFromSentence(lang, sentence)
-    indexes.append(EOS_token)
-    return torch.tensor(indexes, dtype=torch.long, device=my_device).view(-1, 1)
+def indexesFromSentence_char(lang, sentence):
+    return [lang.char2id(sentence[i]) for i in range(len(sentence))]
 
 
 #単語列からモデルの入力へのテンソルに
 #パディングあり、returnも変更
-def pad_indexes(lang, sentence):
-    indexes = indexesFromSentence(lang, sentence)
-    indexes.append(EOS_token)
-    indexes + [0] * (MAX_LENGTH - len(indexes))
-    return indexes + [0] * (MAX_LENGTH - len(indexes))
+def pad_indexes_char(lang, sentence):
+    indexes = indexesFromSentence_char(lang, sentence)
+    leng = len(indexes)
+    if leng < MAX_LENGTH-1:
+        indexes.append(EOS_token)
+        output= indexes + [0] * (MAX_LENGTH - (leng +1))
+    else:
+        output=indexes[:(MAX_LENGTH-1)]
+        output.append(EOS_token)
+    return output
 
 
 #入力と出力のペアからリストに
-def indexesFromPair(lang, pair):
-    input_tensor = pad_indexes(lang, pair[0])
-    target_tensor = pad_indexes(lang, pair[1])
+def indexesFromPair_char(lang, pair):
+    input_tensor = pad_indexes_char(lang, pair[0])
+    target_tensor = pad_indexes_char(lang, pair[1])
     return (input_tensor, target_tensor)
 
 
@@ -438,8 +373,7 @@ def batch_train(X, Y, encoder, decoder, encoder_optimizer, decoder_optimizer, cr
     decoder_input = torch.tensor([[SOS_token] * batch_size], device=my_device)  # (1, b)
     decoder_inputs = torch.cat([decoder_input, Y], dim=0)  # (1,b), (n,b) -> (n+1, b)
 
-    decoder_hidden = ( (encoder_hidden[0][0].squeeze(0), encoder_hidden[0][1].squeeze(0)),
-                    (encoder_hidden[1][0].squeeze(0), encoder_hidden[1][1].squeeze(0)) )
+    decoder_hidden = (encoder_hidden[0].squeeze(0), encoder_hidden[1].squeeze(0))
 
     #teacher forcingを使用する割合
     teacher_forcing_ratio = 0.5
@@ -495,11 +429,10 @@ def batch_valid(X, Y, encoder, decoder, criterion, lang):
 
         encoder_outputs, encoder_hidden = encoder(X)  # (s, b, 2h), ((1, b, h), (1, b, h))
         decoder_input = torch.tensor([SOS_token] * batch_size, device=my_device)  # (b)
-        decoder_hidden = ( (encoder_hidden[0][0].squeeze(0), encoder_hidden[0][1].squeeze(0)),
-                (encoder_hidden[1][0].squeeze(0), encoder_hidden[1][1].squeeze(0)) )
+        decoder_hidden = (encoder_hidden[0].squeeze(0), encoder_hidden[1].squeeze(0))
 
-        decoded_outputs = torch.zeros(target_length, batch_size, lang.n_words, device=my_device)
-        decoded_words = torch.zeros(batch_size, target_length, device=my_device)
+        decoded_outputs = torch.zeros(target_length, batch_size, lang.n_chars, device=my_device)
+        decoded_chars = torch.zeros(batch_size, target_length, device=my_device)
 
         for di in range(target_length):
             decoder_output, decoder_hidden, _ = decoder(
@@ -509,7 +442,7 @@ def batch_valid(X, Y, encoder, decoder, criterion, lang):
             loss += criterion(decoder_output, Y[di])
 
             _, topi = decoder_output.topk(1)  # (b,odim) -> (b,1)
-            decoded_words[:, di] = topi[:, 0]  # (b)
+            decoded_chars[:, di] = topi[:, 0]  # (b)
             decoder_input = topi.squeeze(1)
 
         #出力が可変長なのでlossも1ノードあたりに正規化
@@ -553,10 +486,10 @@ def trainIters(lang, encoder, decoder, train_pairs, val_pairs, n_iters, print_ev
     encoder_optimizer = optim.SGD(encoder.parameters(), lr=learning_rate)
     decoder_optimizer = optim.SGD(decoder.parameters(), lr=learning_rate)
 
-    X_train=[pad_indexes(lang, s) for s in train_pairs[0]]
-    y_train=[pad_indexes(lang, s) for s in train_pairs[1]]
-    X_val=[pad_indexes(lang, s) for s in val_pairs[0]]
-    y_val=[pad_indexes(lang, s) for s in val_pairs[1]]
+    X_train=[pad_indexes_char(lang, s) for s in train_pairs[0]]
+    y_train=[pad_indexes_char(lang, s) for s in train_pairs[1]]
+    X_val=[pad_indexes_char(lang, s) for s in val_pairs[0]]
+    y_val=[pad_indexes_char(lang, s) for s in val_pairs[1]]
 
     train_data_num=len(X_train)
     val_data_num=len(X_val)
@@ -669,124 +602,16 @@ def showPlot2(loss, val_loss):
 
 
 ###########################
-# 5.モデルによる予測
+# 5.モデルによる予測(以下はテスト)
 ###########################
 
-# 1データに対する予測
-def evaluate(lang, encoder, decoder, sentence, max_length=MAX_LENGTH):
-    with torch.no_grad():
-        #no_grad()の間はパラメータが固定される（更新されない）
-        input_indexes = pad_indexes(lang, sentence)
-        input_batch = torch.tensor([input_indexes], dtype=torch.long, device=my_device)  # (1, s)
-
-        encoder_outputs, encoder_hidden = encoder(input_batch.transpose(0, 1))
-
-        decoder_input = torch.tensor([SOS_token], device=my_device)  # SOS
-        decoder_hidden = ( (encoder_hidden[0][0].squeeze(0), encoder_hidden[0][1].squeeze(0)),
-                (encoder_hidden[1][0].squeeze(0), encoder_hidden[1][1].squeeze(0)) )
-
-        decoded_words = []
-        decoder_attentions = []
-
-        for di in range(max_length):
-            decoder_output, decoder_hidden, attention = decoder(decoder_input, decoder_hidden, encoder_outputs)  # (1,outdim), ((1,h),(1,h)), (l,1)
-            decoder_attentions.append(attention)
-            _, topi = decoder_output.topk(1)  # (1, 1)
-            if topi.item() == EOS_token:
-                decoded_words.append('<EOS>')
-                break
-            else:
-                decoded_words.append(lang.index2word[topi.item()])
-
-            decoder_input = topi[0]
-
-        decoder_attentions = torch.cat(decoder_attentions, dim=0)  # (l, n)
-
-        #返り値は予測した単語列とattentionの重み？
-        return decoded_words, decoder_attentions.squeeze(0)
-
-
-
-'''
-空所の予測方法2つある？
-1（共通）.空所が始まるまで（「{」のところまでは正答文そのまま、「{」から予測スタート）
-2a.「}」が出るまでデコーダに予測させる
-2b.答えを見て空所内の単語数は固定
-
-ひとまず2aの方でevaluate_cloze()は実装してる
-'''
-#空所内のみを予想
-#evaluate()の拡張
-def evaluate_cloze(lang, encoder, decoder, sentence, max_length=MAX_LENGTH):
-    with torch.no_grad():
-        input_indexes = pad_indexes(lang, sentence)
-        input_batch = torch.tensor([input_indexes], dtype=torch.long, device=my_device)  # (1, s)
-
-
-        encoder_outputs, encoder_hidden = encoder(input_batch.transpose(0, 1))
-
-        decoder_input = torch.tensor([SOS_token], device=my_device)  # SOS
-
-        decoder_hidden = ( (encoder_hidden[0][0].squeeze(0), encoder_hidden[0][1].squeeze(0)),
-                (encoder_hidden[1][0].squeeze(0), encoder_hidden[1][1].squeeze(0)) )
-
-
-        decoded_words = []
-        decoder_attentions = []
-
-        tmp_list=normalizeString(sentence).split(' ')
-        tmp_list.append('<EOS>')
-        cloze_start=tmp_list.index('{')
-        cloze_end=tmp_list.index('}')
-        cloze_flag=0
-        cloze_ct=0
-
-        for di in range(max_length):
-            decoder_output, decoder_hidden, attention = decoder(decoder_input, decoder_hidden, encoder_outputs)  # (1,outdim), ((1,h),(1,h)), (l,1)
-            decoder_attentions.append(attention)
-
-            #空所が始まるまでは空所外の部分はそのまま用いる
-            #ここではEOSを考慮しなくてよい
-            if di <= cloze_start:
-                decoded_words.append(tmp_list[di])
-                decoder_input = torch.tensor([input_indexes[di]], device=my_device)
-
-            #空所内の予測
-            elif cloze_flag == 0:
-                _, topi = decoder_output.topk(1)  # (1, 1)
-                if topi.item() == EOS_token:
-                    decoded_words.append('<EOS>')
-                    #EOSならば終了
-                    break
-                else:
-                    word=lang.index2word[topi.item()]
-                    decoded_words.append(word)
-                    decoder_input = topi[0]
-                    if word == '}':
-                        cloze_flag=1
-                    else:
-                        cloze_ct+=1
-
-            #空所後の予測
-            else:
-                word=tmp_list[di-cloze_ct]
-                decoded_words.append(word)
-                if word == '<EOS>':
-                    break
-                else:
-                    decoder_input = torch.tensor([input_indexes[di-cloze_ct]], device=my_device)
-
-        decoder_attentions = torch.cat(decoder_attentions, dim=0)  # (l, n)
-
-        #返り値は予測した単語列とattentionの重み？
-        return decoded_words, decoder_attentions.squeeze(0)
 
 #前方一致の確認
-def forward_match(words, cloze_words, cloze_ct):
+def forward_match(chars, cloze_chars, cloze_ct):
     flag=1
-    if len(words) >= cloze_ct:
+    if len(chars) >= cloze_ct:
         for i in range(cloze_ct):
-            if not  words[i] == cloze_words[i]:
+            if not  chars[i] == cloze_chars[i]:
                 flag=0
         if flag == 1:
             return True
@@ -795,59 +620,54 @@ def forward_match(words, cloze_words, cloze_ct):
 
 
 #これまでの予測と選択肢から次の１語候補リストを作成
-def make_next_word(cloze_ct, cloze_words, choices):
-    next_word_list=[]
+def make_next_char(cloze_ct, cloze_chars, choices):
+    next_char_list=[]
 
-    for words in choices:
-        words_list=words.split(' ')
+    for chars in choices:
+        chars_list=chars.split(' ')
         if cloze_ct==0:
-            next_word_list.append(words_list[0])
+            next_char_list.append(chars_list[0])
         else:
             #x番目を予測するときｘ−１番目まで一致しているなら
-            if forward_match(words_list, cloze_words, cloze_ct):
-                if len(words_list) == cloze_ct:
+            if forward_match(chars_list, cloze_chars, cloze_ct):
+                if len(chars_list) == cloze_ct:
                     #その選択肢が終わりの時
-                    next_word_list.append('}')
-                elif len(words_list) > cloze_ct:
+                    next_char_list.append('}')
+                elif len(chars_list) > cloze_ct:
                     #その選択肢の次の1語を格納
-                    next_word_list.append(words_list[cloze_ct])
-    if next_word_list:
+                    next_char_list.append(chars_list[cloze_ct])
+    if next_char_list:
         #pythonではlistが空でなければTrue
         #重複を削除
-        next_word_list=list(set(next_word_list))
+        next_char_list=list(set(next_char_list))
     else:
         #TODO そもそもこのケースある？
-        next_word_list.append('}')
+        next_char_list.append('}')
 
-    return next_word_list
+    return next_char_list
 
 
 #候補リストから確率最大の1語を返す
-def pred_next_word(lang, next_word_list, decoder_output_data):
-    if len(next_word_list)==1:
-        max_word=next_word_list[0]
+def pred_next_char(lang, next_char_list, decoder_output_data):
+    if len(next_char_list)==1:
+        max_char=next_char_list[0]
     else:
         max_p=decoder_output_data.min().item()
-        for word in next_word_list:
-            index=lang.check_word2index(word)
+        for char in next_char_list:
+            index=lang.char2id(char)
             p=decoder_output_data[0][index].item()
             if max_p < p:
                 max_p = p
-                max_word=word
+                max_char=char
 
-    return max_word
-
-
-
-
-
+    return max_char
 
 
 #空所内のみを予想かつ選択肢の利用
 #evaluate_clozeの拡張
 def evaluate_choice(lang, encoder, decoder, sentence, choices, max_length=MAX_LENGTH):
     with torch.no_grad():
-        input_indexes = pad_indexes(lang, sentence)
+        input_indexes = pad_indexes_char(lang, sentence)
         input_batch = torch.tensor([input_indexes], dtype=torch.long, device=my_device)  # (1, s)
 
 
@@ -855,20 +675,19 @@ def evaluate_choice(lang, encoder, decoder, sentence, choices, max_length=MAX_LE
 
         decoder_input = torch.tensor([SOS_token], device=my_device)  # SOS
 
-        decoder_hidden = ( (encoder_hidden[0][0].squeeze(0), encoder_hidden[0][1].squeeze(0)),
-                (encoder_hidden[1][0].squeeze(0), encoder_hidden[1][1].squeeze(0)) )
+        decoder_hidden = (encoder_hidden[0].squeeze(0), encoder_hidden[1].squeeze(0))
 
 
-        decoded_words = []
+        decoded_chars = []
         decoder_attentions = []
 
         tmp_list=normalizeString(sentence).split(' ')
-        tmp_list.append('<EOS>')
+        tmp_list.append('E')
         cloze_start=tmp_list.index('{')
         cloze_end=tmp_list.index('}')
         cloze_flag=0
         cloze_ct=0
-        cloze_words=[]
+        cloze_chars=[]
 
         for di in range(max_length):
             decoder_output, decoder_hidden, attention = decoder(decoder_input, decoder_hidden, encoder_outputs)  # (1,outdim), ((1,h),(1,h)), (l,1)
@@ -877,31 +696,31 @@ def evaluate_choice(lang, encoder, decoder, sentence, choices, max_length=MAX_LE
             #空所が始まるまでは空所外の部分はそのまま用いる
             #ここではEOSを考慮しなくてよい
             if di <= cloze_start:
-                decoded_words.append(tmp_list[di])
+                decoded_chars.append(tmp_list[di])
                 decoder_input = torch.tensor([input_indexes[di]], device=my_device)
 
             #空所内の予測
-            # } までdecorded_wordに格納
+            # } までdecorded_charに格納
             elif cloze_flag == 0:
                 #これまでの予測と選択肢から次の１語候補リストを作成
-                next_word_list=make_next_word(cloze_ct, cloze_words, choices)
+                next_char_list=make_next_char(cloze_ct, cloze_chars, choices)
                 #候補リストから確率最大の1語を返す
-                word=pred_next_word(lang, next_word_list, decoder_output.data)
-                cloze_words.append(word)
-                decoded_words.append(word)
-                word_tensor=torch.tensor([lang.check_word2index(word)], device=my_device)
-                decoder_input = word_tensor
+                char=pred_next_char(lang, next_char_list, decoder_output.data)
+                cloze_chars.append(char)
+                decoded_chars.append(char)
+                char_tensor=torch.tensor([lang.char2id(char)], device=my_device)
+                decoder_input = char_tensor
 
-                if word == '}':
+                if char == '}':
                     cloze_flag=1
                 else:
                     cloze_ct+=1
 
             #空所後の予測
             else:
-                word=tmp_list[di-cloze_ct]
-                decoded_words.append(word)
-                if word == '<EOS>':
+                char=tmp_list[di-cloze_ct]
+                decoded_chars.append(char)
+                if char == 'E':
                     break
                 else:
                     decoder_input = torch.tensor([input_indexes[di-cloze_ct]], device=my_device)
@@ -909,11 +728,11 @@ def evaluate_choice(lang, encoder, decoder, sentence, choices, max_length=MAX_LE
         decoder_attentions = torch.cat(decoder_attentions, dim=0)  # (l, n)
 
         #返り値は予測した単語列とattentionの重み？
-        return decoded_words, decoder_attentions.squeeze(0)
+        return decoded_chars, decoder_attentions.squeeze(0)
 
 
 #attentionの重みの対応グラフの描画
-def showAttention(file_header, input_sentence, output_words, attentions):
+def showAttention(file_header, input_sentence, output_chars, attentions):
     #TODO 描画方法は要改善
     #目盛り間隔、軸ラベルの位置など
 
@@ -923,8 +742,8 @@ def showAttention(file_header, input_sentence, output_words, attentions):
     fig.colorbar(cax)
 
     ax.set_yticklabels([''] + input_sentence.split(' ') +
-                       ['<EOS>'])
-    ax.set_xticklabels([''] + output_words, rotation=90)
+                       ['E'])
+    ax.set_xticklabels([''] + output_chars, rotation=90)
 
     ax.xaxis.set_major_locator(ticker.MultipleLocator(1))
     ax.yaxis.set_major_locator(ticker.MultipleLocator(1))
@@ -933,70 +752,6 @@ def showAttention(file_header, input_sentence, output_words, attentions):
     else:
         plt.savefig(save_path + file_header + input_sentence + '_attn.png')
 
-
-#文章からn-gramの集合を作成
-def get_ngrams(segment, max_order):
-    ngram_counts = collections.Counter()
-    for order in range(1, max_order + 1):
-        for i in range(0, len(segment) - order + 1):
-          ngram = tuple(segment[i:i+order])
-          ngram_counts[ngram] += 1
-    return ngram_counts
-
-
-def compute_bleu(preds_sentences, ans_sentences, max_order=4,
-                 smooth=False):
-    matches_by_order = [0] * max_order
-    possible_matches_by_order = [0] * max_order
-    pred_length = 0
-    ans_length = 0
-    for (preds, ans) in zip(preds_sentences, ans_sentences):
-        pred_length += len(preds)
-        ans_length += len(ans)
-
-        merged_pred_ngram_counts = get_ngrams(preds, max_order)
-        ans_ngram_counts = get_ngrams(ans, max_order)
-
-        #2つのngram集合の積集合
-        overlap = ans_ngram_counts & merged_pred_ngram_counts
-        for ngram in overlap:
-            matches_by_order[len(ngram)-1] += overlap[ngram]
-        for order in range(1, max_order+1):
-            possible_matches = len(ans) - order + 1
-            if possible_matches > 0:
-                possible_matches_by_order[order-1] += possible_matches
-
-    precisions = [0] * max_order
-    for i in range(0, max_order):
-        if smooth:
-            precisions[i] = ((matches_by_order[i] + 1.) /
-                           (possible_matches_by_order[i] + 1.))
-        else:
-            if possible_matches_by_order[i] > 0:
-                precisions[i] = (float(matches_by_order[i]) /
-                             possible_matches_by_order[i])
-            else:
-                precisions[i] = 0.0
-
-    if min(precisions) > 0:
-        p_log_sum = sum((1. / max_order) * math.log(p) for p in precisions)
-        geo_mean = math.exp(p_log_sum)
-    else:
-        geo_mean = 0
-
-    if pred_length!=0:
-        ratio = float(ans_length) / pred_length
-        if ratio > 1.0:
-            bp = 1.
-        else:
-            bp = math.exp(1 - 1. / ratio)
-        bleu = geo_mean * bp
-    else:
-        ratio=0
-        bp=0
-        bleu=0
-
-    return bleu
 
 
 def is_correct_cloze(line):
@@ -1021,8 +776,8 @@ def match(pred_cloze, ans_cloze):
     ans_set=set(ans_cloze.split(' '))
     i=0
 
-    for word in pred_set:
-        if word in ans_set:
+    for char in pred_set:
+        if char in ans_set:
             i+=1
 
     return i
@@ -1036,9 +791,10 @@ def calc_score(preds_sentences, ans_sentences):
     clozeOK=0
     partOK=0
     miss=0
+    BLEU=0
 
     for pred, ans in zip(preds_sentences, ans_sentences):
-        pred=pred.replace(' <EOS>', '')
+        pred=pred.replace('E', '')
         flag=0
         if pred == ans:
             allOK+=1
@@ -1058,8 +814,6 @@ def calc_score(preds_sentences, ans_sentences):
                     print(ans)
         else:
             miss+=1
-
-    BLEU=compute_bleu(preds_sentences, ans_sentences)
 
     return line_num, allOK, clozeOK, partOK, BLEU, miss
 
@@ -1123,7 +877,7 @@ def score(preds, ans, file_output, file_name):
 #および、選択肢を利用するモード
 def test_choices(lang, encoder, decoder, test_data, choices, saveAttention=False, file_output=False):
     print("Test ...")
-    #input_sentence や ansは文字列であるのに対し、output_wordsはリストであることに注意
+    #input_sentence や ansは文字列であるのに対し、output_charsはリストであることに注意
     preds=[]
     ans=[]
     preds_cloze=[]
@@ -1132,26 +886,17 @@ def test_choices(lang, encoder, decoder, test_data, choices, saveAttention=False
         input_sentence=pair[0]
         ans.append(pair[1])
 
-        #output_words, attentions = evaluate(lang, encoder, decoder, input_sentence)
-        #preds.append(' '.join(output_words))
-
-        #output_cloze_ct, cloze_attentions = evaluate_cloze(lang, encoder, decoder, input_sentence)
-        #preds_cloze.append(' '.join(output_cloze_ct))
-
-        output_choice_words, choice_attentions = evaluate_choice(lang, encoder, decoder, input_sentence, choi)
-        preds_choices.append(' '.join(output_choice_words))
+        output_choice_chars, choice_attentions = evaluate_choice(lang, encoder, decoder, input_sentence, choi)
+        preds_choices.append(' '.join(output_choice_chars))
 
         if saveAttention:
-            #showAttention('all', input_sentence, output_words, attentions)
-            #showAttention('cloze', input_sentence, output_cloze_ct, cloze_attentions)
-            showAttention('choice', input_sentence, output_choice_words, choice_attentions)
+
+            showAttention('choice', input_sentence, output_choice_chars, choice_attentions)
         if file_output:
-            #output_preds(save_path+'preds.txt', preds)
-            #output_preds(save_path+'preds_cloze.txt', preds_cloze)
+
             output_preds(save_path+'preds_choices.txt', preds_choices)
     print("Calc scores ...")
-    #score(preds, ans, file_output, save_path+'score.txt')
-    #score(preds_cloze, ans, file_output, save_path+'score_cloze.txt')
+
     score(preds_choices, ans, file_output, save_path+'score_choices.txt')
 
 
@@ -1171,13 +916,12 @@ def calc_sent_score(lang, encoder, decoder, sent, max_length=MAX_LENGTH):
     #evaluate_choiceから改変
     score=0
     with torch.no_grad():
-        input_indexes = pad_indexes(lang, sent)
+        input_indexes = pad_indexes_char(lang, sent)
         input_batch = torch.tensor([input_indexes], dtype=torch.long, device=my_device)  # (1, s)
 
         encoder_outputs, encoder_hidden = encoder(input_batch.transpose(0, 1))
         decoder_input = torch.tensor([SOS_token], device=my_device)  # SOS
-        decoder_hidden = ( (encoder_hidden[0][0].squeeze(0), encoder_hidden[0][1].squeeze(0)),
-                (encoder_hidden[1][0].squeeze(0), encoder_hidden[1][1].squeeze(0)) )
+        decoder_hidden = (encoder_hidden[0].squeeze(0), encoder_hidden[1].squeeze(0))
 
 
         for di in range(max_length):
@@ -1207,7 +951,7 @@ def get_best_sent(lang, encoder, decoder, sents):
 #TODO あとで全単語からもできるように
 def test_choices_by_sent_score(lang, encoder, decoder, test_data, choices, saveAttention=False, file_output=False):
     print("Test by sent score...")
-    #input_sentence や ansは文字列であるのに対し、output_wordsはリストであることに注意
+    #input_sentence や ansは文字列であるのに対し、output_charsはリストであることに注意
     preds=[]
     ans=[]
     preds_cloze=[]
@@ -1245,79 +989,106 @@ if __name__ == '__main__':
     #コマンドライン引数読み取り
     args = get_args()
     print(args.mode)
-    vocab0=git_data_path+'enwiki_vocab30000.txt'
-    vocab1=git_data_path+'enwiki_vocab10000.txt'
-    vocab2=git_data_path+'enwiki_vocab1000.txt'
-    vocab3=git_data_path+'enwiki_vocab100.txt'
 
+    today1=datetime.datetime.today()
+    today_str=today1.strftime('%m_%d_%H%M')
+    save_path=file_path + '/' + today_str
 
-    encoder0='encoder_15.pth'
-    decoder0='decoder_15.pth'
-    dir0='11_04_2242all_seq2seq_vocab30000'
+    # 1.語彙データ読み込み
+    vocab = readVocab()
 
-    encoder1='encoder_15.pth'
-    decoder1='decoder_15.pth'
-    dir1='11_15_1757all_seq2seq_vocab10000'
+    # 2.モデル定義
+    weights_matrix=get_weight_matrix(vocab)
+    my_encoder = charEncoderRNN(vocab.n_chars, EMB_DIM, HIDDEN_DIM, weights_matrix).to(my_device)
+    my_decoder = charAttnDecoderRNN(EMB_DIM, HIDDEN_DIM, ATTN_DIM, vocab.n_chars, weights_matrix).to(my_device)
 
-    encoder2='encoder_16.pth'
-    decoder2='decoder_16.pth'
-    dir2='11_14_1820all_seq2seq_vocab1000'
+    #学習時
+    if args.mode == 'all' or args.mode == 'mini':
+        #train_cloze=file_path+'tmp_cloze.txt'
+        #train_ans=file_path+'tmp_ans.txt'
 
-    encoder3='encoder_14.pth'
-    decoder3='decoder_14.pth'
-    dir3='11_15_0604all_seq2seq_vocab100'
+        #text8全体
+        train_cloze=file_path+'text8_cloze.txt'
+        train_ans=file_path+'text8_ans.txt'
 
-    files=[(vocab0, encoder0, decoder0, dir0),
-            (vocab1, encoder1, decoder1, dir1),
-            (vocab2, encoder2, decoder2, dir2),
-            (vocab3, encoder3, decoder3, dir3)]
+        if args.mode == 'mini':
+            #合同ゼミ
+            train_cloze=file_path+'text8_cloze50000.txt'
+            train_ans=file_path+'text8_ans50000.txt'
 
-    for model in files:
-        today1=datetime.datetime.today()
-        today_str=today1.strftime('%m_%d_%H%M')
-        save_path=file_path+model[3]+'/'+today_str
-
-        # 1.語彙データ読み込み
-        vocab = readVocab(model[0])
-
-        # 2.モデル定義
-        #テスト時なのでembedding初期値読み込まなくていい
-        weights_matrix=np.zeros((vocab.n_words, EMB_DIM))
-        my_encoder = EncoderRNN(vocab.n_words, EMB_DIM, HIDDEN_DIM, weights_matrix).to(my_device)
-        my_decoder = AttnDecoderRNN2(EMB_DIM, HIDDEN_DIM, ATTN_DIM, vocab.n_words, weights_matrix).to(my_device)
-
-        my_encoder.load_state_dict(torch.load(file_path+model[3]+'/'+model[1]))
-        my_decoder.load_state_dict(torch.load(file_path+model[3]+'/'+model[2]))
-
-        # 4.評価
-        center_cloze=git_data_path+'center_cloze.txt'
-        center_ans=git_data_path+'center_ans.txt'
-        center_choi=git_data_path+'center_choices_linkgrammar.txt'
-
-        MS_cloze=git_data_path+'microsoft_cloze.txt'
-        MS_ans=git_data_path+'microsoft_ans.txt'
-        MS_choi=git_data_path+'microsoft_choices_linkgrammar.txt'
-
+        #all_data=readData(train_cloze, train_ans)
         print("Reading data...")
-        center_data=readData(center_cloze, center_ans)
-        center_choices=get_choices(center_choi)
-
-        MS_data=readData(MS_cloze, MS_ans)
-        MS_choices=get_choices(MS_choi)
+        all_X=readData2(train_cloze)
+        all_Y=readData2(train_ans)
 
 
-        #テストデータに対する予測と精度の計算
-        #選択肢を使ったテスト
-        #これは前からの予測
-        print(model[0])
-        print('center')
-        #test_choices(vocab, my_encoder, my_decoder, center_data, center_choices, saveAttention=False, file_output=True)
+        if args.mode == 'mini':
+            #all_data=all_data[:20]
+            all_X=all_X[:20]
+            all_Y=all_Y[:20]
 
-        #これは文スコア
-        test_choices_by_sent_score(vocab, my_encoder, my_decoder, center_data, center_choices, saveAttention=False, file_output=False)
+        #train_data, val_data = train_test_split(all_data, test_size=0.1)
+        train_X, val_X = train_test_split(all_X, test_size=0.1)
+        train_Y, val_Y = train_test_split(all_Y, test_size=0.1)
 
-        print('MS')
-        #test_choices(vocab, my_encoder, my_decoder, MS_data, MS_choices, saveAttention=False, file_output=True)
+        train_data = (train_X, train_Y)
+        val_data = (val_X, val_Y)
 
-        #これは文スコア
-        test_choices_by_sent_score(vocab, my_encoder, my_decoder, MS_data, MS_choices, saveAttention=False, file_output=False)
+        #モデルとか結果とかを格納するディレクトリの作成
+        save_path=save_path+args.mode+'_seq2seq_char'
+        if os.path.exists(save_path)==False:
+            os.mkdir(save_path)
+        save_path=save_path+'/'
+
+        # 3.学習
+        my_encoder, my_decoder = trainIters(vocab, my_encoder, my_decoder, train_data, val_data, n_iters=args.epoch, saveModel=True)
+
+    #すでにあるモデルでテスト時
+    else:
+        save_path=args.model_dir+'/'
+
+        my_encoder.load_state_dict(torch.load(save_path+args.encoder))
+        my_decoder.load_state_dict(torch.load(save_path+args.decoder))
+
+        save_path=save_path+today_str
+
+    print('train only')
+    exit()
+    # 4.評価
+    center_cloze=git_data_path+'center_cloze.txt'
+    center_ans=git_data_path+'center_ans.txt'
+    center_choi=git_data_path+'center_choices.txt'
+
+    MS_cloze=git_data_path+'microsoft_cloze.txt'
+    MS_ans=git_data_path+'microsoft_ans.txt'
+    MS_choi=git_data_path+'microsoft_choices.txt'
+
+    print("Reading data...")
+    center_data=readData(center_cloze, center_ans)
+    center_choices=get_choices(center_choi)
+
+    MS_data=readData(MS_cloze, MS_ans)
+    MS_choices=get_choices(MS_choi)
+
+    if args.mode == 'mini' or args.mode == 'mini_test':
+        center_data=center_data[:5]
+        center_choices=center_choices[:5]
+        MS_data=MS_data[:5]
+        MS_choices=MS_choices[:5]
+
+
+    #テストデータに対する予測と精度の計算
+    #選択肢を使ったテスト
+    #これは前からの予測
+    print('center')
+    #test_choices(vocab, my_encoder, my_decoder, center_data, center_choices, saveAttention=False, file_output=True)
+
+    #TODO　一旦，文スコアのみで
+    #これは文スコア
+    test_choices_by_sent_score(vocab, my_encoder, my_decoder, center_data, center_choices, saveAttention=False, file_output=False)
+
+    print('MS')
+    #test_choices(vocab, my_encoder, my_decoder, MS_data, MS_choices, saveAttention=False, file_output=True)
+
+    #これは文スコア
+    test_choices_by_sent_score(vocab, my_encoder, my_decoder, MS_data, MS_choices, saveAttention=False, file_output=False)
