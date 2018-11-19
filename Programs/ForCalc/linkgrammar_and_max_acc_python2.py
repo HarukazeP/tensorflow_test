@@ -65,7 +65,7 @@ def is_grammar_OK(text):
 def read_rawData(file):
     #print("Reading data...")
     data=[]
-    with open(file, encoding='utf-8') as f:
+    with open(file) as f:
         for line in f:
             data.append(line.strip())
 
@@ -83,7 +83,7 @@ def get_cloze(line):
 def get_choices_from_raw_data(file_name):
     #print("Reading data...")
     choices=[]
-    with open(file_name, encoding='utf-8') as f:
+    with open(file_name) as f:
         for line in f:
             line=get_cloze(line.strip())
             choices.append(line.split(' ### '))     #選択肢を区切る文字列
