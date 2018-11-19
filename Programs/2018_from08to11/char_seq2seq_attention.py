@@ -48,7 +48,7 @@ MAX_LENGTH = 200
 HIDDEN_DIM = 64
 ATTN_DIM = 64
 EMB_DIM = 64
-BATCH_SIZE = 20
+BATCH_SIZE = 32
 
 #自分で定義したグローバル関数とか
 file_path='../../../pytorch_data/'
@@ -503,7 +503,7 @@ def trainIters(lang, encoder, decoder, train_pairs, val_pairs, n_iters, print_ev
     loader_val = DataLoader(ds_val, batch_size=BATCH_SIZE, shuffle=False)
 
     print(len(loader_train))
-    print(len(ds_train))
+    #print(len(ds_train))
 
 
     criterion = nn.NLLLoss(ignore_index=PAD_token)
@@ -513,7 +513,7 @@ def trainIters(lang, encoder, decoder, train_pairs, val_pairs, n_iters, print_ev
         iii=0
         for x, y in loader_train:
             iii+=1
-            if iii%30==0:
+            if iii%100==0:
                 print(iii)
             '''
             x:(バッチサイズ, 文長)
