@@ -22,13 +22,6 @@ from linkgrammar import Sentence, ParseOptions, Dictionary
 locale.setlocale(locale.LC_ALL, "en_US.UTF-8")
 po = ParseOptions()
 
-def desc(lkg):
-    #print lkg.diagram()
-    #print 'Postscript:'
-    print '(RIGHT-WALL)]' in lkg.postscript()
-
-    #print '---'
-
 def s(q):
     return '' if q == 1 else 's'
 
