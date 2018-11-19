@@ -15,7 +15,7 @@ po = ParseOptions()
 def desc(lkg):
     #print lkg.diagram()
     #print 'Postscript:'
-    print type(lkg.postscript())
+    print '(RIGHT-WALL)' in lkg.postscript()
 
     #print '---'
 
