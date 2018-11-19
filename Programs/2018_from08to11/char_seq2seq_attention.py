@@ -45,9 +45,9 @@ from torch.utils.data import TensorDataset, DataLoader
 
 #----- グローバル変数一覧 -----
 MAX_LENGTH = 200
-HIDDEN_DIM = 256
-ATTN_DIM = 256
-EMB_DIM = 256
+HIDDEN_DIM = 128
+ATTN_DIM = 128
+EMB_DIM = 128
 BATCH_SIZE = 128
 
 #自分で定義したグローバル関数とか
