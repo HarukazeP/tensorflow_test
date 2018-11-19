@@ -140,6 +140,7 @@ def make_choices_file_and_calc_baseline_acc(ans_path, choi_path, output_path):
             f.write(output_line+'\n')
 
     print('baseline: ',1.0*baseline_OK/line_num*100)
+    print('max_acc : ',1.0*max_OK/line_num*100)
 
 
 
