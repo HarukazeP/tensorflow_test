@@ -48,11 +48,8 @@ MAX_LENGTH = 200
 HIDDEN_DIM = 64
 ATTN_DIM = 64
 EMB_DIM = 64
-<<<<<<< HEAD
 BATCH_SIZE = 512
-=======
-BATCH_SIZE = 32
->>>>>>> 38dc299007a5abc31e0bfe950b02306401d172d3
+
 
 #自分で定義したグローバル関数とか
 file_path='../../../pytorch_data/'
