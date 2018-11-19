@@ -103,7 +103,7 @@ def check_grammar_and_calc_baseline_acc(ans, choices):
 
     for choice in choices:
         tmp=before + choice + after
-        if is_grammer_OK(tmp.strip()):
+        if is_grammar_OK(tmp.strip()):
             OKchoices.append(choice)
 
     if not OKchoices:
