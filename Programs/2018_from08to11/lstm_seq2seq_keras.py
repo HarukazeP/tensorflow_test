@@ -60,6 +60,7 @@ from __future__ import print_function
 
 from keras.models import Model
 from keras.layers import Input, LSTM, Dense
+from keras.models import load_model
 import numpy as np
 
 import sys
@@ -239,7 +240,7 @@ if args.mode == 'all' or args.mode == 'mini':
 
 else :
     print('load model')
-    model.load_model('/home/ohtalab/tamaki/M2/s2s.h5')
+    model=load_model('/home/ohtalab/tamaki/M2/s2s.h5')
 # json_string = model.to_json()
 # print(json_string)
 # import json
