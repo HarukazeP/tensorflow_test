@@ -317,6 +317,65 @@ def decode_sequence(input_seq):
     return decoded_sentence
 
 
+
+#ペアじゃなくて単独で読み取るやつ
+def readData2(file):
+    #print("Reading data...")
+    data=[]
+    with open(file, encoding='utf-8') as f:
+        for line in f:
+            data.append(line.strip())
+
+    return data
+
+
+
+def get_choices(file_name):
+    print("Reading data...")
+    choices=[]
+    with open(file_name, encoding='utf-8') as f:
+        for line in f:
+            line=line.strip()
+            line=get_cloze(line)
+            choices.append(line.split(' ### '))     #選択肢を区切る文字列
+
+    return choices
+
+def get_cloze(line):
+    line=re.sub(r'.*{ ', '', line)
+    line=re.sub(r' }.*', '', line)
+
+    return line
+
+
+def remove_cloze_mark(line):
+    line=line.replace('{', '')
+    line=line.replace('}', '')
+    line = re.sub(r'[ ]+', ' ', line)
+
+    return line.strip()
+
+def make_sents_without_cloze_mark(sentence, choices):
+    sents=[]
+    before=re.sub(r'{.*', '', sentence)
+    after=re.sub(r'.*}', '', sentence)
+    for choice in choices:
+        tmp=before + choice + after
+        tmp = re.sub(r'[ ]+', ' ', tmp)
+        sents.append(tmp.strip())
+
+    return sents
+
+
+def make_choices(cloze_path, choices_path):
+    choices_sents_list=[]
+    cloze_sents=readData2(cloze_path)
+    choices=get_choices(choices_path)
+    for sent, choi in zip(cloze_sents, choices):
+        sents=make_sents_with_cloze_mark(input_sentence, choi)
+        choices_sents_list.append(sents)
+
+
 def get_best_sent(input_seq, choices_sents):
     '''
     input_seq       : id列   ... 空所を\tにしてある文1つ
@@ -342,7 +401,11 @@ def get_best_sent(input_seq, choices_sents):
                 [target_seq] + states_value)
 
             # Sample a token
-            char_id=target_token_index[c_sent[i]]
+            try:
+                char_id=target_token_index[c_sent[i]]
+            except KeyError:
+                char_id=0 #TODO これで大丈夫？
+
             sampled_token_index=char_id
             score += output_tokens[0, -1, :][char_id]
 
@@ -360,8 +423,68 @@ def get_best_sent(input_seq, choices_sents):
 
     return choices_sents[scores.index(max(scores))]
 
+def read_input_test_data(data_path):
+    test_input_texts = []
+    with open(data_path, 'r', encoding='utf-8') as f:
+        lines = f.read().split('\n')
+    for line in lines:
+            line=line.replace('{ }', '\t')
+            line = re.sub(r'[ ]+', ' ', line)
+        test_input_text = line
+        test_input_texts.append(test_input_text)
+
+    encoder_test_input_data = np.zeros(
+        (len(test_input_texts), max_encoder_seq_length, num_encoder_tokens),
+        dtype='float32')
+
+    for i ,test_input_text in enumerate(test_input_texts):
+        for t, char in enumerate(test_input_text):
+            encoder_test_input_data[i, t, input_token_index[char]] = 1.
+
+    return len(test_input_texts), encoder_test_input_data
+
+def calc_acc(preds_sentences, ans_sentences):
+    line_num=0
+    allOK=0
+
+    for pred, ans in zip(preds_sentences, ans_sentences):
+        ans=remove_cloze_mark(ans)
+        line_num+=1
+        if pred == ans:
+            allOK+=1
+
+    print('  acc(all): ', '{0:.2f}'.format(1.0*allOK/line_num*100),' %')
+    print('  all: ', allOK)
+    print(' line: ',line_num)
+
+center_cloze=git_data_path+'center_cloze.txt'
+center_ans=git_data_path+'center_ans.txt'
+center_choi=git_data_path+'center_choices.txt'
+
+MS_cloze=git_data_path+'microsoft_cloze.txt'
+MS_ans=git_data_path+'microsoft_ans.txt'
+MS_choi=git_data_path+'microsoft_choices.txt'
 
 
+#center
+text_num, test_input=read_input_test_data(center_cloze)
+ans_sents=readData2(center_ans)
+preds_sents=[]
+choices_sents_list=make_choices(center_cloze, center_choi)
+for i in range(text_num):
+    input_seq = test_input[i: i + 1]
+    preds_sent=get_best_sent(input_seq, choices_sents_list[i]):
+    preds_sents.append(preds_sent)
+calc_acc(preds_sents, ans_sents)
+
+
+
+
+
+
+
+
+'''
 for seq_index in range(0,10):
     # Take one sequence (part of the training set)
     # for trying out decoding.
@@ -375,3 +498,4 @@ for seq_index in range(0,10):
     #print('Input sentence:', input_texts[seq_index])
     print('Input sentence:', input_texts[i_seq])
     print('Decoded sentence:', decoded_sentence)
+'''
