@@ -80,7 +80,7 @@ def get_args():
     parser.add_argument('--num_sample', type=int, default=160872)
     parser.add_argument('--max_L', type=int, default=200)
     parser.add_argument('--use_max_L', type=int, default=1)
-    parser.add_argument('--model_path', default='/home/ohtalab/niitsuma/keras/eng2fra/s2s7000-20.h5')
+    parser.add_argument('--model_path', default='/home/ohtalab/niitsuma/eng2fra/s2s7000-20.h5')
     #TODO ほかにも引数必要に応じて追加
     return parser.parse_args()
 
@@ -102,7 +102,7 @@ if args.mode=='test':
 
 #num_samples = 160872 #全行
 # Path to the data txt file on disk.
-data_path = '/home/ohtalab/niitsuma/keras/eng2fra/fra-eng/fra.txt'
+data_path = '/home/ohtalab/niitsuma/eng2fra/fra-eng/fra.txt'
 
 if args.mode == 'mini':
     epochs = 3
