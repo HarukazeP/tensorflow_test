@@ -79,6 +79,8 @@ def get_args():
     parser.add_argument('--mode', choices=['all', 'mini', 'test'], default='all')
     parser.add_argument('--epoch', type=int, default=10)
     parser.add_argument('--num_sample', type=int, default=160872)
+    parser.add_argument('--max_L', type=int, default=200)
+    parser.add_argument('--use_max_L', type=int, default=1)
     #TODO ほかにも引数必要に応じて追加
     return parser.parse_args()
 
@@ -168,12 +170,15 @@ target_characters = sorted(list(target_characters))
 num_encoder_tokens = len(input_characters)
 num_decoder_tokens = len(target_characters)
 
-max_encoder_seq_length = max([len(txt) for txt in input_texts])
-max_decoder_seq_length = max([len(txt) for txt in target_texts])
-'''
-max_encoder_seq_length = MAX_LENGTH
-max_decoder_seq_length = MAX_LENGTH
-'''
+
+if args.use_max_L==1:
+    max_encoder_seq_length = args.max_L
+    max_decoder_seq_length = args.max_L
+else:
+    max_encoder_seq_length = max([len(txt) for txt in input_texts])
+    max_decoder_seq_length = max([len(txt) for txt in target_texts])
+
+
 print('Number of samples:', len(input_texts))
 print('Number of unique input tokens:', num_encoder_tokens)
 print('Number of unique output tokens:', num_decoder_tokens)
