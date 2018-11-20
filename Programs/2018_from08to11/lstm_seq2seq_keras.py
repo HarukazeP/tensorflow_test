@@ -428,8 +428,8 @@ def read_input_test_data(data_path):
     with open(data_path, 'r', encoding='utf-8') as f:
         lines = f.read().split('\n')
     for line in lines:
-            line=line.replace('{ }', '\t')
-            line = re.sub(r'[ ]+', ' ', line)
+        line=line.replace('{ }', '\t')
+        line = re.sub(r'[ ]+', ' ', line)
         test_input_text = line
         test_input_texts.append(test_input_text)
 
