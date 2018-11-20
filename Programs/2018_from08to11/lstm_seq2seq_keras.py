@@ -481,12 +481,15 @@ text_num, test_input=read_input_test_data(center_cloze)
 ans_sents=readData2(center_ans)
 preds_sents=[]
 choices_sents_list=make_choices(center_cloze, center_choi)
+print(len(text_num))
+print(len(ans_sents))
+print(len(choices_sents_list))
+print('Test center')
 for i in range(text_num):
     input_seq = test_input[i: i + 1]
     preds_sent=get_best_sent(input_seq, choices_sents_list[i])
     preds_sents.append(preds_sent)
 calc_acc(preds_sents, ans_sents)
-
 
 
 
