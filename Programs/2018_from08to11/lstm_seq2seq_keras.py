@@ -237,7 +237,7 @@ if args.mode == 'all' or args.mode == 'mini':
               epochs=epochs,
               validation_split=0.2)
     # Save model
-    model.save('s2s_keras_'+args.mode+'.h5')
+    model.save('/home/ohtalab/tamaki/M2/s2s_keras_'+args.mode+'_ep'+str(epochs)'.h5')
 
 else :
     print('load model')
