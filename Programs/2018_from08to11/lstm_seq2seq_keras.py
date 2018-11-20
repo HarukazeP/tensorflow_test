@@ -67,6 +67,7 @@ import sys
 import random
 import copy
 import argparse
+import re
 
 # 自分で追加した変数
 MAX_LENGTH = 200
