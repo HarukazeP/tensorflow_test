@@ -75,7 +75,7 @@ import re
 def get_args():
     parser = argparse.ArgumentParser()
     #miniはプログラムエラーないか確認用的な
-    parser.add_argument('--mode', choices=['all', 'mini', 'test'], default='all')
+    parser.add_argument('--mode', choices=['all', 'mini', 'test'], default='test')
     parser.add_argument('--epoch', type=int, default=10)
     parser.add_argument('--num_sample', type=int, default=160872)
     parser.add_argument('--max_L', type=int, default=200)
