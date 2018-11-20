@@ -373,7 +373,7 @@ def make_choices(cloze_path, choices_path):
     cloze_sents=readData2(cloze_path)
     choices=get_choices(choices_path)
     for sent, choi in zip(cloze_sents, choices):
-        sents=make_sents_with_cloze_mark(input_sentence, choi)
+        sents=make_sents_without_cloze_mark(input_sentence, choi)
         choices_sents_list.append(sents)
 
 
