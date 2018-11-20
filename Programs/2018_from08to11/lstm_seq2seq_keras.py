@@ -92,7 +92,7 @@ epochs=args.epoch
 
 latent_dim = 256  # Latent dimensionality of the encoding space.
 #num_samples = 10000  # Number of samples to train on.
-num_samples =  args.mode
+num_samples =  args.num_sample
 #num_samples = 160872 #全行
 # Path to the data txt file on disk.
 data_path = '/home/ohtalab/niitsuma/keras/eng2fra/fra-eng/fra.txt'
