@@ -467,6 +467,22 @@ def calc_acc(preds_sentences, ans_sentences):
     print(' line: ',line_num)
 
 
+for seq_index in range(0,10):
+    # Take one sequence (part of the training set)
+    # for trying out decoding.
+
+    i_seq=random.randint(300,len(input_texts)-1)
+
+    #input_seq = encoder_input_data[seq_index: seq_index + 1]
+    input_seq = encoder_input_data[i_seq: i_seq + 1]
+    decoded_sentence = decode_sequence(input_seq)
+    print('-')
+    #print('Input sentence:', input_texts[seq_index])
+    print('Input sentence:', input_texts[i_seq])
+    print('Decoded sentence:', decoded_sentence)
+
+
+
 git_data_path='../../Data/'
 center_cloze=git_data_path+'center_cloze.txt'
 center_ans=git_data_path+'center_ans.txt'
@@ -500,23 +516,3 @@ for i in range(text_num-1):
     preds_sent=get_best_sent(input_seq, choices_sents_list[i])
     preds_sents.append(preds_sent)
 calc_acc(preds_sents, ans_sents)
-
-
-
-
-
-'''
-for seq_index in range(0,10):
-    # Take one sequence (part of the training set)
-    # for trying out decoding.
-
-    i_seq=random.randint(300,len(input_texts)-1)
-
-    #input_seq = encoder_input_data[seq_index: seq_index + 1]
-    input_seq = encoder_input_data[i_seq: i_seq + 1]
-    decoded_sentence = decode_sequence(input_seq)
-    print('-')
-    #print('Input sentence:', input_texts[seq_index])
-    print('Input sentence:', input_texts[i_seq])
-    print('Decoded sentence:', decoded_sentence)
-'''
