@@ -96,7 +96,7 @@ latent_dim = 256  # Latent dimensionality of the encoding space.
 #num_samples = 10000  # Number of samples to train on.
 num_samples =  args.num_sample
 if args.mode=='test':
-    tmp=args.model_path[args.model_path.rfind(/s2s)+4:]
+    tmp=args.model_path[args.model_path.rfind('/s2s')+4:]
     num_samples=int(tmp[:tmp.find('-')])
 
 
