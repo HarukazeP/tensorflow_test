@@ -441,7 +441,7 @@ def read_input_test_data(data_path):
     for i ,test_input_text in enumerate(test_input_texts):
         for t, char in enumerate(test_input_text):
             try:
-                char_id=input_token_index[char]]
+                char_id=input_token_index[char]
             except KeyError:
                 char_id=0 #TODO これで大丈夫？
 
