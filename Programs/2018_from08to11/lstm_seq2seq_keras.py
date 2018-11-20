@@ -481,7 +481,7 @@ text_num, test_input=read_input_test_data(center_cloze)
 ans_sents=readData2(center_ans)
 preds_sents=[]
 choices_sents_list=make_choices(center_cloze, center_choi)
-print(len(text_num))
+print(text_num)
 print(len(ans_sents))
 print(len(choices_sents_list))
 print('Test center')
