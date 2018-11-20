@@ -174,6 +174,22 @@ def readData2(file):
     return data
 
 
+def get_choices(file_name):
+    print("Reading data...")
+    choices=[]
+    with open(file_name, encoding='utf-8') as f:
+        for line in f:
+            line=get_cloze(normalizeString(line, choices=True))
+            choices.append(line.split(' ### '))     #選択肢を区切る文字列
+
+    return choices
+
+def get_cloze(line):
+    line=re.sub(r'.*{ ', '', line)
+    line=re.sub(r' }.*', '', line)
+
+    return line
+
 
 ###########################
 # 2.モデル定義
@@ -503,14 +519,7 @@ def trainIters(lang, encoder, decoder, train_pairs, val_pairs, n_iters, print_ev
     loader_train = DataLoader(ds_train, batch_size=BATCH_SIZE, shuffle=True)
     loader_val = DataLoader(ds_val, batch_size=BATCH_SIZE, shuffle=False)
 
-    print(len(loader_train))
-    #print(len(ds_train))
-
-
     criterion = nn.NLLLoss(ignore_index=PAD_token)
-    print("iter start...")
-    print(len(loader_train))
-
 
     for iter in range(1, n_iters + 1):
         print('iter=',iter)
@@ -613,7 +622,7 @@ def showPlot2(loss, val_loss):
 ###########################
 # 5.モデルによる予測(以下はテスト)
 ###########################
-'''
+
 
 #前方一致の確認
 def forward_match(chars, cloze_chars, cloze_ct):
@@ -763,21 +772,6 @@ def showAttention(file_header, input_sentence, output_chars, attentions):
 
 
 
-def is_correct_cloze(line):
-    left=line.count('{')
-    right=line.count('}')
-    if left*right==1:
-        return True
-
-    return False
-
-
-def get_cloze(line):
-    line=re.sub(r'.*{ ', '', line)
-    line=re.sub(r' }.*', '', line)
-
-    return line
-
 
 #部分一致判定用
 def match(pred_cloze, ans_cloze):
@@ -790,6 +784,45 @@ def match(pred_cloze, ans_cloze):
             i+=1
 
     return i
+
+
+
+
+#テストデータに対する予測と精度計算
+#空所内のみを予測するモード
+#および、選択肢を利用するモード
+def test_choices(lang, encoder, decoder, test_data, choices, saveAttention=False, file_output=False):
+    print("Test ...")
+    #input_sentence や ansは文字列であるのに対し、output_charsはリストであることに注意
+    preds=[]
+    ans=[]
+    preds_cloze=[]
+    preds_choices=[]
+    for pair, choi in zip(test_data, choices):
+        input_sentence=pair[0]
+        ans.append(pair[1])
+
+        output_choice_chars, choice_attentions = evaluate_choice(lang, encoder, decoder, input_sentence, choi)
+        preds_choices.append(' '.join(output_choice_chars))
+
+        if saveAttention:
+
+            showAttention('choice', input_sentence, output_choice_chars, choice_attentions)
+        if file_output:
+
+            output_preds(save_path+'preds_choices.txt', preds_choices)
+    print("Calc scores ...")
+
+    score(preds_choices, ans, file_output, save_path+'score_choices.txt')
+
+
+def is_correct_cloze(line):
+    left=line.count('{')
+    right=line.count('}')
+    if left*right==1:
+        return True
+
+    return False
 
 
 #精度いろいろ計算
@@ -826,54 +859,6 @@ def calc_score(preds_sentences, ans_sentences):
 
     return line_num, allOK, clozeOK, partOK, BLEU, miss
 
-
-
-
-
-
-
-
-def get_choices(file_name):
-    print("Reading data...")
-    choices=[]
-    with open(file_name, encoding='utf-8') as f:
-        for line in f:
-            line=get_cloze(normalizeString(line, choices=True))
-            choices.append(line.split(' ### '))     #選択肢を区切る文字列
-
-    return choices
-
-
-
-
-
-#テストデータに対する予測と精度計算
-#空所内のみを予測するモード
-#および、選択肢を利用するモード
-def test_choices(lang, encoder, decoder, test_data, choices, saveAttention=False, file_output=False):
-    print("Test ...")
-    #input_sentence や ansは文字列であるのに対し、output_charsはリストであることに注意
-    preds=[]
-    ans=[]
-    preds_cloze=[]
-    preds_choices=[]
-    for pair, choi in zip(test_data, choices):
-        input_sentence=pair[0]
-        ans.append(pair[1])
-
-        output_choice_chars, choice_attentions = evaluate_choice(lang, encoder, decoder, input_sentence, choi)
-        preds_choices.append(' '.join(output_choice_chars))
-
-        if saveAttention:
-
-            showAttention('choice', input_sentence, output_choice_chars, choice_attentions)
-        if file_output:
-
-            output_preds(save_path+'preds_choices.txt', preds_choices)
-    print("Calc scores ...")
-
-    score(preds_choices, ans, file_output, save_path+'score_choices.txt')
-'''
 
 def output_preds(file_name, preds):
     with open(file_name, 'w') as f:
