@@ -440,7 +440,12 @@ def read_input_test_data(data_path):
 
     for i ,test_input_text in enumerate(test_input_texts):
         for t, char in enumerate(test_input_text):
-            encoder_test_input_data[i, t, input_token_index[char]] = 1.
+            try:
+                char_id=input_token_index[char]]
+            except KeyError:
+                char_id=0 #TODO これで大丈夫？
+
+            encoder_test_input_data[i, t, char_id] = 1.
 
     return len(test_input_texts), encoder_test_input_data
 
