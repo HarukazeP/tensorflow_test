@@ -78,6 +78,7 @@ def get_args():
     #miniはプログラムエラーないか確認用的な
     parser.add_argument('--mode', choices=['all', 'mini', 'test'], default='all')
     parser.add_argument('--epoch', type=int, default=10)
+    parser.add_argument('--num_sample', type=int, default=160872)
     #TODO ほかにも引数必要に応じて追加
     return parser.parse_args()
 
@@ -91,7 +92,7 @@ epochs=args.epoch
 
 latent_dim = 256  # Latent dimensionality of the encoding space.
 #num_samples = 10000  # Number of samples to train on.
-num_samples =  40000
+num_samples =  args.mode
 #num_samples = 160872 #全行
 # Path to the data txt file on disk.
 data_path = '/home/ohtalab/niitsuma/keras/eng2fra/fra-eng/fra.txt'
