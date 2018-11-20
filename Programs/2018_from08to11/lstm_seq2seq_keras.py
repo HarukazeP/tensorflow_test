@@ -457,6 +457,8 @@ def calc_acc(preds_sentences, ans_sentences):
     print('  all: ', allOK)
     print(' line: ',line_num)
 
+
+git_data_path='../../Data/'
 center_cloze=git_data_path+'center_cloze.txt'
 center_ans=git_data_path+'center_ans.txt'
 center_choi=git_data_path+'center_choices.txt'
