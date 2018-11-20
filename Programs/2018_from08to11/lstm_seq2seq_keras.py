@@ -481,6 +481,9 @@ preds_sents=[]
 choices_sents_list=make_choices(center_cloze, center_choi)
 for i in range(text_num):
     input_seq = test_input[i: i + 1]
+    print(input_seq)
+    print(choices_sents_list[i])
+
     preds_sent=get_best_sent(input_seq, choices_sents_list[i])
     preds_sents.append(preds_sent)
 calc_acc(preds_sents, ans_sents)
