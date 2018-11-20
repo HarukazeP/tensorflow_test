@@ -91,7 +91,7 @@ latent_dim = 256  # Latent dimensionality of the encoding space.
 num_samples =  40000
 #num_samples = 160872 #全行
 # Path to the data txt file on disk.
-data_path = 'fra-eng/fra.txt'
+data_path = '/home/ohtalab/niitsuma/keras/eng2fra/fra-eng/fra.txt'
 
 if args.mode == 'mini':
     epochs = 3
@@ -237,7 +237,8 @@ if args.mode == 'all' or args.mode == 'mini':
     model.save('s2s_keras_'+args.mode+'.h5')
 
 else :
-    model.load_model('s2s_keras_'+args.mode+'.h5')
+    print('load model')
+    model.load_model('/home/ohtalab/tamaki/M2/s2s.h5')
 # json_string = model.to_json()
 # print(json_string)
 # import json
@@ -356,7 +357,6 @@ def get_best_sent(input_seq, choices_sents):
         scores.append(sent_score)
 
     return choices_sents[scores.index(max(scores))]
-
 
 
 
