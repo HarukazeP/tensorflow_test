@@ -171,12 +171,12 @@ num_encoder_tokens = len(input_characters)
 num_decoder_tokens = len(target_characters)
 
 
-if args.use_max_L==1:
-    max_encoder_seq_length = args.max_L
-    max_decoder_seq_length = args.max_L
-else:
-    max_encoder_seq_length = max([len(txt) for txt in input_texts])
-    max_decoder_seq_length = max([len(txt) for txt in target_texts])
+max_encoder_seq_length = max([len(txt) for txt in input_texts])
+max_decoder_seq_length = max([len(txt) for txt in target_texts])
+
+if args.use_max_L==1 and not args.mode=='all':
+    max_encoder_seq_length = max(args.max_L, max_encoder_seq_length)
+    max_decoder_seq_length = max(args.max_L, max_decoder_seq_length)
 
 
 print('Number of samples:', len(input_texts))
