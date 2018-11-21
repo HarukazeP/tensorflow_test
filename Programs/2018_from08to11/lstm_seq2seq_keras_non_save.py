@@ -4,6 +4,7 @@
 kerasを用いたseq2seqモデル
 急遽実装
 kerasチュートリアル→先生が編集→自分でテスト部分追加
+711で動かすように古いkerasの書き方に変更
 
 
 Sequence to sequence example in Keras (character-level).
@@ -70,7 +71,6 @@ import argparse
 import re
 
 # 自分で追加した変数
-MAX_LENGTH = 200
 
 #自分で追加
 def get_args():
@@ -94,14 +94,10 @@ epochs=args.epoch
 
 latent_dim = 256  # Latent dimensionality of the encoding space.
 #num_samples = 10000  # Number of samples to train on.
-<<<<<<< HEAD
-num_samples =  160872
-=======
 num_samples =  args.num_sample
->>>>>>> 5983ccd8cb505fa14ff179f64423e4017e81d203
 #num_samples = 160872 #全行
 # Path to the data txt file on disk.
-data_path = '/home/ohtalab/niitsuma/keras/eng2fra/fra-eng/fra.txt'
+data_path = '/home/ohtalab/niitsuma/eng2fra/fra-eng/fra.txt'
 
 if args.mode == 'mini':
     epochs = 3
@@ -178,10 +174,6 @@ num_decoder_tokens = len(target_characters)
 max_encoder_seq_length = max([len(txt) for txt in input_texts])
 max_decoder_seq_length = max([len(txt) for txt in target_texts])
 
-if args.use_max_L==1 and not args.mode=='all':
-    max_encoder_seq_length = max(args.max_L, max_encoder_seq_length)
-    max_decoder_seq_length = max(args.max_L, max_decoder_seq_length)
-
 
 print('Number of samples:', len(input_texts))
 print('Number of unique input tokens:', num_encoder_tokens)
@@ -247,11 +239,12 @@ if args.mode == 'all' or args.mode == 'mini':
               epochs=epochs,
               validation_split=0.2)
     # Save model
-    model.save('/home/ohtalab/tamaki/M2/s2s_keras_max'+str(max_encoder_seq_length)+'_ep'+str(epochs)+'.h5')
-
+    #model.save('/home/ohtalab/tamaki/M2/s2s_keras_max'+str(max_encoder_seq_length)+'_ep'+str(epochs)+'.h5')
+'''
 else :
     print('load model')
     model=load_model('/home/ohtalab/tamaki/M2/s2s.h5')
+'''
 # json_string = model.to_json()
 # print(json_string)
 # import json
