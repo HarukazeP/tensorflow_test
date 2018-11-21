@@ -96,7 +96,7 @@ latent_dim = 256  # Latent dimensionality of the encoding space.
 num_samples =  args.num_sample
 #num_samples = 160872 #全行
 # Path to the data txt file on disk.
-data_path = '/home/ohtalab/niitsuma/keras/eng2fra/fra-eng/fra.txt'
+data_path = '/home/ohtalab/niitsuma/eng2fra/fra-eng/fra.txt'
 
 if args.mode == 'mini':
     epochs = 3
