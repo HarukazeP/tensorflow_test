@@ -88,7 +88,7 @@ epochs=args.epoch
 
 latent_dim = 256  # Latent dimensionality of the encoding space.
 #num_samples = 10000  # Number of samples to train on.
-num_samples =  40000
+num_samples =  160872
 #num_samples = 160872 #全行
 # Path to the data txt file on disk.
 data_path = 'fra-eng/fra.txt'
