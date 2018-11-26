@@ -110,11 +110,6 @@ def parse_line(old_path, new_path):
                 print('total '+str(i)+' line\n')
                 print_time('preprpcess end')
 
-    return new_path
-
-
-
-
 
 def make_data(old_path, cloze_path, ans_path):
     if (os.path.exists(ans_path)==False):
@@ -157,9 +152,11 @@ def make_data(old_path, cloze_path, ans_path):
 start_time=print_time('all start')
 
 #データ
-tmp_path='text8.txt'
+#tmp_path='text8.txt'
+file_path='/media/tamaki/HDCL-UT/tamaki/M2/data_for_kenlm/enwiki1GB.txt'
+output_path='/media/tamaki/HDCL-UT/tamaki/M2/data_for_seq2seq/enwiki1GB'
+print('Loading  '+file_path)
+tmp_path=output_path+'_seq2seq.txt'
 
-print('Loading  '+tmp_path)
-file_name=tmp_path[:-4]
-tmp2_path=parse_line(tmp_path, file_name+'_nmt_tmp.txt')
-make_data(tmp2_path, file_name+'_nmt_cloze.txt', file_name+'_nmt_ans.txt')
+parse_line(file_path, tmp_path)
+make_data(tmp_path, output_path+'_seq2seq_cloze.txt', file_name+'_seq2seq_ans.txt')
