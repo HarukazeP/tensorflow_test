@@ -159,4 +159,4 @@ print('Loading  '+file_path)
 tmp_path=output_path+'_seq2seq.txt'
 
 parse_line(file_path, tmp_path)
-make_data(tmp_path, output_path+'_seq2seq_cloze.txt', file_name+'_seq2seq_ans.txt')
+make_data(tmp_path, output_path+'_seq2seq_cloze.txt', output_path+'_seq2seq_ans.txt')

@@ -100,7 +100,7 @@ def make_data(old_path, cloze_path, ans_path):
                 with open(ans_path, 'w') as f_ans:
                     for line in f_in:
                         i+=1
-                        print('line: '+str(i)+'\n')
+                        #print('line: '+str(i)+'\n')
                         line=preprocess_line2(line)
                         line_list=line.split(' ')
                         line_len=len(line_list)
@@ -120,7 +120,7 @@ def make_data(old_path, cloze_path, ans_path):
 
                             f_ans.write(ans_text+'\n')
                             f_cloze.write(cloze_text+'\n')
-
+        print('line: '+str(i)+'\n')
         print_time('make data end')
 
 
@@ -139,4 +139,4 @@ print('Loading  '+file_path)
 tmp_path=output_path+'_seq2seq.txt'
 
 parse_line_faster(file_path, tmp_path)
-make_data(tmp_path, output_path+'_seq2seq_cloze.txt', file_name+'_seq2seq_ans.txt')
+make_data(tmp_path, output_path+'_seq2seq_cloze.txt', output_path+'_seq2seq_ans.txt')

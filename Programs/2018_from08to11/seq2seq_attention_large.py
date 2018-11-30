@@ -2,8 +2,8 @@
 
 '''
 pytorchのseq2seqチュートリアルを改変
-seq2seq_attention_batch_new_model.py から変更
-Embedding層に学習済みベクトルを利用
+seq2seq_attention_pretrain_vec.py から変更
+encoderとdecoderのLSTM4層に
 
 
 動かしていたバージョン
@@ -208,9 +208,9 @@ def get_weight_matrix(lang):
 ###########################
 
 #エンコーダのクラス
-class EncoderRNN(nn.Module):
+class largeEncoderRNN(nn.Module):
     def __init__(self, input_dim, emb_dim, hid_dim, weights_matrix):
-        super(EncoderRNN, self).__init__()
+        super(largeEncoderRNN, self).__init__()
         self.input_dim = input_dim #入力語彙数
         self.embedding_dim = emb_dim
         self.hidden_dim = hid_dim
@@ -221,12 +221,18 @@ class EncoderRNN(nn.Module):
         self.lstm = nn.LSTM(input_size=self.embedding_dim,
                             hidden_size=self.hidden_dim,
                             bidirectional=True,
-                            num_layers=2)
+                            num_layers=4)
         self.linear_h1 = nn.Linear(self.hidden_dim * 2, self.hidden_dim)
         self.linear_c1 = nn.Linear(self.hidden_dim * 2, self.hidden_dim)
 
         self.linear_h2 = nn.Linear(self.hidden_dim * 2, self.hidden_dim)
         self.linear_c2 = nn.Linear(self.hidden_dim * 2, self.hidden_dim)
+
+        self.linear_h3 = nn.Linear(self.hidden_dim * 2, self.hidden_dim)
+        self.linear_c3 = nn.Linear(self.hidden_dim * 2, self.hidden_dim)
+
+        self.linear_h4 = nn.Linear(self.hidden_dim * 2, self.hidden_dim)
+        self.linear_c4 = nn.Linear(self.hidden_dim * 2, self.hidden_dim)
 
     def forward(self, input_batch):
         """
@@ -241,8 +247,8 @@ class EncoderRNN(nn.Module):
         embedded = self.embedding(input_batch)  # (s, b) -> (s, b, h)
         output, (all_h, all_c) = self.lstm(embedded)
 
-        hidden_h1, hidden_h2=torch.chunk(all_h, 2, dim=0)
-        hidden_c1, hidden_c2=torch.chunk(all_c, 2, dim=0)
+        hidden_h1, hidden_h2, hidden_h3, hidden_h4=torch.chunk(all_h, 4, dim=0)
+        hidden_c1, hidden_c2, hidden_c3, hidden_c4=torch.chunk(all_c, 4, dim=0)
 
 
         hidden_h1 = hidden_h1.transpose(1, 0)  # (2, b, h) -> (b, 2, h)
@@ -274,12 +280,41 @@ class EncoderRNN(nn.Module):
         hidden_c2 = F.relu(hidden_c2)
         hidden_c2 = hidden_c2.unsqueeze(0)  # (b, h) -> (1, b, h)
 
-        hidden_h = (hidden_h1, hidden_h2)
-        hidden_c = (hidden_c1, hidden_c2)
+        hidden_h3 = hidden_h3.transpose(1, 0)  # (2, b, h) -> (b, 2, h)
+        hidden_h3 = hidden_h3.reshape(batch_size, -1)  # (b, 2, h) -> (b, 2h)
+        hidden_h3 = F.dropout(hidden_h3, p=0.5, training=self.training)
+        hidden_h3 = self.linear_h2(hidden_h3)  # (b, 2h) -> (b, h)
+        hidden_h3 = F.relu(hidden_h3)
+        hidden_h3 = hidden_h3.unsqueeze(0)  # (b, h) -> (1, b, h)
+
+        hidden_c3 = hidden_c3.transpose(1, 0)
+        hidden_c3 = hidden_c3.reshape(batch_size, -1)  # (b, 2, h) -> (b, 2h)
+        hidden_c3 = F.dropout(hidden_c3, p=0.5, training=self.training)
+        hidden_c3 = self.linear_c2(hidden_c3)
+        hidden_c3 = F.relu(hidden_c3)
+        hidden_c3 = hidden_c3.unsqueeze(0)  # (b, h) -> (1, b, h)
+
+        hidden_h4 = hidden_h4.transpose(1, 0)  # (2, b, h) -> (b, 2, h)
+        hidden_h4 = hidden_h4.reshape(batch_size, -1)  # (b, 2, h) -> (b, 2h)
+        hidden_h4 = F.dropout(hidden_h4, p=0.5, training=self.training)
+        hidden_h4 = self.linear_h2(hidden_h4)  # (b, 2h) -> (b, h)
+        hidden_h4 = F.relu(hidden_h4)
+        hidden_h4 = hidden_h4.unsqueeze(0)  # (b, h) -> (1, b, h)
+
+        hidden_c4 = hidden_c4.transpose(1, 0)
+        hidden_c4 = hidden_c4.reshape(batch_size, -1)  # (b, 2, h) -> (b, 2h)
+        hidden_c4 = F.dropout(hidden_c4, p=0.5, training=self.training)
+        hidden_c4 = self.linear_c2(hidden_c4)
+        hidden_c4 = F.relu(hidden_c4)
+        hidden_c4 = hidden_c4.unsqueeze(0)  # (b, h) -> (1, b, h)
+
+
+        hidden_h = (hidden_h1, hidden_h2, hidden_h3, hidden_h4)
+        hidden_c = (hidden_c1, hidden_c2, hidden_c3, hidden_c4)
 
 
         return output, (hidden_h, hidden_c)
-        # (s, b, 2h), (((1, b, h), (1, b, h)), ((1, b, h), (1, b, h)))
+
 
 
 '''
@@ -302,9 +337,9 @@ h=(batch_size, output_dim)
 '''
 #attentionつきデコーダのクラス
 #attentionの形式をluongのやつに
-class AttnDecoderRNN2(nn.Module):
+class largeAttnDecoderRNN(nn.Module):
     def __init__(self, emb_size, hidden_size, attn_size, output_size, weights_matrix):
-        super(AttnDecoderRNN2, self).__init__()
+        super(largeAttnDecoderRNN, self).__init__()
         self.hidden_size = hidden_size
         self.output_size = output_size
 
@@ -312,6 +347,8 @@ class AttnDecoderRNN2(nn.Module):
         self.embedding.weight.data.copy_(torch.from_numpy(weights_matrix))
         self.lstm = nn.LSTMCell(emb_size, hidden_size)
         self.lstm2 = nn.LSTMCell(hidden_size, hidden_size)
+        self.lstm3 = nn.LSTMCell(hidden_size, hidden_size)
+        self.lstm4 = nn.LSTMCell(hidden_size, hidden_size)
 
         self.score_w = nn.Linear(2*hidden_size, 2*hidden_size)
         self.attn_w = nn.Linear(4*hidden_size, attn_size)
@@ -331,11 +368,17 @@ class AttnDecoderRNN2(nn.Module):
 
         hidden1=hidden[0]
         hidden2=hidden[1]
+        hidden3=hidden[2]
+        hidden4=hidden[3]
 
         hidden1 = self.lstm(embedded, hidden1)  # (b,e),((b,h),(b,h)) -> ((b,h),(b,h))
-        hidden2 = self.lstm2(hidden1[0], hidden2)  # (b,h),((b,h),(b,h)) -> ((b,h),(b,h))
+        hidden2 = self.lstm2(hidden1[0], hidden2)
+        hidden3 = self.lstm2(hidden2[0], hidden3)
+        hidden4 = self.lstm2(hidden3[0], hidden4)
 
-        decoder_output = torch.cat(hidden2, dim=1)  # ((b,h),(b,h)) -> (b,2h)
+
+
+        decoder_output = torch.cat(hidden4, dim=1)  # ((b,h),(b,h)) -> (b,2h)
         decoder_output = F.dropout(decoder_output, p=0.5, training=self.training)
 
         # score
@@ -363,8 +406,7 @@ class AttnDecoderRNN2(nn.Module):
         output = self.out_w(attentional)  # (b,a) -> (b,o)
         output = F.log_softmax(output, dim=1)
 
-        return output, (hidden1, hidden2), attn_weights.squeeze(2)
-        # (b,o), (((b,h),(b,h)), ((b,h),(b,h)), (b,il)
+        return output, (hidden1, hidden2, hidden3, hidden4), attn_weights.squeeze(2)
 
 
 ###########################
@@ -435,7 +477,9 @@ def batch_train(X, Y, encoder, decoder, encoder_optimizer, decoder_optimizer, cr
 
     decoder_hidden = (
         (encoder_hidden[0][0].squeeze(0), encoder_hidden[1][0].squeeze(0)),
-        (encoder_hidden[0][1].squeeze(0), encoder_hidden[1][1].squeeze(0))
+        (encoder_hidden[0][1].squeeze(0), encoder_hidden[1][1].squeeze(0)),
+        (encoder_hidden[0][2].squeeze(0), encoder_hidden[1][2].squeeze(0)),
+        (encoder_hidden[0][3].squeeze(0), encoder_hidden[1][3].squeeze(0))
         )
 
     #teacher forcingを使用する割合
@@ -494,7 +538,9 @@ def batch_valid(X, Y, encoder, decoder, criterion, lang):
         decoder_input = torch.tensor([SOS_token] * batch_size, device=my_device)  # (b)
         decoder_hidden = (
             (encoder_hidden[0][0].squeeze(0), encoder_hidden[1][0].squeeze(0)),
-            (encoder_hidden[0][1].squeeze(0), encoder_hidden[1][1].squeeze(0))
+            (encoder_hidden[0][1].squeeze(0), encoder_hidden[1][1].squeeze(0)),
+            (encoder_hidden[0][2].squeeze(0), encoder_hidden[1][2].squeeze(0)),
+            (encoder_hidden[0][3].squeeze(0), encoder_hidden[1][3].squeeze(0))
             )
 
         decoded_outputs = torch.zeros(target_length, batch_size, lang.n_words, device=my_device)
@@ -683,7 +729,9 @@ def evaluate(lang, encoder, decoder, sentence, max_length=MAX_LENGTH):
         decoder_input = torch.tensor([SOS_token], device=my_device)  # SOS
         decoder_hidden = (
             (encoder_hidden[0][0].squeeze(0), encoder_hidden[1][0].squeeze(0)),
-            (encoder_hidden[0][1].squeeze(0), encoder_hidden[1][1].squeeze(0))
+            (encoder_hidden[0][1].squeeze(0), encoder_hidden[1][1].squeeze(0)),
+            (encoder_hidden[0][2].squeeze(0), encoder_hidden[1][2].squeeze(0)),
+            (encoder_hidden[0][3].squeeze(0), encoder_hidden[1][3].squeeze(0))
             )
 
         decoded_words = []
@@ -730,7 +778,9 @@ def evaluate_cloze(lang, encoder, decoder, sentence, max_length=MAX_LENGTH):
 
         decoder_hidden = (
             (encoder_hidden[0][0].squeeze(0), encoder_hidden[1][0].squeeze(0)),
-            (encoder_hidden[0][1].squeeze(0), encoder_hidden[1][1].squeeze(0))
+            (encoder_hidden[0][1].squeeze(0), encoder_hidden[1][1].squeeze(0)),
+            (encoder_hidden[0][2].squeeze(0), encoder_hidden[1][2].squeeze(0)),
+            (encoder_hidden[0][3].squeeze(0), encoder_hidden[1][3].squeeze(0))
             )
 
 
@@ -855,7 +905,9 @@ def evaluate_choice(lang, encoder, decoder, sentence, choices, max_length=MAX_LE
 
         decoder_hidden = (
             (encoder_hidden[0][0].squeeze(0), encoder_hidden[1][0].squeeze(0)),
-            (encoder_hidden[0][1].squeeze(0), encoder_hidden[1][1].squeeze(0))
+            (encoder_hidden[0][1].squeeze(0), encoder_hidden[1][1].squeeze(0)),
+            (encoder_hidden[0][2].squeeze(0), encoder_hidden[1][2].squeeze(0)),
+            (encoder_hidden[0][3].squeeze(0), encoder_hidden[1][3].squeeze(0))
             )
 
 
@@ -1036,6 +1088,7 @@ def calc_score(preds_sentences, ans_sentences):
     clozeOK=0
     partOK=0
     miss=0
+    BLEU=0
 
     for pred, ans in zip(preds_sentences, ans_sentences):
         pred=pred.replace(' <EOS>', '')
@@ -1059,7 +1112,7 @@ def calc_score(preds_sentences, ans_sentences):
         else:
             miss+=1
 
-    BLEU=compute_bleu(preds_sentences, ans_sentences)
+    #BLEU=compute_bleu(preds_sentences, ans_sentences)
 
     return line_num, allOK, clozeOK, partOK, BLEU, miss
 
@@ -1072,13 +1125,13 @@ def output_preds(file_name, preds):
 
 def print_score(line, allOK, clozeOK, partOK, BLEU, miss):
     print('  acc(all): ', '{0:.2f}'.format(1.0*allOK/line*100),' %')
-    print('acc(cloze): ', '{0:.2f}'.format(1.0*clozeOK/line*100),' %')
-    print(' acc(part): ', '{0:.2f}'.format(1.0*partOK/line*100),' %')
+    #print('acc(cloze): ', '{0:.2f}'.format(1.0*clozeOK/line*100),' %')
+    #print(' acc(part): ', '{0:.2f}'.format(1.0*partOK/line*100),' %')
 
-    print(' BLEU: ','{0:.2f}'.format(BLEU*100.0))
+    #print(' BLEU: ','{0:.2f}'.format(BLEU*100.0))
     print('  all: ', allOK)
-    print('cloze: ',clozeOK)
-    print(' part: ',partOK)
+    #print('cloze: ',clozeOK)
+    #print(' part: ',partOK)
     print(' line: ',line)
     print(' miss: ',miss)
 
@@ -1132,11 +1185,11 @@ def test_choices(lang, encoder, decoder, test_data, choices, saveAttention=False
         input_sentence=pair[0]
         ans.append(pair[1])
 
-        output_words, attentions = evaluate(lang, encoder, decoder, input_sentence)
-        preds.append(' '.join(output_words))
+        #output_words, attentions = evaluate(lang, encoder, decoder, input_sentence)
+        #preds.append(' '.join(output_words))
 
-        output_cloze_ct, cloze_attentions = evaluate_cloze(lang, encoder, decoder, input_sentence)
-        preds_cloze.append(' '.join(output_cloze_ct))
+        #output_cloze_ct, cloze_attentions = evaluate_cloze(lang, encoder, decoder, input_sentence)
+        #preds_cloze.append(' '.join(output_cloze_ct))
 
         output_choice_words, choice_attentions = evaluate_choice(lang, encoder, decoder, input_sentence, choi)
         preds_choices.append(' '.join(output_choice_words))
@@ -1150,8 +1203,8 @@ def test_choices(lang, encoder, decoder, test_data, choices, saveAttention=False
             output_preds(save_path+'preds_cloze.txt', preds_cloze)
             output_preds(save_path+'preds_choices.txt', preds_choices)
     print("Calc scores ...")
-    score(preds, ans, file_output, save_path+'score.txt')
-    score(preds_cloze, ans, file_output, save_path+'score_cloze.txt')
+    #score(preds, ans, file_output, save_path+'score.txt')
+    #score(preds_cloze, ans, file_output, save_path+'score_cloze.txt')
     score(preds_choices, ans, file_output, save_path+'score_choices.txt')
 
 
@@ -1178,7 +1231,9 @@ def calc_sent_score(lang, encoder, decoder, sent, max_length=MAX_LENGTH):
         decoder_input = torch.tensor([SOS_token], device=my_device)  # SOS
         decoder_hidden = (
             (encoder_hidden[0][0].squeeze(0), encoder_hidden[1][0].squeeze(0)),
-            (encoder_hidden[0][1].squeeze(0), encoder_hidden[1][1].squeeze(0))
+            (encoder_hidden[0][1].squeeze(0), encoder_hidden[1][1].squeeze(0)),
+            (encoder_hidden[0][2].squeeze(0), encoder_hidden[1][2].squeeze(0)),
+            (encoder_hidden[0][3].squeeze(0), encoder_hidden[1][3].squeeze(0))
             )
 
 
@@ -1253,9 +1308,12 @@ if __name__ == '__main__':
     vocab = readVocab(vocab_path)
 
     # 2.モデル定義
-    weights_matrix=get_weight_matrix(vocab)
-    my_encoder = EncoderRNN(vocab.n_words, EMB_DIM, HIDDEN_DIM, weights_matrix).to(my_device)
-    my_decoder = AttnDecoderRNN2(EMB_DIM, HIDDEN_DIM, ATTN_DIM, vocab.n_words, weights_matrix).to(my_device)
+    if args.mode == 'all':
+        weights_matrix=get_weight_matrix(vocab)
+    else:
+        weights_matrix = np.zeros((vocab.n_words, EMB_DIM))
+    my_encoder = largeEncoderRNN(vocab.n_words, EMB_DIM, HIDDEN_DIM, weights_matrix).to(my_device)
+    my_decoder = largeAttnDecoderRNN(EMB_DIM, HIDDEN_DIM, ATTN_DIM, vocab.n_words, weights_matrix).to(my_device)
 
     #学習時
     if args.mode == 'all' or args.mode == 'mini':
@@ -1265,10 +1323,11 @@ if __name__ == '__main__':
         #text8全体
         train_cloze=file_path+'text8_cloze.txt'
         train_ans=file_path+'text8_ans.txt'
-
+        '''
         #enwiki1GB
         train_cloze='/media/tamaki/HDCL-UT/tamaki/M2/data_for_seq2seq/enwiki1GB_seq2seq_c.txt'
         train_ans='/media/tamaki/HDCL-UT/tamaki/M2/data_for_seq2seq/enwiki1GB_seq2seq_ans.txt'
+        '''
 
         if args.mode == 'mini':
             #合同ゼミ

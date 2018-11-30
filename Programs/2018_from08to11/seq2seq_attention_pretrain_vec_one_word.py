@@ -447,8 +447,10 @@ def batch_train(X, Y, encoder, decoder, encoder_optimizer, decoder_optimizer, cr
     decoder_input = torch.tensor([[SOS_token] * batch_size], device=my_device)  # (1, b)
     decoder_inputs = torch.cat([decoder_input, Y], dim=0)  # (1,b), (n,b) -> (n+1, b)
 
-    decoder_hidden = ( (encoder_hidden[0][0].squeeze(0), encoder_hidden[0][1].squeeze(0)),
-                    (encoder_hidden[1][0].squeeze(0), encoder_hidden[1][1].squeeze(0)) )
+    decoder_hidden = (
+        (encoder_hidden[0][0].squeeze(0), encoder_hidden[1][0].squeeze(0)),
+        (encoder_hidden[0][1].squeeze(0), encoder_hidden[1][1].squeeze(0))
+        )
 
     #teacher forcingを使用する割合
     teacher_forcing_ratio = 0.5
@@ -504,8 +506,10 @@ def batch_valid(X, Y, encoder, decoder, criterion, lang):
 
         encoder_outputs, encoder_hidden = encoder(X)  # (s, b, 2h), ((1, b, h), (1, b, h))
         decoder_input = torch.tensor([SOS_token] * batch_size, device=my_device)  # (b)
-        decoder_hidden = ( (encoder_hidden[0][0].squeeze(0), encoder_hidden[0][1].squeeze(0)),
-                (encoder_hidden[1][0].squeeze(0), encoder_hidden[1][1].squeeze(0)) )
+        decoder_hidden = (
+            (encoder_hidden[0][0].squeeze(0), encoder_hidden[1][0].squeeze(0)),
+            (encoder_hidden[0][1].squeeze(0), encoder_hidden[1][1].squeeze(0))
+            )
 
         decoded_outputs = torch.zeros(target_length, batch_size, lang.n_words, device=my_device)
         decoded_words = torch.zeros(batch_size, target_length, device=my_device)
@@ -692,8 +696,10 @@ def evaluate(lang, encoder, decoder, sentence, use_mark, max_length=MAX_LENGTH):
         encoder_outputs, encoder_hidden = encoder(input_batch.transpose(0, 1))
 
         decoder_input = torch.tensor([SOS_token], device=my_device)  # SOS
-        decoder_hidden = ( (encoder_hidden[0][0].squeeze(0), encoder_hidden[0][1].squeeze(0)),
-                (encoder_hidden[1][0].squeeze(0), encoder_hidden[1][1].squeeze(0)) )
+        decoder_hidden = (
+            (encoder_hidden[0][0].squeeze(0), encoder_hidden[1][0].squeeze(0)),
+            (encoder_hidden[0][1].squeeze(0), encoder_hidden[1][1].squeeze(0))
+            )
 
         decoded_words = []
         decoder_attentions = []
@@ -736,8 +742,10 @@ def evaluate_cloze_one_word(lang, encoder, decoder, sentence, use_mark, max_leng
 
         decoder_input = torch.tensor([SOS_token], device=my_device)  # SOS
 
-        decoder_hidden = ( (encoder_hidden[0][0].squeeze(0), encoder_hidden[0][1].squeeze(0)),
-                (encoder_hidden[1][0].squeeze(0), encoder_hidden[1][1].squeeze(0)) )
+        decoder_hidden = (
+            (encoder_hidden[0][0].squeeze(0), encoder_hidden[1][0].squeeze(0)),
+            (encoder_hidden[0][1].squeeze(0), encoder_hidden[1][1].squeeze(0))
+            )
 
 
         decoded_words = []
@@ -864,8 +872,10 @@ def evaluate_choice_one_word(lang, encoder, decoder, sentence, choices, use_mark
 
         decoder_input = torch.tensor([SOS_token], device=my_device)  # SOS
 
-        decoder_hidden = ( (encoder_hidden[0][0].squeeze(0), encoder_hidden[0][1].squeeze(0)),
-                (encoder_hidden[1][0].squeeze(0), encoder_hidden[1][1].squeeze(0)) )
+        decoder_hidden = (
+            (encoder_hidden[0][0].squeeze(0), encoder_hidden[1][0].squeeze(0)),
+            (encoder_hidden[0][1].squeeze(0), encoder_hidden[1][1].squeeze(0))
+            )
 
 
         decoded_words = []
@@ -1195,8 +1205,10 @@ def calc_sent_score(lang, encoder, decoder, sent, max_length=MAX_LENGTH):
 
         encoder_outputs, encoder_hidden = encoder(input_batch.transpose(0, 1))
         decoder_input = torch.tensor([SOS_token], device=my_device)  # SOS
-        decoder_hidden = ( (encoder_hidden[0][0].squeeze(0), encoder_hidden[0][1].squeeze(0)),
-                (encoder_hidden[1][0].squeeze(0), encoder_hidden[1][1].squeeze(0)) )
+        decoder_hidden = (
+            (encoder_hidden[0][0].squeeze(0), encoder_hidden[1][0].squeeze(0)),
+            (encoder_hidden[0][1].squeeze(0), encoder_hidden[1][1].squeeze(0))
+            )
 
 
         for di in range(max_length):
