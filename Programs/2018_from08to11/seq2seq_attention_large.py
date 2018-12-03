@@ -1141,10 +1141,10 @@ def output_score(file_name, line, allOK, clozeOK, partOK, BLEU, miss):
     output=output+'  acc(all): '+str(1.0*allOK/line*100)+' %\n'
     output=output+'acc(cloze): '+str(1.0*clozeOK/line*100)+' %\n'
     output=output+' acc(part): '+str(1.0*partOK/line*100)+' %\n\n'
-    output=output+'      BLEU: '+str(BLEU*100.0)+' %\n\n'
+    #output=output+'      BLEU: '+str(BLEU*100.0)+' %\n\n'
     output=output+'       all: '+str(allOK)+'\n'
-    output=output+'     cloze: '+str(clozeOK)+'\n'
-    output=output+'      part: '+str(partOK)+'\n'
+    #output=output+'     cloze: '+str(clozeOK)+'\n'
+    #output=output+'      part: '+str(partOK)+'\n'
     output=output+'      line: '+str(line)+'\n'
     output=output+'      miss: '+str(miss)+'\n'
 
@@ -1195,12 +1195,12 @@ def test_choices(lang, encoder, decoder, test_data, choices, saveAttention=False
         preds_choices.append(' '.join(output_choice_words))
 
         if saveAttention:
-            showAttention('all', input_sentence, output_words, attentions)
-            showAttention('cloze', input_sentence, output_cloze_ct, cloze_attentions)
+            #showAttention('all', input_sentence, output_words, attentions)
+            #showAttention('cloze', input_sentence, output_cloze_ct, cloze_attentions)
             showAttention('choice', input_sentence, output_choice_words, choice_attentions)
         if file_output:
-            output_preds(save_path+'preds.txt', preds)
-            output_preds(save_path+'preds_cloze.txt', preds_cloze)
+            #output_preds(save_path+'preds.txt', preds)
+            #output_preds(save_path+'preds_cloze.txt', preds_cloze)
             output_preds(save_path+'preds_choices.txt', preds_choices)
     print("Calc scores ...")
     #score(preds, ans, file_output, save_path+'score.txt')
