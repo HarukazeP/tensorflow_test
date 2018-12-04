@@ -86,10 +86,8 @@ today1=datetime.datetime.today()
 today_str=today1.strftime('%m_%d_%H%M')
 save_path=file_path + '/' + today_str
 PAD_token = 0
-SOS_token = 1
-EOS_token = 2
-UNK_token = 3
-CLZ_token = 4
+UNK_token = 1
+CLZ_token = 2
 
 #事前処理いろいろ
 print('Start: '+today_str)
@@ -110,8 +108,8 @@ my_CPU=torch.device("cpu")
 class Lang:
     def __init__(self):
         self.word2index = {"<UNK>": UNK_token}
-        self.index2word = {PAD_token: "PAD", SOS_token: "SOS", EOS_token: "EOS", UNK_token: "<UNK>", CLZ_token: "CLZ"}
-        self.n_words = 5  # PAD と SOS と EOS と UNK とCLZ
+        self.index2word = {PAD_token: "PAD", UNK_token: "<UNK>", CLZ_token: "CLZ"}
+        self.n_words = 3  # PAD と UNK とCLZ
 
     #文から単語を語彙へ
     def addSentence(self, sentence):
@@ -233,70 +231,12 @@ def get_weight_matrix(lang):
 # --- 論文中のMulti-Perspective Aggregation Layer ---
 class MPALayer(nn.Module):
     # TODO: 引数とか適当
-    def __init__(self, vocab_size, emb_dim, hid_dim, out_dim, weights_matrix, BiDi=True):
+    def __init__(self, hid_dim, out_dim, num_directions):
         super(MPALayer, self).__init__()
-        self.arg = arg
-
-    def forward(self, sents_vec, input_batch, chois_vec, choices_batch):
-
-
-        return P, C
-
-
-
-#できる限り再現したモデル
-class MPnet(nn.Module):
-    def __init__(self, vocab_size, emb_dim, hid_dim, out_dim, weights_matrix, BiDi=True):
-        super(MPnet, self).__init__()
-        self.vocab_size = vocab_size
-        self.embedding_dim = emb_dim
         self.hidden_dim = hid_dim
-        self.output_dim = out_dim
-        num_directions = 2 if BiDi else 1
+        self.output_dim = out_dim   #選択肢の数
 
-
-        # --- 論文中のInput layer ---
-        self.embedding = nn.Embedding(self.vocab_size, self.embedding_dim, padding_idx=PAD_token) #語彙数×次元数
-        self.embedding.weight.data.copy_(torch.from_numpy(weights_matrix))
-
-        self.BiGRU=nn.GRU(input_size=self.embedding_dim, hidden_size=self.hidden_dim, dropout=0.5, num_layers=1, bidirectional=BiDi)
-        self.choicesBiGRU=nn.GRU(input_size=self.embedding_dim, hidden_size=self.hidden_dim, dropout=0.5, num_layers=1, bidirectional=BiDi)
-
-        # TODO: choicesの方の処理は要検討
-        #choicesEncoderみたいなクラス作る？
-
-        # --- 論文中のMulti-Perspective Aggregation Layer ---
-        self.MPA=MPALayer()
-
-        # --- 論文中のOutput Layer ---
-        self.weight = Parameter(torch.Tensor(out_features, in_features)) #TODO ここらへんもまだ適当
-        self.bias = Parameter(torch.Tensor(self.output_dim))
-
-    def forward(self, input_batch, choices_batch):
-        """
-        :param
-            input_batch:   (s, b)
-            choices_batch: (c, n, b)？
-                c:選択肢の最大長(パディング後)
-                n:1問あたりの選択肢数
-
-        :returns (b, o)
-        """
-        # --- 論文中のInput layer ---
-        #TODO inputからCLZの場所特定しておく？→それバッチでできる？
-        batch_size = input_batch.shape[1]
-
-        embedded = self.embedding(input_batch)  # (s, b) -> (s, b, h)
-        sent_vec, _ = self.BiGRU(embedded)    # (s, b, h) -> (s, b, h*2) , (1*2, b, h)
-
-        #TODO ↓この書き方あってない，まずtensorにする必要もある
-        #むしろtransposeみたいなのしてから？
-        emb_chois=[self.embedding(choices_batch[][i]) for i in range(self.output_dim)]
-        chois_vec=[self.choicesBiGRU(emb_chois[i]) for i in range(self.output_dim)]
-
-
-
-        # --- 論文中のMulti-Perspective Aggregation Layer ---
+    def forward(self, sents_vec, input_batch, c1_vec, c2_vec, c3_vec, c4_vec):
         #TODO これクラス作る？
             # --- Selective Copying ---
             '''
@@ -306,11 +246,12 @@ class MPnet(nn.Module):
                 input_batchからCLZの場所見つける必要あり
                 return sents_vec[j]  みたいな感じ
             '''
+            j=
 
             # --- Iterative Dilated Convolution ---
             '''
                 入力: sents_vec  (s, b, h*2)
-                      chois_vec  (c, n, b, h*2)
+                      c1_vecなど  (c, b, h*2)
                 出力：cnn_vec (？？？) #TODO これ次元数どうなる
             '''
 
@@ -318,7 +259,7 @@ class MPnet(nn.Module):
             # --- Attentive Reader ---
             '''
                 入力: sents_vec  (s, b, h*2)
-                      chois_vec  (c, n, b, h*2)
+                      c1_vecなど  (c, b, h*2)
                 出力：attn_vec (s, n, b, h*2)
             '''
 
@@ -331,15 +272,140 @@ class MPnet(nn.Module):
 
             #最後にマージ
             '''
-                出力: P (s, b, ？？？) #TODO これ次元数どうなる
-                    : C (1, n,  b, ？？？) #TODO これ次元数どうなる
+            PはP_scとP_idcの連結
+            C1はc1_vecとP1_arとP1_ngの連結
+
+
+                出力: P (1+s？, b, h*2) #TODO これ次元数どうなる
+                    : C (c+？+？, b, h*2) #TODO これ次元数どうなる
             '''
 
-        # --- 論文中のOutput Layer ---
+        return P, C1, C2, C3, C4
+
+
+class PointerNet(nn.Module):
+    # TODO: 引数とか適当
+    def __init__(self, hid_dim, out_dim, num_directions):
+        super(PointerNet, self).__init__()
+        self.hidden_dim = hid_dim
+        self.output_dim = out_dim   #選択肢の数
+
+        self.GateWeight_P = Parameter(torch.Tensor(self.hidden_dim*num_directions, self.hidden_dim))
+        self.GateWeight_C = Parameter(torch.Tensor(self.hidden_dim*num_directions, self.hidden_dim))        self.GateBias = Parameter(torch.Tensor(self.hidden_dim))
+
+        self.OutWeight = Parameter(torch.Tensor(self.output_dim, self.hidden_dim))
+        self.OutBias = Parameter(torch.Tensor(self.output_dim))
+
+    def forward(self, P, C1, C2, C3, C4):
         '''
-            入力:PとC
+            入力:PとC1,C2,C3,C4
             出力： (b, n)  #各選択肢に対する確率
+
+            P #(N, b, in_features)
+
+            matmul()やbmm()は内積，mul()は要素積
         '''
+
+        WP=P.matmul(self.GateWeight_P.t())  #TODO これ変更するかも？
+
+        WC1=
+        WC2=
+        WC3=
+        WC4=
+
+        g1=WP+WC1+self.GateBias #(N, b, out_features)　#これでちゃんとバッチ数分バイス足せてる
+        g2=
+        g3=
+        g4=
+
+        C_dash1=torch.mul(C1, F.sigmoid(g1))
+        C_dash2=torch.mul(C2, F.sigmoid(g2))
+        C_dash3=torch.mul(C3, F.sigmoid(g3))
+        C_dash4=torch.mul(C4, F.sigmoid(g4))
+
+        out1=
+        out2=
+        out3=
+        out4=
+
+        output=torch.cat([out1, out2, out3, out4], dim=0)   #dimあってる？
+        #そもそも数値ならcatでもない？
+
+        prob=F.softmax(output)#みたいなの
+
+        return prob #(4, b)とか？
+
+
+
+#できる限り再現したモデル
+#選択肢は4つ限定
+class MPnet(nn.Module):
+    def __init__(self, vocab_size, emb_dim, hid_dim, out_dim, weights_matrix, BiDi=True):
+        super(MPnet, self).__init__()
+        self.vocab_size = vocab_size
+        self.embedding_dim = emb_dim
+        self.hidden_dim = hid_dim
+        self.output_dim = out_dim   #選択肢の数
+        num_directions = 2 if BiDi else 1
+
+
+        # --- 論文中のInput layer ---
+        self.embedding = nn.Embedding(self.vocab_size, self.embedding_dim, padding_idx=PAD_token) #語彙数×次元数
+        self.embedding.weight.data.copy_(torch.from_numpy(weights_matrix))
+
+        self.BiGRU=nn.GRU(input_size=self.embedding_dim, hidden_size=self.hidden_dim, dropout=0.5, num_layers=1, bidirectional=BiDi)
+        self.choicesBiGRU=nn.GRU(input_size=self.embedding_dim, hidden_size=self.hidden_dim, dropout=0.5, num_layers=1, bidirectional=BiDi)
+        #TODO もし次元数の調整とか必要なら，choicesLinerみたいなのも追加する
+
+        # --- 論文中のMulti-Perspective Aggregation Layer ---
+        self.MPA=MPALayer(self.hidden_dim, self.output_dim, num_directions)
+
+        # --- 論文中のOutput Layer ---
+        self.OutLayer=PointerNet(self.hidden_dim, self.output_dim, num_directions)
+
+    def forward(self, input_batch, choices_batch):
+        """
+        :param
+            input_batch:   (s, b)
+            choices_batch: (c, n, b)
+                c:選択肢の最大長(パディング後)
+                n:1問あたりの選択肢数
+
+        :returns (b, o)
+        """
+        # --- 論文中のInput layer ---
+        #TODO inputからCLZの場所特定しておく？→それバッチでできる？
+        batch_size = input_batch.shape[1]
+
+        embedded = self.embedding(input_batch)  # (s, b) -> (s, b, h)
+        sent_vec, _ = self.BiGRU(embedded)    # (s, b, h) -> (s, b, h*2) , (1*2, b, h)
+
+        c1, c2, c3, c4=torch.chunk(choices_batch, self.out_dim, dim=1)
+
+        c1.squeeze(1)   # (c, 1, b) -> (c, b)
+        c1_emb = self.embedding(c1) # (c, b) -> (c, b, h)
+        c1_vec, _ = self.choicesBiGRU(c1_emb)    # (c, b, h) -> (c, b, h*2) , (1*2, b, h)
+
+        c2.squeeze(1)
+        c2_emb = self.embedding(c2)
+        c2_vec, _ = self.choicesBiGRU(c2_emb)
+
+        c3.squeeze(1)
+        c3_emb = self.embedding(c3)
+        c3_vec, _ = self.choicesBiGRU(c3_emb)
+
+        c4.squeeze(1)
+        c4_emb = self.embedding(c4)
+        c4_vec, _ = self.choicesBiGRU(c4_emb)
+
+        # --- 論文中のMulti-Perspective Aggregation Layer ---
+        P, C1, C2, C3, C4=self.MPA(sent_vec, input_batch, c1_vec, c2_vec, c3_vec, c4_vec)
+
+        # --- 論文中のOutput Layer ---
+        output=self.OutLayer(P, C1, C2, C3, C4)
+
+        return output
+
 
 #エンコーダのクラス
 class EncoderRNN(nn.Module):
@@ -506,8 +572,8 @@ def tensorFromSentence(lang, sentence, dev=my_device):
 def pad_indexes(lang, sentence, dev=my_device):
     indexes = indexesFromSentence(lang, sentence, dev=dev)
     indexes.append(EOS_token)
-    indexes + [0] * (MAX_LENGTH - len(indexes))
-    return indexes + [0] * (MAX_LENGTH - len(indexes))
+    indexes + [PAD_token] * (MAX_LENGTH - len(indexes))
+    return indexes + [PAD_token] * (MAX_LENGTH - len(indexes))
 
 
 
