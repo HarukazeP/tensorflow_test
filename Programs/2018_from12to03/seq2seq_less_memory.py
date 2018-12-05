@@ -376,18 +376,10 @@ class AttnDecoderRNN2(nn.Module):
 def indexesFromSentence(lang, sentence):
     return [lang.check_word2index(word) for word in sentence.split(' ')]
 
-
-#単語列からモデルの入力へのテンソルに
-def tensorFromSentence(lang, sentence, dev=my_device):
-    indexes = indexesFromSentence(lang, sentence)
-    indexes.append(EOS_token)
-    return torch.tensor(indexes, dtype=torch.long, device=dev).view(-1, 1)
-
-
 #単語列からモデルの入力へのテンソルに
 #パディングあり、returnも変更
-def pad_indexes(lang, sentence, dev=my_device):
-    indexes = indexesFromSentence(lang, sentence, dev=dev)
+def pad_indexes(lang, sentence):
+    indexes = indexesFromSentence(lang, sentence)
     indexes.append(EOS_token)
     indexes + [0] * (MAX_LENGTH - len(indexes))
     return indexes + [0] * (MAX_LENGTH - len(indexes))
@@ -547,10 +539,10 @@ def trainIters(lang, encoder, decoder, train_pairs, val_pairs, n_iters, print_ev
     encoder_optimizer = optim.SGD(encoder.parameters(), lr=learning_rate)
     decoder_optimizer = optim.SGD(decoder.parameters(), lr=learning_rate)
 
-    X_train=[pad_indexes(lang, s, dev=my_CPU) for s in train_pairs[0]]
-    y_train=[pad_indexes(lang, s, dev=my_CPU) for s in train_pairs[1]]
-    X_val=[pad_indexes(lang, s, dev=my_CPU) for s in val_pairs[0]]
-    y_val=[pad_indexes(lang, s, dev=my_CPU) for s in val_pairs[1]]
+    X_train=[pad_indexes(lang, s) for s in train_pairs[0]]
+    y_train=[pad_indexes(lang, s) for s in train_pairs[1]]
+    X_val=[pad_indexes(lang, s) for s in val_pairs[0]]
+    y_val=[pad_indexes(lang, s) for s in val_pairs[1]]
 
     train_data_num=len(X_train)
     val_data_num=len(X_val)
@@ -1252,7 +1244,10 @@ if __name__ == '__main__':
     vocab = readVocab(vocab_path)
 
     # 2.モデル定義
-    weights_matrix=get_weight_matrix(vocab)
+    if args.mode == 'all':
+        weights_matrix=get_weight_matrix(vocab)
+    else:
+        weights_matrix = np.zeros((vocab.n_words, EMB_DIM))
     my_encoder = EncoderRNN(vocab.n_words, EMB_DIM, HIDDEN_DIM, weights_matrix).to(my_device)
     my_decoder = AttnDecoderRNN2(EMB_DIM, HIDDEN_DIM, ATTN_DIM, vocab.n_words, weights_matrix).to(my_device)
 
@@ -1266,7 +1261,7 @@ if __name__ == '__main__':
         train_ans=file_path+'text8_ans.txt'
         '''
         #enwiki1GB
-        train_cloze='/media/tamaki/HDCL-UT/tamaki/M2/data_for_seq2seq/enwiki1GB_seq2seq_c.txt'
+        train_cloze='/media/tamaki/HDCL-UT/tamaki/M2/data_for_seq2seq/enwiki1GB_seq2seq_cloze.txt'
         train_ans='/media/tamaki/HDCL-UT/tamaki/M2/data_for_seq2seq/enwiki1GB_seq2seq_ans.txt'
 
         if args.mode == 'mini':
