@@ -1260,7 +1260,7 @@ if __name__ == '__main__':
     if args.mode == 'all' or args.mode == 'mini':
         #train_cloze=file_path+'tmp_cloze.txt'
         #train_ans=file_path+'tmp_ans.txt'
-
+        '''
         #text8全体
         train_cloze=file_path+'text8_cloze.txt'
         train_ans=file_path+'text8_ans.txt'
@@ -1268,7 +1268,7 @@ if __name__ == '__main__':
         #enwiki1GB
         train_cloze='/media/tamaki/HDCL-UT/tamaki/M2/data_for_seq2seq/enwiki1GB_seq2seq_c.txt'
         train_ans='/media/tamaki/HDCL-UT/tamaki/M2/data_for_seq2seq/enwiki1GB_seq2seq_ans.txt'
-        '''
+
         if args.mode == 'mini':
             #合同ゼミ
             train_cloze=file_path+'text8_cloze50000.txt'
