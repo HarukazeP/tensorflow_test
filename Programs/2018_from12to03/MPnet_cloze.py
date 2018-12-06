@@ -25,12 +25,14 @@ GRUのドロップアウト率は50%
 
 語彙数は上位3万単語
 embeddingの初期値はGoogleの学習済みword2vecの300次元，全て学習で更新
-最適化関数はadam
+最適化関数はSGD
 学習率は最初10^(-3)，更新していく？
 GRUは各128ユニット
 入力は最大80単語
-CNNでは2ブロック，フィルター数128，width3
+CNNでは2ブロック，出力次元数128，kernel_size 3
 GRUのドロップアウト率は50%
+次元数というか階数が元の論文あまり書いてなかったから割と違うかも
+
 
 動かしていたバージョン
 python  : 3.5.2 / 3.6.5
@@ -74,6 +76,7 @@ import gensim
 
 #----- グローバル変数一覧 -----
 MAX_LENGTH = 40
+C_MAXLEN = 6
 HIDDEN_DIM = 128
 ATTN_DIM = 128
 EMB_DIM = 300
@@ -228,57 +231,175 @@ def get_weight_matrix(lang):
 ###########################
 # 2.モデル定義
 ###########################
+
+
+
+# --- MPALayerの一部: Iterative Dilated Convolution ---
+class IDCNN(nn.Module):
+    def __init__(self, hid_dim, num_direction):
+        super(PointerNet, self).__init__()
+        self.hidden_dim = hid_dim
+        conv_in_dim=self.hidden_dim*num_direction
+        conv_out_dim=self.hidden_dim*num_direction
+
+        self.CNN1_1=nn.Conv1d(conv_in_dim, conv_out_dim, kernel_size=3, dilation=1)
+        self.CNN1_3=nn.Conv1d(conv_out_dim, conv_out_dim, kernel_size=3, dilation=3)
+        self.CNN2_1=nn.Conv1d(conv_out_dim, conv_out_dim, kernel_size=3, dilation=1)
+        self.CNN2_3=nn.Conv1d(conv_out_dim, conv_out_dim, kernel_size=3, dilation=3)
+
+        self.bn1 = nn.BatchNorm1d(conv_out_dim)
+        self.bn2 = nn.BatchNorm1d(conv_out_dim)
+
+        self.MaxP=nn.AdaptiveMaxPool1d(output_size=1)
+        #通常のMaxPooingはフィルタの大きさを指定して，フィルタ内の最大を返すが，
+        #AdaptiveMaxPoolは出力次元を指定できる
+
+    def forward(self, sents_vec):
+        '''
+            入力: sents_vec  (s, b, 2h)
+            出力：cnn_vec (b, 2h)
+        '''
+        #TODO バッチ正規化とかreruとか，この位置だけでいい？
+
+        x=F.relu(self.bn1(self.CNN1_1(sents_vec)))
+        x=self.CNN1_3(x)
+
+        x=F.relu(self.bn2(self.CNN2_1(x)))
+        x=self.CNN2_3(x)
+
+        x=self.MaxP(x)
+        cnn_vec=x.squeeze()    # (b, 2h, 1) -> (b, 2h)
+
+        return cnn_vec #(b, 2h)
+
+
+# --- MPALayerの一部: Attentive Reader ---
+class AttnReader(nn.Module):
+    def __init__(self, hid_dim, num_direction):
+        super(AttnReader, self).__init__()
+        self.hidden_dim = hid_dim
+        self.output_dim = out_dim   #選択肢の数
+        P_dim=2*num_directions
+        C_dim=3*num_directions
+
+        self.GateWeight_P = Parameter(torch.Tensor(self.hidden_dim, self.hidden_dim*P_dim))
+        self.GateWeight_C = Parameter(torch.Tensor(self.hidden_dim, self.hidden_dim*C_dim))
+        self.GateBias = Parameter(torch.Tensor(self.hidden_dim))
+
+        self.OutWeight_P = Parameter(torch.Tensor(self.output_dim, self.hidden_dim*P_dim))
+        self.OutBias = Parameter(torch.Tensor(self.output_dim))
+
+    def forward(self, sents_vec, c1_vec, c2_vec, c3_vec, c4_vec):
+        '''
+            入力: sents_vec  (s, b, 2h)
+                  c1_vecなど  (b, 2h)
+            出力：p1など      (b, 2h)
+        '''
+        '''
+        WP=P.matmul(self.GateWeight_P.t())      # (b, 4h) -> (b, h)
+        WC1=C1.matmul(self.GateWeight_C.t())    # (b, 6h) -> (b, h)
+        WC2=C2.matmul(self.GateWeight_C.t())
+        WC3=C3.matmul(self.GateWeight_C.t())
+        WC4=C4.matmul(self.GateWeight_C.t())
+
+        g1=WP+WC1+self.GateBias #(b, h)　#これでちゃんとバッチ数分バイス足せてる
+        g2=WP+WC2+self.GateBias #(b, h)
+        g3=WP+WC3+self.GateBias #(b, h)
+        g4=WP+WC4+self.GateBias #(b, h)
+
+        C_dash1=torch.mul(C1, F.sigmoid(g1))    #(b, h)
+        C_dash2=torch.mul(C2, F.sigmoid(g2))
+        C_dash3=torch.mul(C3, F.sigmoid(g3))
+        C_dash4=torch.mul(C4, F.sigmoid(g4))
+
+        WP_out=P.matmul(self.OutWeight_P.t())   # (b, 4h) -> (b, h)
+
+        #(b, h)と(b,h)の内積で(b,1)にしたいが
+        #pytorchでバッチごとの内積はbmmしかないため変形してる
+        C1WP=torch.bmm(C_dash1.view(batch_size, 1, self.hidden_dim), WP_out.view(batch_size, self.hidden_dim, 1))   #(b,1,1)
+        C1WP=C1WP.squeeze(2) #(b,1)
+        C2WP=torch.bmm(C_dash2.view(batch_size, 1, self.hidden_dim), WP_out.view(batch_size, self.hidden_dim, 1))
+        C2WP=C2WP.squeeze(2)
+        C3WP=torch.bmm(C_dash3.view(batch_size, 1, self.hidden_dim), WP_out.view(batch_size, self.hidden_dim, 1))
+        C3WP=C3WP.squeeze(2)
+        C4WP=torch.bmm(C_dash4.view(batch_size, 1, self.hidden_dim), WP_out.view(batch_size, self.hidden_dim, 1))
+        C4WP=C4WP.squeeze(2)
+
+        bC1=torch.matmul(C_dash1, self.OutBias) #(b)
+        bC1=bC1.unsqueeze(1)    #(b,1)
+        bC2=torch.matmul(C_dash2, self.OutBias)
+        bC2=bC2.unsqueeze(1)
+        bC3=torch.matmul(C_dash3, self.OutBias)
+        bC3=bC3.unsqueeze(1)
+        bC4=torch.matmul(C_dash4, self.OutBias)
+        bC4=bC4.unsqueeze(1)
+
+        out1=C1WP+bC1   #(b,1)
+        out2=C1WP+bC1
+        out3=C1WP+bC1
+        out4=C1WP+bC1
+
+        output=torch.cat([out1, out2, out3, out4], dim=1)   #(b,4)
+        prob=F.softmax(output, dim=1)   #(b,4)
+        '''
+        P1=
+
+        return prob #(b, 4)
+
+
+
+
+
 # --- 論文中のMulti-Perspective Aggregation Layer ---
 class MPALayer(nn.Module):
-    # TODO: 引数とか適当
     def __init__(self, hid_dim, out_dim, num_directions):
         super(MPALayer, self).__init__()
         self.hidden_dim = hid_dim
         self.output_dim = out_dim   #選択肢の数
 
+        #self.SC=
+        self.IDC=IDCNN(self.hidden_dim, num_direction)
+        self.AR=AttnReader()
+        #self.NG=
+
+
     def forward(self, sents_vec, input_batch, c1_vec, c2_vec, c3_vec, c4_vec):
-        #TODO これクラス作る？
-            # --- Selective Copying ---
-            '''
-                入力：sents_vec  (s, b, h*2)
-                出力：clozes_vec (1, b, h*2)
+        '''
+            入力: sents_vec    (s, b, 2h)
+                  input_batch  (s, b)
+                  c1_vec       (b, 2h)
 
-                input_batchからCLZの場所見つける必要あり
-                return sents_vec[j]  みたいな感じ
-            '''
-            j=
-
-            # --- Iterative Dilated Convolution ---
-            '''
-                入力: sents_vec  (s, b, h*2)
-                      c1_vecなど  (c, b, h*2)
-                出力：cnn_vec (？？？) #TODO これ次元数どうなる
-            '''
+            出力：PとC1,C2,C3,C4
+                P  : (b, 2h)
+                C1 : (b, 3h)
+        '''
+        # --- Selective Copying ---
 
 
-            # --- Attentive Reader ---
-            '''
-                入力: sents_vec  (s, b, h*2)
-                      c1_vecなど  (c, b, h*2)
-                出力：attn_vec (s, n, b, h*2)
-            '''
-
-            # --- N-gram Statistics ---
-            '''
-                入力：input_batch  (s, b)
-                出力：ngram_prob (？, b, ？？？) #TODO これ次元数どうなる
-            '''
+        # --- Iterative Dilated Convolution ---
+        P_idc=self.IDC(sents_vec)   #(b,2h)
 
 
-            #最後にマージ
-            '''
-            PはP_scとP_idcの連結
-            C1はc1_vecとP1_arとP1_ngの連結
+        # --- Attentive Reader ---
+        P1_ar, P2_ar, P3_ar, P4_ar=self.AR(sents_vec, c1_vec, c2_vec, c3_vec, c4_vec)
+        # P1_ar: (b, 2h)
 
 
-                出力: P (1+s？, b, h*2) #TODO これ次元数どうなる
-                    : C (c+？+？, b, h*2) #TODO これ次元数どうなる
-            '''
+        # --- N-gram Statistics ---
+        '''
+            入力：input_batch  (s, b)
+            出力：ngram_prob (？, b, ？？？) #TODO これ次元数どうなる
+        '''
+
+
+        #最後にマージ
+        '''
+        PはP_scとP_idcの連結 (b, (h+h*num_directions))？
+        C1はc1_vecとP1_arとP1_ngの連結 (b, (h+h+h)*num_directions)？
+
+        P  : (b, 2*num_directions*h)
+        C1 : (b, 3*num_directions*h)
+        '''
 
         return P, C1, C2, C3, C4
 
@@ -289,52 +410,74 @@ class PointerNet(nn.Module):
         super(PointerNet, self).__init__()
         self.hidden_dim = hid_dim
         self.output_dim = out_dim   #選択肢の数
+        P_dim=2*num_directions
+        C_dim=3*num_directions
 
-        self.GateWeight_P = Parameter(torch.Tensor(self.hidden_dim*num_directions, self.hidden_dim))
-        self.GateWeight_C = Parameter(torch.Tensor(self.hidden_dim*num_directions, self.hidden_dim))        self.GateBias = Parameter(torch.Tensor(self.hidden_dim))
+        self.GateWeight_P = Parameter(torch.Tensor(self.hidden_dim, self.hidden_dim*P_dim))
+        self.GateWeight_C = Parameter(torch.Tensor(self.hidden_dim, self.hidden_dim*C_dim))
+        self.GateBias = Parameter(torch.Tensor(self.hidden_dim))
 
-        self.OutWeight = Parameter(torch.Tensor(self.output_dim, self.hidden_dim))
+        self.OutWeight_P = Parameter(torch.Tensor(self.output_dim, self.hidden_dim*P_dim))
         self.OutBias = Parameter(torch.Tensor(self.output_dim))
 
-    def forward(self, P, C1, C2, C3, C4):
+    def forward(self, P, C1, C2, C3, C4, batch_size):
         '''
             入力:PとC1,C2,C3,C4
             出力： (b, n)  #各選択肢に対する確率
 
-            P #(N, b, in_features)
+            P  : (b, 2h)
+            C1 : (b, 3h)
 
             matmul()やbmm()は内積，mul()は要素積
         '''
 
-        WP=P.matmul(self.GateWeight_P.t())  #TODO これ変更するかも？
+        WP=P.matmul(self.GateWeight_P.t())      # (b, 4h) -> (b, h)
+        WC1=C1.matmul(self.GateWeight_C.t())    # (b, 6h) -> (b, h)
+        WC2=C2.matmul(self.GateWeight_C.t())
+        WC3=C3.matmul(self.GateWeight_C.t())
+        WC4=C4.matmul(self.GateWeight_C.t())
 
-        WC1=
-        WC2=
-        WC3=
-        WC4=
+        g1=WP+WC1+self.GateBias #(b, h)　#これでちゃんとバッチ数分バイス足せてる
+        g2=WP+WC2+self.GateBias #(b, h)
+        g3=WP+WC3+self.GateBias #(b, h)
+        g4=WP+WC4+self.GateBias #(b, h)
 
-        g1=WP+WC1+self.GateBias #(N, b, out_features)　#これでちゃんとバッチ数分バイス足せてる
-        g2=
-        g3=
-        g4=
-
-        C_dash1=torch.mul(C1, F.sigmoid(g1))
+        C_dash1=torch.mul(C1, F.sigmoid(g1))    #(b, h)
         C_dash2=torch.mul(C2, F.sigmoid(g2))
         C_dash3=torch.mul(C3, F.sigmoid(g3))
         C_dash4=torch.mul(C4, F.sigmoid(g4))
 
-        out1=
-        out2=
-        out3=
-        out4=
+        WP_out=P.matmul(self.OutWeight_P.t())   # (b, 4h) -> (b, h)
 
-        output=torch.cat([out1, out2, out3, out4], dim=0)   #dimあってる？
-        #そもそも数値ならcatでもない？
+        #(b, h)と(b,h)の内積で(b,1)にしたいが
+        #pytorchでバッチごとの内積はbmmしかないため変形してる
+        C1WP=torch.bmm(C_dash1.view(batch_size, 1, self.hidden_dim), WP_out.view(batch_size, self.hidden_dim, 1))   #(b,1,1)
+        C1WP=C1WP.squeeze(2) #(b,1)
+        C2WP=torch.bmm(C_dash2.view(batch_size, 1, self.hidden_dim), WP_out.view(batch_size, self.hidden_dim, 1))
+        C2WP=C2WP.squeeze(2)
+        C3WP=torch.bmm(C_dash3.view(batch_size, 1, self.hidden_dim), WP_out.view(batch_size, self.hidden_dim, 1))
+        C3WP=C3WP.squeeze(2)
+        C4WP=torch.bmm(C_dash4.view(batch_size, 1, self.hidden_dim), WP_out.view(batch_size, self.hidden_dim, 1))
+        C4WP=C4WP.squeeze(2)
 
-        prob=F.softmax(output)#みたいなの
+        bC1=torch.matmul(C_dash1, self.OutBias) #(b)
+        bC1=bC1.unsqueeze(1)    #(b,1)
+        bC2=torch.matmul(C_dash2, self.OutBias)
+        bC2=bC2.unsqueeze(1)
+        bC3=torch.matmul(C_dash3, self.OutBias)
+        bC3=bC3.unsqueeze(1)
+        bC4=torch.matmul(C_dash4, self.OutBias)
+        bC4=bC4.unsqueeze(1)
 
-        return prob #(4, b)とか？
+        out1=C1WP+bC1   #(b,1)
+        out2=C1WP+bC1
+        out3=C1WP+bC1
+        out4=C1WP+bC1
 
+        output=torch.cat([out1, out2, out3, out4], dim=1)   #(b,4)
+        prob=F.softmax(output, dim=1)   #(b,4)
+
+        return prob #(b, 4)
 
 
 #できる限り再現したモデル
@@ -355,13 +498,23 @@ class MPnet(nn.Module):
 
         self.BiGRU=nn.GRU(input_size=self.embedding_dim, hidden_size=self.hidden_dim, dropout=0.5, num_layers=1, bidirectional=BiDi)
         self.choicesBiGRU=nn.GRU(input_size=self.embedding_dim, hidden_size=self.hidden_dim, dropout=0.5, num_layers=1, bidirectional=BiDi)
-        #TODO もし次元数の調整とか必要なら，choicesLinerみたいなのも追加する
+        self.choicesLiner = nn.Linear(self.hidden_dim*num_directions*C_MAXLEN, self.hidden_dim*num_directions)
 
         # --- 論文中のMulti-Perspective Aggregation Layer ---
         self.MPA=MPALayer(self.hidden_dim, self.output_dim, num_directions)
 
         # --- 論文中のOutput Layer ---
         self.OutLayer=PointerNet(self.hidden_dim, self.output_dim, num_directions)
+
+    def make_choices_vec(choice, Emb, GRU, Li):
+        choice.squeeze(1)   # (c, 1, b) -> (c, b)
+        c_emb = Emb(choice) # (c, b) -> (c, b, h)
+        c_gru, _ = GRU(c_emb)    # (c, b, h) -> (c, b, 2h) , (1*2, b, h)
+        c_out=c_gru.transpose(0,1)  # (c, b, 2h) -> (b, c, 2h)
+        c_out=c_out.view(batch_size, -1) # (b, c*2h)
+        c_vec=Li(c_out)    # (b, 2h)
+
+        return c_vec
 
     def forward(self, input_batch, choices_batch):
         """
@@ -371,7 +524,7 @@ class MPnet(nn.Module):
                 c:選択肢の最大長(パディング後)
                 n:1問あたりの選択肢数
 
-        :returns (b, o)
+        :returns (b, 4)
         """
         # --- 論文中のInput layer ---
         #TODO inputからCLZの場所特定しておく？→それバッチでできる？
@@ -382,173 +535,20 @@ class MPnet(nn.Module):
 
         c1, c2, c3, c4=torch.chunk(choices_batch, self.out_dim, dim=1)
 
-        c1.squeeze(1)   # (c, 1, b) -> (c, b)
-        c1_emb = self.embedding(c1) # (c, b) -> (c, b, h)
-        c1_vec, _ = self.choicesBiGRU(c1_emb)    # (c, b, h) -> (c, b, h*2) , (1*2, b, h)
-
-        c2.squeeze(1)
-        c2_emb = self.embedding(c2)
-        c2_vec, _ = self.choicesBiGRU(c2_emb)
-
-        c3.squeeze(1)
-        c3_emb = self.embedding(c3)
-        c3_vec, _ = self.choicesBiGRU(c3_emb)
-
-        c4.squeeze(1)
-        c4_emb = self.embedding(c4)
-        c4_vec, _ = self.choicesBiGRU(c4_emb)
+        c1_vec = make_choices_vec(c1, self.embedding, self.choicesBiGRU, self.choicesLiner)
+        c2_vec = make_choices_vec(c2, self.embedding, self.choicesBiGRU, self.choicesLiner)
+        c3_vec = make_choices_vec(c3, self.embedding, self.choicesBiGRU, self.choicesLiner)
+        c4_vec = make_choices_vec(c4, self.embedding, self.choicesBiGRU, self.choicesLiner)
 
         # --- 論文中のMulti-Perspective Aggregation Layer ---
         P, C1, C2, C3, C4=self.MPA(sent_vec, input_batch, c1_vec, c2_vec, c3_vec, c4_vec)
+        # P: (b, 4h),  C:(b, 6h)
 
         # --- 論文中のOutput Layer ---
-        output=self.OutLayer(P, C1, C2, C3, C4)
+        output=self.OutLayer(P, C1, C2, C3, C4, batch_size) # (b, 4)
 
-        return output
+        return output   # (b, 4)
 
-
-#エンコーダのクラス
-class EncoderRNN(nn.Module):
-    def __init__(self, input_dim, emb_dim, hid_dim, weights_matrix):
-        super(EncoderRNN, self).__init__()
-        self.input_dim = input_dim #入力語彙数
-        self.embedding_dim = emb_dim
-        self.hidden_dim = hid_dim
-
-        self.embedding = nn.Embedding(self.input_dim, self.embedding_dim, padding_idx=PAD_token) #語彙数×次元数
-        self.embedding.weight.data.copy_(torch.from_numpy(weights_matrix))
-
-        self.lstm = nn.LSTM(input_size=self.embedding_dim,
-                            hidden_size=self.hidden_dim,
-                            bidirectional=True,
-                            num_layers=2)
-        self.linear_h1 = nn.Linear(self.hidden_dim * 2, self.hidden_dim)
-        self.linear_c1 = nn.Linear(self.hidden_dim * 2, self.hidden_dim)
-
-        self.linear_h2 = nn.Linear(self.hidden_dim * 2, self.hidden_dim)
-        self.linear_c2 = nn.Linear(self.hidden_dim * 2, self.hidden_dim)
-
-    def forward(self, input_batch):
-        """
-        :param input_batch: (s, b)
-
-        :returns (s, b, 2h), ((1, b, h), (1, b, h))
-        decoderの入力として使うのでLTSMの出力からいろいろ変形してる
-        """
-
-        batch_size = input_batch.shape[1]
-
-        embedded = self.embedding(input_batch)  # (s, b) -> (s, b, h)
-        output, (all_h, all_c) = self.lstm(embedded)
-
-        hidden_h1, hidden_h2=torch.chunk(all_h, 2, dim=0)
-        hidden_c1, hidden_c2=torch.chunk(all_c, 2, dim=0)
-
-
-        hidden_h1 = hidden_h1.transpose(1, 0)  # (2, b, h) -> (b, 2, h)
-        hidden_h1 = hidden_h1.reshape(batch_size, -1)  # (b, 2, h) -> (b, 2h)
-        hidden_h1 = F.dropout(hidden_h1, p=0.5, training=self.training)
-        hidden_h1 = self.linear_h1(hidden_h1)  # (b, 2h) -> (b, h)
-        hidden_h1 = F.relu(hidden_h1)
-        hidden_h1 = hidden_h1.unsqueeze(0)  # (b, h) -> (1, b, h)
-
-        hidden_c1 = hidden_c1.transpose(1, 0)
-        hidden_c1 = hidden_c1.reshape(batch_size, -1)  # (b, 2, h) -> (b, 2h)
-        hidden_c1 = F.dropout(hidden_c1, p=0.5, training=self.training)
-        hidden_c1 = self.linear_c1(hidden_c1)
-        hidden_c1 = F.relu(hidden_c1)
-        hidden_c1 = hidden_c1.unsqueeze(0)  # (b, h) -> (1, b, h)
-
-
-        hidden_h2 = hidden_h2.transpose(1, 0)  # (2, b, h) -> (b, 2, h)
-        hidden_h2 = hidden_h2.reshape(batch_size, -1)  # (b, 2, h) -> (b, 2h)
-        hidden_h2 = F.dropout(hidden_h2, p=0.5, training=self.training)
-        hidden_h2 = self.linear_h2(hidden_h2)  # (b, 2h) -> (b, h)
-        hidden_h2 = F.relu(hidden_h2)
-        hidden_h2 = hidden_h2.unsqueeze(0)  # (b, h) -> (1, b, h)
-
-        hidden_c2 = hidden_c2.transpose(1, 0)
-        hidden_c2 = hidden_c2.reshape(batch_size, -1)  # (b, 2, h) -> (b, 2h)
-        hidden_c2 = F.dropout(hidden_c2, p=0.5, training=self.training)
-        hidden_c2 = self.linear_c2(hidden_c2)
-        hidden_c2 = F.relu(hidden_c2)
-        hidden_c2 = hidden_c2.unsqueeze(0)  # (b, h) -> (1, b, h)
-
-        hidden_h = (hidden_h1, hidden_h2)
-        hidden_c = (hidden_c1, hidden_c2)
-
-
-        return output, (hidden_h, hidden_c)
-        # (s, b, 2h), (((1, b, h), (1, b, h)), ((1, b, h), (1, b, h)))
-
-
-
-#attentionつきデコーダのクラス
-#attentionの形式をluongのやつに
-class AttnDecoderRNN2(nn.Module):
-    def __init__(self, emb_size, hidden_size, attn_size, output_size, weights_matrix):
-        super(AttnDecoderRNN2, self).__init__()
-        self.hidden_size = hidden_size
-        self.output_size = output_size
-
-        self.embedding = nn.Embedding(output_size, emb_size, padding_idx=PAD_token)
-        self.embedding.weight.data.copy_(torch.from_numpy(weights_matrix))
-        self.lstm = nn.LSTMCell(emb_size, hidden_size)
-        self.lstm2 = nn.LSTMCell(hidden_size, hidden_size)
-
-        self.score_w = nn.Linear(2*hidden_size, 2*hidden_size)
-        self.attn_w = nn.Linear(4*hidden_size, attn_size)
-        self.out_w = nn.Linear(attn_size, output_size)
-
-    def forward(self, input, hidden, encoder_outputs):
-        """
-        :param: input: (b)
-        :param: hidden: ((b,h),(b,h))
-        :param: encoder_outputs: (il,b,2h)
-            il: input length
-
-        :return: (b,o), ((b,h),(b,h)), (b,il)
-        """
-
-        embedded = self.embedding(input)  # (b) -> (b,e)
-        embedded = F.dropout(embedded, p=0.5, training=self.training)
-
-        hidden1=hidden[0]
-        hidden2=hidden[1]
-
-        hidden1 = self.lstm(embedded, hidden1)  # (b,e),((b,h),(b,h)) -> ((b,h),(b,h))
-        hidden2 = self.lstm2(hidden1[0], hidden2)  # (b,h),((b,h),(b,h)) -> ((b,h),(b,h))
-
-        decoder_output = torch.cat(hidden2, dim=1)  # ((b,h),(b,h)) -> (b,2h)
-        decoder_output = F.dropout(decoder_output, p=0.5, training=self.training)
-
-        # score
-        score = self.score_w(decoder_output)  # (b,2h) -> (b,2h)
-        scores = torch.bmm(
-            encoder_outputs.transpose(0, 1),  # (b,il,2h)
-            score.unsqueeze(2)  # (b,2h,1)
-        )  # (b,il,1)
-        attn_weights = F.softmax(scores, dim=1)  # (b,il,1)
-
-        # context
-        context = torch.bmm(
-            attn_weights.transpose(1, 2),  # (b,1,il)
-            encoder_outputs.transpose(0, 1)  # (b,il,2h)
-        )  # (b,1,2h)
-        context = context.squeeze(1)  # (b,1,2h) -> (b,2h)
-
-        concat = torch.cat((context, decoder_output), dim=1)  # ((b,2h),(b,2h)) -> (b,4h)
-        #concat = F.dropout(concat, p=0.5, training=self.training)
-
-        attentional = self.attn_w(concat)  # (b,4h) -> (b,a)
-        attentional = torch.tanh(attentional)
-        #attentional = F.dropout(attentional, p=0.5, training=self.training)
-
-        output = self.out_w(attentional)  # (b,a) -> (b,o)
-        output = F.log_softmax(output, dim=1)
-
-        return output, (hidden1, hidden2), attn_weights.squeeze(2)
-        # (b,o), (((b,h),(b,h)), ((b,h),(b,h)), (b,il)
 
 
 ###########################
@@ -558,13 +558,6 @@ class AttnDecoderRNN2(nn.Module):
 #単語列をID列に
 def indexesFromSentence(lang, sentence):
     return [lang.check_word2index(word) for word in sentence.split(' ')]
-
-
-#単語列からモデルの入力へのテンソルに
-def tensorFromSentence(lang, sentence, dev=my_device):
-    indexes = indexesFromSentence(lang, sentence)
-    indexes.append(EOS_token)
-    return torch.tensor(indexes, dtype=torch.long, device=dev).view(-1, 1)
 
 
 #単語列からモデルの入力へのテンソルに
