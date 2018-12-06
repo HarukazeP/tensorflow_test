@@ -279,15 +279,13 @@ class AttnReader(nn.Module):
         super(AttnReader, self).__init__()
         self.hidden_dim = hid_dim
         self.output_dim = out_dim   #選択肢の数
-        P_dim=2*num_directions
-        C_dim=3*num_directions
 
         self.GateWeight_P = Parameter(torch.Tensor(self.hidden_dim, self.hidden_dim*P_dim))
         self.GateWeight_C = Parameter(torch.Tensor(self.hidden_dim, self.hidden_dim*C_dim))
         self.GateBias = Parameter(torch.Tensor(self.hidden_dim))
 
-        self.OutWeight_P = Parameter(torch.Tensor(self.output_dim, self.hidden_dim*P_dim))
-        self.OutBias = Parameter(torch.Tensor(self.output_dim))
+        self.weight = Parameter(torch.Tensor(self.output_dim*num_directions, self.output_dim*num_directions))
+        self.bias = Parameter(torch.Tensor(self.output_dim*num_directions))
 
     def forward(self, sents_vec, c1_vec, c2_vec, c3_vec, c4_vec):
         '''
@@ -295,56 +293,41 @@ class AttnReader(nn.Module):
                   c1_vecなど  (b, 2h)
             出力：p1など      (b, 2h)
         '''
-        '''
-        WP=P.matmul(self.GateWeight_P.t())      # (b, 4h) -> (b, h)
-        WC1=C1.matmul(self.GateWeight_C.t())    # (b, 6h) -> (b, h)
-        WC2=C2.matmul(self.GateWeight_C.t())
-        WC3=C3.matmul(self.GateWeight_C.t())
-        WC4=C4.matmul(self.GateWeight_C.t())
 
-        g1=WP+WC1+self.GateBias #(b, h)　#これでちゃんとバッチ数分バイス足せてる
-        g2=WP+WC2+self.GateBias #(b, h)
-        g3=WP+WC3+self.GateBias #(b, h)
-        g4=WP+WC4+self.GateBias #(b, h)
+        Wh=torch.matmul(sents_vec, self.weight) # (b, s, h)
 
-        C_dash1=torch.mul(C1, F.sigmoid(g1))    #(b, h)
-        C_dash2=torch.mul(C2, F.sigmoid(g2))
-        C_dash3=torch.mul(C3, F.sigmoid(g3))
-        C_dash4=torch.mul(C4, F.sigmoid(g4))
+        bh=torch.matmul(sents_vec, self.bias) # (b, s)
 
-        WP_out=P.matmul(self.OutWeight_P.t())   # (b, 4h) -> (b, h)
+        u1=c1_vec.unsqueeze(2) # (b, h) -> (b, h, 1)
+        u2=c2_vec.unsqueeze(2)
+        u3=c3_vec.unsqueeze(2)
+        u4=c4_vec.unsqueeze(2)
 
-        #(b, h)と(b,h)の内積で(b,1)にしたいが
-        #pytorchでバッチごとの内積はbmmしかないため変形してる
-        C1WP=torch.bmm(C_dash1.view(batch_size, 1, self.hidden_dim), WP_out.view(batch_size, self.hidden_dim, 1))   #(b,1,1)
-        C1WP=C1WP.squeeze(2) #(b,1)
-        C2WP=torch.bmm(C_dash2.view(batch_size, 1, self.hidden_dim), WP_out.view(batch_size, self.hidden_dim, 1))
-        C2WP=C2WP.squeeze(2)
-        C3WP=torch.bmm(C_dash3.view(batch_size, 1, self.hidden_dim), WP_out.view(batch_size, self.hidden_dim, 1))
-        C3WP=C3WP.squeeze(2)
-        C4WP=torch.bmm(C_dash4.view(batch_size, 1, self.hidden_dim), WP_out.view(batch_size, self.hidden_dim, 1))
-        C4WP=C4WP.squeeze(2)
+        u1_Wh=torch.bmm(Wh, u1) # (b, s)
+        u2_Wh=torch.bmm(Wh, u2)
+        u3_Wh=torch.bmm(Wh, u3)
+        u4_Wh=torch.bmm(Wh, u4)
 
-        bC1=torch.matmul(C_dash1, self.OutBias) #(b)
-        bC1=bC1.unsqueeze(1)    #(b,1)
-        bC2=torch.matmul(C_dash2, self.OutBias)
-        bC2=bC2.unsqueeze(1)
-        bC3=torch.matmul(C_dash3, self.OutBias)
-        bC3=bC3.unsqueeze(1)
-        bC4=torch.matmul(C_dash4, self.OutBias)
-        bC4=bC4.unsqueeze(1)
+        #これ計算あってる？適当にかいただけ
+        attn1=u1_Wh+bh
+        attn2=u2_Wh+bh
+        attn3=u3_Wh+bh
+        attn4=u4_Wh+bh
 
-        out1=C1WP+bC1   #(b,1)
-        out2=C1WP+bC1
-        out3=C1WP+bC1
-        out4=C1WP+bC1
 
-        output=torch.cat([out1, out2, out3, out4], dim=1)   #(b,4)
-        prob=F.softmax(output, dim=1)   #(b,4)
-        '''
-        P1=
+        #output=torch.cat([out1, out2, out3, out4], dim=1)   #(b,4)
+        #prob=F.softmax(output, dim=1)   #(b,4)
 
-        return prob #(b, 4)
+        attn1_h=
+
+
+
+        P1=torch.sum(attn1_h, dim=1)
+        P2=torch.sum(attn2_h, dim=1)
+        P3=torch.sum(attn3_h, dim=1)
+        P4=torch.sum(attn4_h, dim=1)
+
+        return P1, P2, P3, P4
 
 
 
