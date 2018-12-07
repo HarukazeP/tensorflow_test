@@ -1242,7 +1242,7 @@ if __name__ == '__main__':
     for vocab_path in vocab_files:
         today1=datetime.datetime.today()
         today_str=today1.strftime('%m_%d_%H%M')
-        save_path=file_path + '/' + today_str
+        save_path=file_path + today_str
 
         # 1.語彙データ読み込み
         vocab = readVocab(vocab_path)
