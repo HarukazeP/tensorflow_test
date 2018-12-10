@@ -53,5 +53,3 @@ print(1.0*len2/sum)
 print(1.0*len3/sum)
 print(1.0*len4/sum)
 print(1.0*len5/sum)
-
-

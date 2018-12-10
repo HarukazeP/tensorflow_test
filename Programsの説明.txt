@@ -1,125 +1,151 @@
 各プログラムの説明
-github上で表示される辞書順だったり作成日時順だったり
+基本的に作成日時順のつもりだけど，一部githubの表示順(名前順)になってるかも
 言語はほとんどがpython3だけどオブジェクト指向に不慣れなため，c言語のような手続き型のような書き方
 
 
 -----2018_from04to07ディレクトリ内----------------------------------------
-tensorflowのみ
-主に合同ゼミに向けてのもの
-出力いろいろはoutputディレクトリに
+    tensorflowのみ
+    主に合同ゼミに向けてのもの
+    出力いろいろはoutputディレクトリに
 
 
-memo.txt
-この期間は自作したり，他人のプログラムを一部変えたりとかしてないのでその旨などを書いてる
-
+    memo.txt
+    この期間は自作したり，他人のプログラムを一部変えたりとかしてないのでその旨などを書いてる
 
 
 -----2018_from08to11ディレクトリ内----------------------------------------
-pytorchのみ
-出力いろいろはoutputディレクトリに
+    pytorch中心
+    一部kerasあり
+
+    seq2seq_attention_with_vocab.py
+    pytorchのseq2seqチュートリアルから改変
+    語彙をあらかじめ与える形式に変更
 
 
-seq2seq_attention_with_vocab.py
-pytorchのseq2seqチュートリアルから改変
-語彙をあらかじめ与える形式に変更
+    seq2seq_attention_allData.py
+    seq2seq_attention_with_vocab.py　から変更
+    ランダムではなく全データを学習する形式に
+    しかしミニバッチは未実装のまま、1データずつ学習する
 
 
-seq2seq_attention_allData.py
-seq2seq_attention_with_vocab.py　から変更
-ランダムではなく全データを学習する形式に
-しかしミニバッチは未実装のまま、1データずつ学習する
+    seq2seq_attention.py
+    seq2seq_attention_allData.py　から変更
+    テストおよび精度算出、val_loss最小のモデルを選択、実行時のモード選択
+    上記の機能を追加
 
 
-seq2seq_attention.py
-seq2seq_attention_allData.py　から変更
-テストおよび精度算出、val_loss最小のモデルを選択、実行時のモード選択
-上記の機能を追加
+    seq2seq_attention_choices.py
+    seq2seq_attention.py　から変更
+    空所内のみ予想、選択肢を利用して空所予想の機能を追加
 
 
-seq2seq_attention_choices.py
-seq2seq_attention.py　から変更
-空所内のみ予想、選択肢を利用して空所予想の機能を追加
+    seq2seq_attention_batch.py
+    seq2seq_attention_choices.py　から変更
+    ミニバッチ学習を追加
 
 
-seq2seq_attention_batch.py
-seq2seq_attention_choices.py　から変更
-ミニバッチ学習を追加
+    seq2seq_attention_batch_new_model.py
+    seq2seq_attention_batch.py　から変更
+    attentionの仕組みを変更およびLSTMを2層に
 
 
-seq2seq_attention_batch_new_model.py
-seq2seq_attention_batch.py　から変更
-attentionの仕組みを変更およびLSTMを2層に
+    seq2seq_attention_pretrain_vec.py
+    seq2seq_attention_batch_new_model.py　から変更
+    Embedding層に学習済み初期値使用
 
-
-seq2seq_attention_pretrain_vec.py
-seq2seq_attention_batch_new_model.py　から変更
-Embedding層に学習済み初期値使用
-
+    #TODO
+    ここまだ全部のプログラムについて書けていない
 
 
 -----2018_from12to03ディレクトリ内----------------------------------------
+    pytorch中心
 
+    seq2seq_less_memory.py
+    seq2seq_attention_pretrain_vec.py　から変更
+    データの読み込みとかRAMで読み取るようにしてGPU上のメモリ節約
+
+
+    MPnet_cloze.py
+    選択肢ごと学習するモデル
+    論文の数式からできる限りの範囲でコード化したやつ
 
 
 -----ForDataディレクトリ内----------------------------------------
-主にデータ整形orデータ作成プログラム
+    主にデータ整形orデータ作成プログラム
 
---- < 2018_from04to07のプログラム関連 > ---
-calc_words_in_sent.py
-センターの英文が何単語か分布確認するやつ
-
-
-check_words_in_cloze.py
-センターの英文の空所内が何単語か分布確認するやつ
+    --- < 2018_from04to07のプログラム関連 > ---
+    calc_words_in_sent.py
+    センターの英文が何単語か分布確認するやつ
 
 
-center_to_nmt.py
-センターの問題に対してtext8コーパスと同様の処理してテストデータつくるやつ
+    check_words_in_cloze.py
+    センターの英文の空所内が何単語か分布確認するやつ
 
 
-new_make_data_at_server.py
-text8コーパスからseq2seq用の学習データと検証データ作成
-センターの分布にあわせて分割したり，空所作成したり
-at_serverってついてるのはファイルパスの関係だけ
+    center_to_nmt.py
+    センターの問題に対してtext8コーパスと同様の処理してテストデータつくるやつ
 
 
---- < 2018_from08to11のプログラム関連 > ---
+    new_make_data_at_server.py
+    text8コーパスからseq2seq用の学習データと検証データ作成
+    センターの分布にあわせて分割したり，空所作成したり
+    at_serverってついてるのはファイルパスの関係だけ
 
-new_make_data_at_server_one_data.py
-new_make_data_at_server.py から変更
-空所内1語のみver
 
+    --- < 2018_from08to11のプログラム関連 > ---
+    new_make_data_at_server_one_data.py
+    new_make_data_at_server.py から変更
+    空所内1語のみver
+
+
+    new_make_data_faster.py
+    new_make_data_at_server.py から変更
+    wikiとか1行のデータを分割し，seq2seqのデータ作る用
+
+
+    text_to_unk.py
+    kenlm用
+    語彙に含まれない単語をUNKに置換したテキストデータを作成
+
+
+    --- < 2018_from08to11のプログラム関連 > ---
+    #TODO
+    ここまだ全部のプログラムについて書けていない
 
 -----ForCalcディレクトリ内----------------------------------------
-正解率とか計算用プログラム
+    正解率とか計算用プログラム
 
---- < 2018_from04to07のプログラム関連 > ---
-calc_BLEU_acc.py
-テストデータと検証データに対するBLEUと空所正解率を算出
-
-
-calc_BLEU_acc_change_unk.py
-テストデータと検証データに対するBLEUと空所正解率を算出
-モデルに与えた語彙に含まれない語を正解データにおいても<unk>に置換してから
+    --- < 2018_from04to07のプログラム関連 > ---
+    calc_BLEU_acc.py
+    テストデータと検証データに対するBLEUと空所正解率を算出
 
 
-calc_part_acc.py
-テストデータと検証データに対する空所部分一致率を算出
+    calc_BLEU_acc_change_unk.py
+    テストデータと検証データに対するBLEUと空所正解率を算出
+    モデルに与えた語彙に含まれない語を正解データにおいても<unk>に置換してから
 
 
-calc_part_acc_change_unk.py
-テストデータと検証データに対する空所部分一致率を算出
-モデルに与えた語彙に含まれない語を正解データにおいても<unk>に置換してから
+    calc_part_acc.py
+    テストデータと検証データに対する空所部分一致率を算出
 
 
-check_top10words.py
-正解データやモデルの予測における空所に入る語の分布確認
+    calc_part_acc_change_unk.py
+    テストデータと検証データに対する空所部分一致率を算出
+    モデルに与えた語彙に含まれない語を正解データにおいても<unk>に置換してから
 
 
-distance_from_cloze.py
-空所外について単語単位で正誤判定し，精度と空所記号からの距離の影響を調べるやつ
+    check_top10words.py
+    正解データやモデルの予測における空所に入る語の分布確認
 
 
-calc_all_by_position.py
-空所が文頭や文末にあるかごとに精度の算出
-BLEU，空所の正解率，空所の部分一致率
+    distance_from_cloze.py
+    空所外について単語単位で正誤判定し，精度と空所記号からの距離の影響を調べるやつ
+
+
+    calc_all_by_position.py
+    空所が文頭や文末にあるかごとに精度の算出
+    BLEU，空所の正解率，空所の部分一致率
+
+    --- < 2018_from08to11のプログラム関連 > ---
+    #TODO
+    ここまだ全部のプログラムについて書けていない

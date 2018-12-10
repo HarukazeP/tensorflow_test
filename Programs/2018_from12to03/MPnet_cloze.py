@@ -26,7 +26,7 @@ GRUのドロップアウト率は50%
 語彙数は上位3万単語
 embeddingの初期値はGoogleの学習済みword2vecの300次元，全て学習で更新
 最適化関数はSGD
-学習率は最初10^(-3)，更新していく？
+学習率は最初10^(-3)，val_lossが減少しない場合は学習率小さくする
 GRUは各128ユニット
 入力は最大80単語
 CNNでは2ブロック，出力次元数128，kernel_size 3
@@ -107,7 +107,7 @@ my_CPU=torch.device("cpu")
 # 1.データの準備
 ###########################
 
-#seq2seqモデルで用いる語彙に関するクラス
+#語彙に関するクラス
 class Lang:
     def __init__(self):
         self.word2index = {"<UNK>": UNK_token}
@@ -166,7 +166,7 @@ def normalizeString(s, choices=False):
     return s.strip()
 
 
-#与えた語彙読み込み(自作)
+#与えた語彙読み込み
 def readVocab(file):
     lang = Lang()
     print("Reading vocab...")
@@ -232,8 +232,6 @@ def get_weight_matrix(lang):
 # 2.モデル定義
 ###########################
 
-
-
 # --- MPALayerの一部: Iterative Dilated Convolution ---
 class IDCNN(nn.Module):
     def __init__(self, hid_dim, num_direction):
@@ -256,7 +254,7 @@ class IDCNN(nn.Module):
 
     def forward(self, sents_vec):
         '''
-            入力: sents_vec  (s, b, 2h)
+            入力: sents_vec  (b, s, 2h)
             出力：cnn_vec (b, 2h)
         '''
         #TODO バッチ正規化とかreruとか，この位置だけでいい？
@@ -289,48 +287,42 @@ class AttnReader(nn.Module):
 
     def forward(self, sents_vec, c1_vec, c2_vec, c3_vec, c4_vec):
         '''
-            入力: sents_vec  (s, b, 2h)
+            入力: sents_vec  (b, s, 2h)
                   c1_vecなど  (b, 2h)
             出力：p1など      (b, 2h)
         '''
 
-        Wh=torch.matmul(sents_vec, self.weight) # (b, s, h)
+        Wh=torch.matmul(sents_vec, self.weight) # (b, s, 2h)
 
         bh=torch.matmul(sents_vec, self.bias) # (b, s)
+        bh=bh.unsqueeze(2)  # (b, s, 1)
 
-        u1=c1_vec.unsqueeze(2) # (b, h) -> (b, h, 1)
+        u1=c1_vec.unsqueeze(2) # (b, 2h) -> (b, 2h, 1)
         u2=c2_vec.unsqueeze(2)
         u3=c3_vec.unsqueeze(2)
         u4=c4_vec.unsqueeze(2)
 
-        u1_Wh=torch.bmm(Wh, u1) # (b, s)
+        u1_Wh=torch.bmm(Wh, u1) # (b, s, 1)
         u2_Wh=torch.bmm(Wh, u2)
         u3_Wh=torch.bmm(Wh, u3)
         u4_Wh=torch.bmm(Wh, u4)
 
-        #これ計算あってる？適当にかいただけ
-        attn1=u1_Wh+bh
-        attn2=u2_Wh+bh
-        attn3=u3_Wh+bh
-        attn4=u4_Wh+bh
+        attn1=F.softmax(u1_Wh+bh, dim=1) # (b, s, 1)
+        attn2=F.softmax(u2_Wh+bh, dim=1)
+        attn3=F.softmax(u3_Wh+bh, dim=1)
+        attn4=F.softmax(u4_Wh+bh, dim=1)
 
+        attn1_h=torch.mul(sents_vec, attn_1)  # (b, s, 2h)
+        attn2_h=torch.mul(sents_vec, attn_2)
+        attn3_h=torch.mul(sents_vec, attn_3)
+        attn4_h=torch.mul(sents_vec, attn_4)
 
-        #output=torch.cat([out1, out2, out3, out4], dim=1)   #(b,4)
-        #prob=F.softmax(output, dim=1)   #(b,4)
-
-        attn1_h=
-
-
-
-        P1=torch.sum(attn1_h, dim=1)
+        P1=torch.sum(attn1_h, dim=1)    # (b, s, 2h) -> (b, 2h)
         P2=torch.sum(attn2_h, dim=1)
         P3=torch.sum(attn3_h, dim=1)
         P4=torch.sum(attn4_h, dim=1)
 
         return P1, P2, P3, P4
-
-
-
 
 
 # --- 論文中のMulti-Perspective Aggregation Layer ---
@@ -348,8 +340,8 @@ class MPALayer(nn.Module):
 
     def forward(self, sents_vec, input_batch, c1_vec, c2_vec, c3_vec, c4_vec):
         '''
-            入力: sents_vec    (s, b, 2h)
-                  input_batch  (s, b)
+            入力: sents_vec    (b, s, 2h)
+                  input_batch  (b, s)
                   c1_vec       (b, 2h)
 
             出力：PとC1,C2,C3,C4
@@ -479,8 +471,8 @@ class MPnet(nn.Module):
         self.embedding = nn.Embedding(self.vocab_size, self.embedding_dim, padding_idx=PAD_token) #語彙数×次元数
         self.embedding.weight.data.copy_(torch.from_numpy(weights_matrix))
 
-        self.BiGRU=nn.GRU(input_size=self.embedding_dim, hidden_size=self.hidden_dim, dropout=0.5, num_layers=1, bidirectional=BiDi)
-        self.choicesBiGRU=nn.GRU(input_size=self.embedding_dim, hidden_size=self.hidden_dim, dropout=0.5, num_layers=1, bidirectional=BiDi)
+        self.BiGRU=nn.GRU(input_size=self.embedding_dim, hidden_size=self.hidden_dim, dropout=0.5, num_layers=1, batch_first=True, bidirectional=BiDi)
+        self.choicesBiGRU=nn.GRU(input_size=self.embedding_dim, hidden_size=self.hidden_dim, dropout=0.5, num_layers=1, batch_first=True, bidirectional=BiDi)
         self.choicesLiner = nn.Linear(self.hidden_dim*num_directions*C_MAXLEN, self.hidden_dim*num_directions)
 
         # --- 論文中のMulti-Perspective Aggregation Layer ---
@@ -490,11 +482,10 @@ class MPnet(nn.Module):
         self.OutLayer=PointerNet(self.hidden_dim, self.output_dim, num_directions)
 
     def make_choices_vec(choice, Emb, GRU, Li):
-        choice.squeeze(1)   # (c, 1, b) -> (c, b)
-        c_emb = Emb(choice) # (c, b) -> (c, b, h)
-        c_gru, _ = GRU(c_emb)    # (c, b, h) -> (c, b, 2h) , (1*2, b, h)
-        c_out=c_gru.transpose(0,1)  # (c, b, 2h) -> (b, c, 2h)
-        c_out=c_out.view(batch_size, -1) # (b, c*2h)
+        choice.squeeze()   # (b, c, 1) -> (b, c)
+        c_emb = Emb(choice) # (b, c) -> (b, c, h)
+        c_gru, _ = GRU(c_emb)    # (b, c, h) -> (b, c, 2h) , (b, 1*2, h)
+        c_out=c_gru.view(batch_size, -1) # (b, c*2h)
         c_vec=Li(c_out)    # (b, 2h)
 
         return c_vec
@@ -502,8 +493,8 @@ class MPnet(nn.Module):
     def forward(self, input_batch, choices_batch):
         """
         :param
-            input_batch:   (s, b)
-            choices_batch: (c, n, b)
+            input_batch:   (b, s)
+            choices_batch: (b, c, n)
                 c:選択肢の最大長(パディング後)
                 n:1問あたりの選択肢数
 
@@ -513,10 +504,10 @@ class MPnet(nn.Module):
         #TODO inputからCLZの場所特定しておく？→それバッチでできる？
         batch_size = input_batch.shape[1]
 
-        embedded = self.embedding(input_batch)  # (s, b) -> (s, b, h)
-        sent_vec, _ = self.BiGRU(embedded)    # (s, b, h) -> (s, b, h*2) , (1*2, b, h)
+        embedded = self.embedding(input_batch)  # (b, s) -> (b, s, h)
+        sent_vec, _ = self.BiGRU(embedded)    # (b, s, h) -> (b, s, 2h) , (b, 1*2, h)
 
-        c1, c2, c3, c4=torch.chunk(choices_batch, self.out_dim, dim=1)
+        c1, c2, c3, c4=torch.chunk(choices_batch, self.out_dim, dim=2)
 
         c1_vec = make_choices_vec(c1, self.embedding, self.choicesBiGRU, self.choicesLiner)
         c2_vec = make_choices_vec(c2, self.embedding, self.choicesBiGRU, self.choicesLiner)
@@ -533,7 +524,6 @@ class MPnet(nn.Module):
         return output   # (b, 4)
 
 
-
 ###########################
 # 3.入力データ変換
 ###########################
@@ -545,8 +535,8 @@ def indexesFromSentence(lang, sentence):
 
 #単語列からモデルの入力へのテンソルに
 #パディングあり、returnも変更
-def pad_indexes(lang, sentence, dev=my_device):
-    indexes = indexesFromSentence(lang, sentence, dev=dev)
+def pad_indexes(lang, sentence):
+    indexes = indexesFromSentence(lang, sentence)
     indexes.append(EOS_token)
     indexes + [PAD_token] * (MAX_LENGTH - len(indexes))
     return indexes + [PAD_token] * (MAX_LENGTH - len(indexes))
@@ -697,8 +687,8 @@ def trainIters(lang, encoder, decoder, train_pairs, val_pairs, n_iters, print_ev
     print_val_loss_total = 0  # Reset every print_every
     plot_val_loss_total = 0
 
-    best_val_loss=1000000   #仮
     best_iter=0
+    best_val_loss = None
 
     best_encoder_weight = copy.deepcopy(encoder.state_dict())
     best_decoder_weight = copy.deepcopy(decoder.state_dict())
@@ -706,14 +696,15 @@ def trainIters(lang, encoder, decoder, train_pairs, val_pairs, n_iters, print_ev
     encoder_optimizer = optim.SGD(encoder.parameters(), lr=learning_rate)
     decoder_optimizer = optim.SGD(decoder.parameters(), lr=learning_rate)
 
-    X_train=[pad_indexes(lang, s, dev=my_CPU) for s in train_pairs[0]]
-    y_train=[pad_indexes(lang, s, dev=my_CPU) for s in train_pairs[1]]
-    X_val=[pad_indexes(lang, s, dev=my_CPU) for s in val_pairs[0]]
-    y_val=[pad_indexes(lang, s, dev=my_CPU) for s in val_pairs[1]]
+    X_train=[pad_indexes(lang, s) for s in train_pairs[0]]
+    y_train=[pad_indexes(lang, s) for s in train_pairs[1]]
+    X_val=[pad_indexes(lang, s) for s in val_pairs[0]]
+    y_val=[pad_indexes(lang, s) for s in val_pairs[1]]
 
     train_data_num=len(X_train)
     val_data_num=len(X_val)
 
+    #データ全体はRAMに載せる
     X_train=torch.tensor(X_train, dtype=torch.long, device=my_CPU)
     y_train=torch.tensor(y_train, dtype=torch.long, device=my_CPU)
     X_val=torch.tensor(X_val, dtype=torch.long, device=my_CPU)
@@ -725,8 +716,6 @@ def trainIters(lang, encoder, decoder, train_pairs, val_pairs, n_iters, print_ev
     loader_train = DataLoader(ds_train, batch_size=BATCH_SIZE, shuffle=True)
     loader_val = DataLoader(ds_val, batch_size=BATCH_SIZE, shuffle=False)
 
-
-
     criterion = nn.NLLLoss(ignore_index=PAD_token)
 
     for iter in range(1, n_iters + 1):
@@ -734,12 +723,11 @@ def trainIters(lang, encoder, decoder, train_pairs, val_pairs, n_iters, print_ev
             '''
             x:(バッチサイズ, 文長)
             y:(バッチサイズ, 文長)
-            からembedding層の入力に合うようにtransposeで入れ替え
             '''
-            x=x.transpose(0,1)
-            y=y.transpose(0,1)
+            #計算はGPUのメモリ上で
             x=x.to(my_device)
             y=y.to(my_device)
+
             loss = batch_train(x, y, encoder, decoder, encoder_optimizer, decoder_optimizer, criterion)
 
             loss=loss*x.size(1)
@@ -749,10 +737,9 @@ def trainIters(lang, encoder, decoder, train_pairs, val_pairs, n_iters, print_ev
         #ここで学習1回分終わり
 
         for x, y in loader_val:
-            x=x.transpose(0,1)
-            y=y.transpose(0,1)
             x=x.to(my_device)
             y=y.to(my_device)
+
             val_loss = batch_valid(x, y, encoder, decoder, criterion, lang)
 
             val_loss=val_loss*x.size(1)
@@ -782,11 +769,14 @@ def trainIters(lang, encoder, decoder, train_pairs, val_pairs, n_iters, print_ev
         plot_val_loss_total = 0
 
         #val_loss最小更新
-        if (best_val_loss > val_loss) or (iter == 1):
+        if not best_val_loss or val_loss < best_val_loss:
             best_val_loss = val_loss
             best_iter=iter
             best_encoder_weight = copy.deepcopy(encoder.state_dict())
             best_decoder_weight = copy.deepcopy(decoder.state_dict())
+        else:
+            # val_lossの減少しない場合は学習率小さくする
+            learning_rate /= 4.0    #この4に特に意味はない，マジックナンバー
 
     #全学習終わり
     #lossグラフ描画

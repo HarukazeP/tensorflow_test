@@ -1,65 +1,55 @@
 ---- このディレクトリ内 ----
 
---- < seq2seqチュートリアル(nmt)関係 > ---
-center.ans　と　center.cloze
-センター試験の問題文そのまま
-324行
-.ansは空所補充語
-.clozeは空所あいたまま
+    --- < seq2seqチュートリアル(nmt)関係 > ---
+    center.ans　と　center.cloze
+    センター試験の問題文そのまま
+    324行
+    .ansは空所補充語
+    .clozeは空所あいたまま
 
-center_nmt.ans　と　center_nmt.cloze
-センターの試験問題文にtext8コーパスと同様の前処置したもの
-
-
-text8_nmt_dev.ans　と　text8_nmt_dev.cloze
-new_make_data_at_server.pyで作成した検証データ
-1000行
+    center_nmt.ans　と　center_nmt.cloze
+    センターの試験問題文にtext8コーパスと同様の前処置したもの
 
 
-
---- < pytorchでのseq2seq関係 > ---
-center_ans.txt　と　center_cloze.txt
-center.ans、center.clozeと同じ
-
-
-center_choices.txt
-センター試験の問題文の空所内に選択肢を「 ### 」区切りで入れたもの
-324行
+    text8_nmt_dev.ans　と　text8_nmt_dev.cloze
+    new_make_data_at_server.pyで作成した検証データ
+    1000行
 
 
 
+    --- < pytorchでのseq2seq関係 > ---
+    center_ans.txt　と　center_cloze.txt
+    center.ans、center.clozeと同じ
 
 
-
-
-
-
-
+    center_choices.txt
+    センター試験の問題文の空所内に選択肢を「 ### 」区切りで入れたもの
+    324行
 
 
 ---- 以下，gitにはアップロードしてないけど関連するファイル ----
 
 
---- < seq2seqチュートリアル(nmt)関係 > ---
-text8_nmt.ans　と　text8_nmt.cloze
-text8_nmt_tmp_nmt_ans.txt とか(後述)の先頭5万行
+    --- < seq2seqチュートリアル(nmt)関係 > ---
+    text8_nmt.ans　と　text8_nmt.cloze
+    text8_nmt_tmp_nmt_ans.txt とか(後述)の先頭5万行
 
 
-enwiki_vocab30000.cloze
-wikipedia全体に対してtext8コーパスと同様を処理をしたファイルに現れる英単語上位30000件
-および、seq2seqモデルでの未知語を表す<unk>、他に<s>や</s>、{と}を足した語彙を表すファイル
+    enwiki_vocab30000.cloze
+    wikipedia全体に対してtext8コーパスと同様を処理をしたファイルに現れる英単語上位30000件
+    および、seq2seqモデルでの未知語を表す<unk>、他に<s>や</s>、{と}を足した語彙を表すファイル
 
 
 
---- < pytorchでのseq2seq関係 > ---
-text8_nmt_tmp_nmt_ans.txt　と　text8_nmt_tmp_nmt_cloze.txt
-text8コーパスからnew_make_data_at_server.pyで作成したseq2seqプログラム用のデータ
-text8コーパスをランダムに分割、空所を作成したデータの問題と正答
-1,059,810行
+    --- < pytorchでのseq2seq関係 > ---
+    text8_nmt_tmp_nmt_ans.txt　と　text8_nmt_tmp_nmt_cloze.txt
+    text8コーパスからnew_make_data_at_server.pyで作成したseq2seqプログラム用のデータ
+    text8コーパスをランダムに分割、空所を作成したデータの問題と正答
+    1,059,810行
 
 
---- < その他 > ---
-text8.txt
-text8コーパス
-1行
-KenLMはこれで学習させている
+    --- < その他 > ---
+    text8.txt
+    text8コーパス
+    1行
+    KenLMはこれで学習させている

@@ -6,6 +6,7 @@ seq2seq_attention_pretrain_vec.py から変更
 学習データの読み込みとか工夫してGPUのメモリエラー防ぐ
 
 モデルへの入力データ全体はCPUで，ミニバッチからGPUで
+さらにマルチGPU対応したやつ
 
 #TODO
 動作確認
@@ -55,7 +56,7 @@ MAX_LENGTH = 40
 HIDDEN_DIM = 128
 ATTN_DIM = 128
 EMB_DIM = 300
-BATCH_SIZE = 128
+BATCH_SIZE = 256
 
 #自分で定義したグローバル関数とか
 file_path='../../../pytorch_data/'
@@ -1248,8 +1249,17 @@ if __name__ == '__main__':
         weights_matrix=get_weight_matrix(vocab)
     else:
         weights_matrix = np.zeros((vocab.n_words, EMB_DIM))
-    my_encoder = EncoderRNN(vocab.n_words, EMB_DIM, HIDDEN_DIM, weights_matrix).to(my_device)
-    my_decoder = AttnDecoderRNN2(EMB_DIM, HIDDEN_DIM, ATTN_DIM, vocab.n_words, weights_matrix).to(my_device)
+
+    if torch.cuda.device_count() > 1:
+        print("Use", torch.cuda.device_count(), "GPUs")
+        # dim = 0 [30, xxx] -> [10, ...], [10, ...], [10, ...] on 3 GPUs
+        my_encoder = nn.DataParallel(EncoderRNN(vocab.n_words, EMB_DIM, HIDDEN_DIM, weights_matrix))
+        my_decoder = nn.DataParallel(AttnDecoderRNN2(EMB_DIM, HIDDEN_DIM, ATTN_DIM, vocab.n_words, weights_matrix))
+        my_encoder.to(my_device)
+        my_decoder.to(my_device)
+    else:
+        my_encoder = EncoderRNN(vocab.n_words, EMB_DIM, HIDDEN_DIM, weights_matrix).to(my_device)
+        my_decoder = AttnDecoderRNN2(EMB_DIM, HIDDEN_DIM, ATTN_DIM, vocab.n_words, weights_matrix).to(my_device)
 
     #学習時
     if args.mode == 'all' or args.mode == 'mini':
