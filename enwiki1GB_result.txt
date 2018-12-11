@@ -1,0 +1,104 @@
+tamaki@tamaki-ubuntu:~/M2/tensorflow_pytorch_test/Programs/2018_from12to03$ time python3 seq2seq_less_memory.py 
+Start: 12_05_1707
+Use GPU
+all
+Reading vocab...
+Loading word vector ...
+Reading data...
+Training...
+279m 27s (- 8104m 10s) (1 3%) loss=34701855.5302, val_loss=4087070.2888
+2735m 5s (- 5470m 11s) (10 33%) loss=3.1865, val_loss=3.5862
+5468m 19s (- 2734m 9s) (20 66%) loss=3.1070, val_loss=3.5717
+8197m 50s (- 0m 0s) (30 100%) loss=3.0859, val_loss=3.5729
+best iter=23
+Reading data...
+data: 324
+Reading data...
+data: 1040
+Reading data...
+center
+Test ...
+Calc scores ...
+  acc(all):  0.00  %
+acc(cloze):  0.00  %
+ acc(part):  0.00  %
+ BLEU:  1.72
+  all:  0
+cloze:  0
+ part:  0
+ line:  324
+ miss:  324
+  acc(all):  0.62  %
+acc(cloze):  0.62  %
+ acc(part):  4.01  %
+ BLEU:  88.22
+  all:  2
+cloze:  2
+ part:  13
+ line:  324
+ miss:  17
+  acc(all):  25.93  %
+acc(cloze):  25.93  %
+ acc(part):  43.21  %
+ BLEU:  88.08
+  all:  84
+cloze:  84
+ part:  140
+ line:  324
+ miss:  0
+Test by sent score...
+Calc scores ...
+  acc(all):  31.17  %
+acc(cloze):  31.17  %
+ acc(part):  48.77  %
+ BLEU:  94.81
+  all:  101
+cloze:  101
+ part:  158
+ line:  324
+ miss:  0
+MS
+Test ...
+Calc scores ...
+  acc(all):  0.00  %
+acc(cloze):  0.00  %
+ acc(part):  0.00  %
+ BLEU:  0.98
+  all:  0
+cloze:  0
+ part:  0
+ line:  1040
+ miss:  1040
+  acc(all):  0.00  %
+acc(cloze):  0.00  %
+ acc(part):  0.00  %
+ BLEU:  89.61
+  all:  0
+cloze:  0
+ part:  0
+ line:  1040
+ miss:  32
+  acc(all):  18.75  %
+acc(cloze):  18.75  %
+ acc(part):  18.85  %
+ BLEU:  88.67
+  all:  195
+cloze:  195
+ part:  196
+ line:  1040
+ miss:  0
+Test by sent score...
+Calc scores ...
+  acc(all):  19.71  %
+acc(cloze):  19.71  %
+ acc(part):  19.71  %
+ BLEU:  94.02
+  all:  205
+cloze:  205
+ part:  205
+ line:  1040
+ miss:  0
+
+real	8226m8.872s
+user	7694m11.104s
+sys	519m26.488s
