@@ -38,6 +38,8 @@ for file_name in file1:
                 print(line)
                 #exit()
             '''
+            if line.count('XXX')>0:
+                print(line)
             word+=slen
             sent+=1
             #tlist[slen-1]+=1

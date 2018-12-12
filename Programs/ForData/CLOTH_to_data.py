@@ -17,6 +17,8 @@ import json
 from collections import OrderedDict
 import nltk
 import glob
+import unicodedata
+
 
 #----- 関数群 -----
 
@@ -164,6 +166,14 @@ def split_sent_list(sent_tokenize_list, choi_list, ans_list, file_name):
     return sents, flag
 
 
+#半角カナとか特殊記号とかを正規化
+# Ａ→A，Ⅲ→III，①→1とかそういうの
+def unicodeToAscii(s):
+    return ''.join(
+        c for c in unicodedata.normalize('NFD', s)
+        if unicodedata.category(c) != 'Mn'
+    )
+
 
 
 def json_to_text(json_path, output_pass):
@@ -187,12 +197,16 @@ def json_to_text(json_path, output_pass):
     ans_list = df['answers']   #配列
 
     #少しだけ前処理
+    text=unicodeToAscii(text)
     text = text.replace('\"', ' ')
     text = text.replace('\n', ' ')
     text = text.replace('\r', ' ')
 
     text = text.replace('{', ' ')
     text = text.replace('}', ' ')
+    text = text.replace('<IMG>', '')
+    text = text.replace('<', ' ')
+    text = text.replace('>', ' ')
 
     text = text.replace(' _', ' _ ')
     text = text.replace('_ ', ' _ ')
@@ -240,6 +254,8 @@ def json_to_text(json_path, output_pass):
             with open(choice_file, 'a') as f_cho:
                 for i in range(sents_len):
                     cloze, ans, choice=make_test_sents(sents[i], choices_list[i], ans_list[i])
+                    if ans.count('<IMG>')>0:
+                        print(json_path)
                     '''
                     if before=='':
                         before=ans
