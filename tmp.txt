@@ -12,117 +12,58 @@ time python3.6 baseline_RNNLM_ngram.py --mode test --model_dir RNNLM10_23_1240_N
 -----------------------
 
 
+python3 calc_words_in_sent.py
+../../../pytorch_data/CLOTH_for_model/CLOTH_test_high_ans.txt
+Think of XXX, she is always better than you. I had a(an) { open-hearted } talk with her.
 
-	そしてこの論文に他のテストデータセット載ってた
-	https://stackoverflow.com/questions/44373470/get-the-microsoft-research-sentence-completion-challenge
-	https://dl.acm.org/citation.cfm?id=2390940.2390944
+line: 8318
+ave : 19.127554700649195
+max : 65
+min : 3
+../../../pytorch_data/CLOTH_for_model/CLOTH_test_middle_ans.txt
+line: 3198
+ave : 15.292995622263915
+max : 74
+min : 3
+../../../pytorch_data/CLOTH_for_model/CLOTH_train_ans.txt
+line: 76850
+ave : 17.980455432661028
+max : 76
+min : 3
+../../../pytorch_data/CLOTH_for_model/CLOTH_valid_ans.txt
+line: 11067
+ave : 17.782416192283364
+max : 73
+min : 3
 
-	text_to_unk.py
- all start
- 2018-11-07 23:17:01.681968
- Reading vocab...
- word num   :  17005207
- change UNK :  911550
+-----------------------
 
- real	17m9.850s
- user	17m7.964s
- sys	0m1.064s
-
-
-
-
- tamaki@tamaki-ubuntu:~/M2/tensorflow_pytorch_test/Programs/2018_from08to11$ time python3 baseline_kenLM.py
- Reading vocab...
- Reading Testdata...
- data: 324
- Reading data...
- data: 1040
- Reading data...
- ../../../pytorch_data/text8_UNK_N5.klm
- 2018-11-08 01:08:28.889722
- 5-gram model
- Use choices
- center
-   acc:  45.68  %
-  line:  324
-    OK:  148
-   acc:  53.42  %
-  line:  161
-    OK:  86
- MS
-   acc:  25.19  %
-  line:  1040
-    OK:  262
-   acc:  25.42  %
-  line:  956
-    OK:  243
-
- Not use choices, from all words
- center
-   acc:  14.29  %
-  line:  161
-    OK:  23
- MS
-   acc:  1.78  %
-  line:  956
-    OK:  17
- ../../../pytorch_data/text8_UNK_N4.klm
- 2018-11-08 01:11:48.172392
- 4-gram model
- Use choices
- center
-   acc:  45.68  %
-  line:  324
-    OK:  148
-   acc:  53.42  %
-  line:  161
-    OK:  86
- MS
-   acc:  25.58  %
-  line:  1040
-    OK:  266
-   acc:  25.84  %
-  line:  956
-    OK:  247
-
- Not use choices, from all words
- center
-   acc:  13.66  %
-  line:  161
-    OK:  22
- MS
-   acc:  1.78  %
-  line:  956
-    OK:  17
- ../../../pytorch_data/text8_UNK_N3.klm
- 2018-11-08 01:15:05.613612
- 3-gram model
- Use choices
- center
-   acc:  45.68  %
-  line:  324
-    OK:  148
-   acc:  52.80  %
-  line:  161
-    OK:  85
- MS
-   acc:  24.52  %
-  line:  1040
-    OK:  255
-   acc:  24.69  %
-  line:  956
-    OK:  236
-
- Not use choices, from all words
- center
-   acc:  14.29  %
-  line:  161
-    OK:  23
- MS
-   acc:  1.15  %
-  line:  956
-    OK:  11
-
- real	10m2.670s
- user	9m56.620s
- sys	0m6.308s
+python3 check_words_in_cloze.py
+../../../pytorch_data/CLOTH_for_model/CLOTH_test_high_ans.txt
+1: 8303
+2: 12
+3: 0
+4: 0
+5: 0
+6: 0
+../../../pytorch_data/CLOTH_for_model/CLOTH_test_middle_ans.txt
+1: 11455
+2: 43
+3: 0
+4: 0
+5: 0
+6: 0
+../../../pytorch_data/CLOTH_for_model/CLOTH_train_ans.txt
+1: 87934
+2: 340
+3: 6
+4: 0
+5: 0
+6: 0
+../../../pytorch_data/CLOTH_for_model/CLOTH_valid_ans.txt
+1: 98938
+2: 387
+3: 7
+4: 0
+5: 0
+6: 0

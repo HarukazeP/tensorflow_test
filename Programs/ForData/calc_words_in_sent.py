@@ -38,7 +38,7 @@ for file_name in file1:
                 print(line)
                 #exit()
             '''
-            if line.count('XXX')>0:
+            if line.count('XX')>0:
                 print(line)
             word+=slen
             sent+=1
