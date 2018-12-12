@@ -10,7 +10,7 @@ import glob
 tlist=np.zeros(100)
 
 
-tmp_path='../../../pytorch_data/tmpCLOTH/CLOTH'
+tmp_path='../../../pytorch_data/CLOTH_for_model/CLOTH'
 
 file1 = sorted(glob.glob(tmp_path + '*ans.txt'))
 for file_name in file1:
@@ -19,10 +19,12 @@ for file_name in file1:
     sent=0
     max=0
     min=100
+    num=0
 
     #with open('../../Data/my_nmt/center_ans.txt') as f:
     with open(file_name) as f:
         for line in f:
+            num+=1
             tmp=line.strip().split(' ')
             tmp=line.split(' ')
             slen=len(tmp)-2 #{}の文引く
@@ -30,13 +32,16 @@ for file_name in file1:
                 max=slen
             if min > slen:
                 min = slen
+            '''
             if slen<5:
                 print(file_name)
                 print(line)
                 #exit()
+            '''
             word+=slen
             sent+=1
             #tlist[slen-1]+=1
+
     '''
     n=0
     for x in tlist:
@@ -57,10 +62,10 @@ for file_name in file1:
     '''
 
 
-
-    print('ave',word/sent)
-    print('max', max)
-    print('min',min)
+    print('line:',num)
+    print('ave :',word/sent)
+    print('max :', max)
+    print('min :',min)
     '''
     print(tlist)
     sum1=sum(tlist)
