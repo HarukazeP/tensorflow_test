@@ -10,10 +10,12 @@ ttps://aclanthology.coli.uni-saarland.de/papers/C18-1073/c18-1073
 半教師あり学習は未実装
 
 ----- 論文に書いてたこと -----
-ハイパーパラメータは検証データでのランダムサーチにより決定
-embeddingの初期値はGloveの300次元，上位1000単語のみ学習で更新   #これってもしかして1000語のEmbeddingしてる？
-最適化関数はadam
-学習率は最初10^(-3)，学習を重ねるごとに10^(-4)や10^(-5)に小さくしていく
+!! は再現できていないところ
+
+!! ハイパーパラメータは検証データでのランダムサーチにより決定
+!! embeddingの初期値はGloveの300次元，上位1000単語のみ学習で更新   #これってもしかして1000語のEmbeddingしてる？
+!! 最適化関数はadam
+!! 学習率は最初10^(-3)，学習を重ねるごとに10^(-4)や10^(-5)に小さくしていく
 GRUは各128ユニット
 入力は最大80単語
 CNNでは2ブロック，フィルター数128，width3
@@ -23,16 +25,19 @@ GRUのドロップアウト率は50%
 ----- 自分の実装 -----
 #TODO これ書いてるだけ
 
-語彙数は上位3万単語
-embeddingの初期値はGoogleの学習済みword2vecの300次元，全て学習で更新
-最適化関数はSGD
-学習率は最初10^(-3)，val_lossが減少しない場合は学習率小さくする
+!! はもとの論文と異なる点
+それ以外にも，次元数というか階数が元の論文あまり書いてなかったから割と違うかも
+
+!! 語彙数は上位3万単語
+!! embeddingの初期値はGoogleの学習済みword2vecの300次元，全て学習で更新
+!! 最適化関数はSGD
+!! 学習率は最初10^(-3)，val_lossが減少しない場合は学習率小さくする
 GRUは各128ユニット
 入力は最大80単語
 CNNでは2ブロック，出力次元数128，kernel_size 3
+!! CNNのバッチ正規化とかReLUの利用場所も曖昧
 GRUのドロップアウト率は50%
 次元数というか階数が元の論文あまり書いてなかったから割と違うかも
-
 
 動かしていたバージョン
 python  : 3.5.2 / 3.6.5
@@ -67,7 +72,7 @@ import numpy as np
 import os
 import argparse
 import collections
-from sklearn.model_selection import train_test_split
+
 import copy
 
 from torch.utils.data import TensorDataset, DataLoader
@@ -75,14 +80,12 @@ from torch.utils.data import TensorDataset, DataLoader
 import gensim
 
 #----- グローバル変数一覧 -----
-MAX_LENGTH = 40
+MAX_LENGTH = 80
 C_MAXLEN = 6
 HIDDEN_DIM = 128
-ATTN_DIM = 128
 EMB_DIM = 300
 BATCH_SIZE = 128
 
-#自分で定義したグローバル関数とか
 file_path='../../../pytorch_data/'
 git_data_path='../../Data/'
 today1=datetime.datetime.today()
@@ -92,6 +95,8 @@ PAD_token = 0
 UNK_token = 1
 CLZ_token = 2
 
+CLZ_word = 'XXXX'
+
 #事前処理いろいろ
 print('Start: '+today_str)
 if torch.cuda.is_available():
@@ -100,11 +105,13 @@ if torch.cuda.is_available():
 else:
     my_device= torch.device("cpu")
 my_CPU=torch.device("cpu")
+
+
+
 #----- 関数群 -----
 
-
 ###########################
-# 1.データの準備
+# 1.データの準備，データ変換
 ###########################
 
 #語彙に関するクラス
@@ -142,66 +149,50 @@ def unicodeToAscii(s):
     )
 
 
-#データの前処理
-#strip()は文頭文末の改行や空白を取り除いてくれる
-def normalizeString(s, choices=False):
-    s = unicodeToAscii(s.lower().strip())
-    #text8コーパスと同等の前処理
-    s=s.replace('0', ' zero ')
-    s=s.replace('1', ' one ')
-    s=s.replace('2', ' two ')
-    s=s.replace('3', ' three ')
-    s=s.replace('4', ' four ')
-    s=s.replace('5', ' five ')
-    s=s.replace('6', ' six ')
-    s=s.replace('7', ' seven ')
-    s=s.replace('8', ' eight ')
-    s=s.replace('9', ' nine ')
-    if choices:
-        s = re.sub(r'[^a-z{}#]', ' ', s)
-    else:
-        s = re.sub(r'[^a-z{}]', ' ', s)
+#nltkのtoken列をidsへ
+def token_to_ids(lang, tokens, maxlen):
+    ids=[]
+    #NLTKの記号を表すタグ
+    symbol_tag=("$", "''", "(", ")", ",", "--", ".", ":", "``", "SYM")
+    #NLTKの数詞を表すタグ
+    num_tag=("LS", "CD")
+    #他のNLTKタグについては nltk.help.upenn_tagset()
+    for word, tag in tokens:
+        if tag in symbol_tag:
+            pass
+            #記号は無視
+        elif tag in num_tag:
+            ids.append(lang.check_word2index('NUM'))
+        elif word==CLZ_word:
+            ids.append(CLZ_token)
+        else:
+            ids.append(lang.check_word2index(word.lower()))
+
+    return ids + [PAD_token] * (maxlen - len(ids))
+
+
+#空所つき1文をidsへ
+def sent_to_ids_cloze(lang, s):
+    s = unicodeToAscii(s)
     s = re.sub(r'[ ]+', ' ', s)
+    s = s.strip()
+    s = re.sub(r'{.+}', CLZ_word, s)
+    token=nltk.word_tokenize(s)
+    ids=token_to_ids(lang, token, MAX_LENGTH)
 
-    return s.strip()
-
-
-#与えた語彙読み込み
-def readVocab(file):
-    lang = Lang()
-    print("Reading vocab...")
-    with open(file, encoding='utf-8') as f:
-        for line in f:
-            lang.addSentence(normalizeString(line))
-    #print("Vocab: %s" % lang.n_words)
-
-    return lang
+    return ids
 
 
-#入出力データ読み込み用
-def readData(input_file, target_file):
-    #print("Reading data...")
-    pairs=[]
-    i=0
-    with open(input_file, encoding='utf-8') as input:
-        with open(target_file, encoding='utf-8') as target:
-            for line1, line2 in zip(input, target):
-                i+=1
-                pairs.append([normalizeString(line1), normalizeString(line2)])
-    print("data: %s" % i)
+#選択肢一つをidsへ
+def choice_to_ids(lang, s):
+    s = unicodeToAscii(s)
+    s = re.sub(r'[ ]+', ' ', s)
+    s = s.strip()
+    token=nltk.word_tokenize(s)
+    ids=token_to_ids(lang, token, C_MAXLEN)
 
-    return pairs
+    return ids
 
-
-#ペアじゃなくて単独で読み取るやつ
-def readData2(file):
-    #print("Reading data...")
-    data=[]
-    with open(file, encoding='utf-8') as f:
-        for line in f:
-            data.append(normalizeString(line))
-
-    return data
 
 #Googleのword2vec読み取り
 def get_weight_matrix(lang):
@@ -226,6 +217,45 @@ def get_weight_matrix(lang):
     weights_matrix[PAD_token]=np.zeros(EMB_DIM)
 
     return weights_matrix
+
+
+#与えた語彙読み込み
+def readVocab(file):
+    lang = Lang()
+    print("Reading vocab...")
+    with open(file, encoding='utf-8') as f:
+        for line in f:
+            lang.addSentence(line.strip())
+    #print("Vocab: %s" % lang.n_words)
+
+    return lang
+
+
+#入出力データ読み込み用
+def readData(input_file, target_file):
+    #print("Reading data...")
+    pairs=[]
+    i=0
+    with open(input_file, encoding='utf-8') as input:
+        with open(target_file, encoding='utf-8') as target:
+            for line1, line2 in zip(input, target):
+                i+=1
+                pairs.append([line1.strip(), line2.strip()])
+    print("data: %s" % i)
+
+    return pairs
+
+
+#ペアじゃなくて単独で読み取るやつ
+def readData2(file):
+    #print("Reading data...")
+    data=[]
+    with open(file, encoding='utf-8') as f:
+        for line in f:
+            data.append(line.strip())
+
+    return data
+
 
 
 ###########################
@@ -524,29 +554,9 @@ class MPnet(nn.Module):
         return output   # (b, 4)
 
 
-###########################
-# 3.入力データ変換
-###########################
-
-#単語列をID列に
-def indexesFromSentence(lang, sentence):
-    return [lang.check_word2index(word) for word in sentence.split(' ')]
-
-
-#単語列からモデルの入力へのテンソルに
-#パディングあり、returnも変更
-def pad_indexes(lang, sentence):
-    indexes = indexesFromSentence(lang, sentence)
-    indexes.append(EOS_token)
-    indexes + [PAD_token] * (MAX_LENGTH - len(indexes))
-    return indexes + [PAD_token] * (MAX_LENGTH - len(indexes))
-
-
-
-
 
 ###########################
-# 4.モデルの学習
+# 3.モデルの学習
 ###########################
 
 '''
@@ -618,7 +628,6 @@ def batch_train(X, Y, encoder, decoder, encoder_optimizer, decoder_optimizer, cr
 
     #出力が可変長なのでlossも1ノードあたりに正規化
     return loss.item() / target_length
-
 
 
 #1バッチデータあたりのバリデーション
@@ -816,7 +825,7 @@ def showPlot2(loss, val_loss):
 
 
 ###########################
-# 5.モデルによる予測
+# 4.モデルによる予測
 ###########################
 
 # 1データに対する予測
@@ -885,7 +894,7 @@ def evaluate_cloze(lang, encoder, decoder, sentence, max_length=MAX_LENGTH):
         decoded_words = []
         decoder_attentions = []
 
-        tmp_list=normalizeString(sentence).split(' ')
+        tmp_list=sent_to_ids_cloze(lang, sentence).split(' ')
         tmp_list.append('<EOS>')
         cloze_start=tmp_list.index('{')
         cloze_end=tmp_list.index('}')
@@ -1010,7 +1019,7 @@ def evaluate_choice(lang, encoder, decoder, sentence, choices, max_length=MAX_LE
         decoded_words = []
         decoder_attentions = []
 
-        tmp_list=normalizeString(sentence).split(' ')
+        tmp_list=sent_to_ids_cloze(lang, sentence).split(' ')
         tmp_list.append('<EOS>')
         cloze_start=tmp_list.index('{')
         cloze_end=tmp_list.index('}')
@@ -1092,60 +1101,6 @@ def get_ngrams(segment, max_order):
     return ngram_counts
 
 
-def compute_bleu(preds_sentences, ans_sentences, max_order=4,
-                 smooth=False):
-    matches_by_order = [0] * max_order
-    possible_matches_by_order = [0] * max_order
-    pred_length = 0
-    ans_length = 0
-    for (preds, ans) in zip(preds_sentences, ans_sentences):
-        pred_length += len(preds)
-        ans_length += len(ans)
-
-        merged_pred_ngram_counts = get_ngrams(preds, max_order)
-        ans_ngram_counts = get_ngrams(ans, max_order)
-
-        #2つのngram集合の積集合
-        overlap = ans_ngram_counts & merged_pred_ngram_counts
-        for ngram in overlap:
-            matches_by_order[len(ngram)-1] += overlap[ngram]
-        for order in range(1, max_order+1):
-            possible_matches = len(ans) - order + 1
-            if possible_matches > 0:
-                possible_matches_by_order[order-1] += possible_matches
-
-    precisions = [0] * max_order
-    for i in range(0, max_order):
-        if smooth:
-            precisions[i] = ((matches_by_order[i] + 1.) /
-                           (possible_matches_by_order[i] + 1.))
-        else:
-            if possible_matches_by_order[i] > 0:
-                precisions[i] = (float(matches_by_order[i]) /
-                             possible_matches_by_order[i])
-            else:
-                precisions[i] = 0.0
-
-    if min(precisions) > 0:
-        p_log_sum = sum((1. / max_order) * math.log(p) for p in precisions)
-        geo_mean = math.exp(p_log_sum)
-    else:
-        geo_mean = 0
-
-    if pred_length!=0:
-        ratio = float(ans_length) / pred_length
-        if ratio > 1.0:
-            bp = 1.
-        else:
-            bp = math.exp(1 - 1. / ratio)
-        bleu = geo_mean * bp
-    else:
-        ratio=0
-        bp=0
-        bleu=0
-
-    return bleu
-
 
 def is_correct_cloze(line):
     left=line.count('{')
@@ -1184,6 +1139,7 @@ def calc_score(preds_sentences, ans_sentences):
     clozeOK=0
     partOK=0
     miss=0
+    BLEU=0
 
     for pred, ans in zip(preds_sentences, ans_sentences):
         pred=pred.replace(' <EOS>', '')
@@ -1207,7 +1163,7 @@ def calc_score(preds_sentences, ans_sentences):
         else:
             miss+=1
 
-    BLEU=compute_bleu(preds_sentences, ans_sentences)
+    #BLEU=compute_bleu(preds_sentences, ans_sentences)
 
     return line_num, allOK, clozeOK, partOK, BLEU, miss
 
@@ -1220,13 +1176,13 @@ def output_preds(file_name, preds):
 
 def print_score(line, allOK, clozeOK, partOK, BLEU, miss):
     print('  acc(all): ', '{0:.2f}'.format(1.0*allOK/line*100),' %')
-    print('acc(cloze): ', '{0:.2f}'.format(1.0*clozeOK/line*100),' %')
-    print(' acc(part): ', '{0:.2f}'.format(1.0*partOK/line*100),' %')
+    #print('acc(cloze): ', '{0:.2f}'.format(1.0*clozeOK/line*100),' %')
+    #print(' acc(part): ', '{0:.2f}'.format(1.0*partOK/line*100),' %')
 
-    print(' BLEU: ','{0:.2f}'.format(BLEU*100.0))
+    #print(' BLEU: ','{0:.2f}'.format(BLEU*100.0))
     print('  all: ', allOK)
-    print('cloze: ',clozeOK)
-    print(' part: ',partOK)
+    #print('cloze: ',clozeOK)
+    #print(' part: ',partOK)
     print(' line: ',line)
     print(' miss: ',miss)
 
@@ -1234,12 +1190,12 @@ def print_score(line, allOK, clozeOK, partOK, BLEU, miss):
 def output_score(file_name, line, allOK, clozeOK, partOK, BLEU, miss):
     output=''
     output=output+'  acc(all): '+str(1.0*allOK/line*100)+' %\n'
-    output=output+'acc(cloze): '+str(1.0*clozeOK/line*100)+' %\n'
-    output=output+' acc(part): '+str(1.0*partOK/line*100)+' %\n\n'
-    output=output+'      BLEU: '+str(BLEU*100.0)+' %\n\n'
+    #output=output+'acc(cloze): '+str(1.0*clozeOK/line*100)+' %\n'
+    #output=output+' acc(part): '+str(1.0*partOK/line*100)+' %\n\n'
+    #output=output+'      BLEU: '+str(BLEU*100.0)+' %\n\n'
     output=output+'       all: '+str(allOK)+'\n'
-    output=output+'     cloze: '+str(clozeOK)+'\n'
-    output=output+'      part: '+str(partOK)+'\n'
+    #output=output+'     cloze: '+str(clozeOK)+'\n'
+    #output=output+'      part: '+str(partOK)+'\n'
     output=output+'      line: '+str(line)+'\n'
     output=output+'      miss: '+str(miss)+'\n'
 
@@ -1252,7 +1208,7 @@ def get_choices(file_name):
     choices=[]
     with open(file_name, encoding='utf-8') as f:
         for line in f:
-            line=get_cloze(normalizeString(line, choices=True))
+            line=get_cloze(sent_to_ids_cloze(lang, line, choices=True))
             choices.append(line.split(' ### '))     #選択肢を区切る文字列
 
     return choices
@@ -1411,32 +1367,32 @@ if __name__ == '__main__':
         #train_ans=file_path+'tmp_ans.txt'
 
         #text8全体
-        train_cloze=file_path+'text8_cloze.txt'
-        train_ans=file_path+'text8_ans.txt'
-        '''
-        #enwiki1GB
-        train_cloze='/media/tamaki/HDCL-UT/tamaki/M2/data_for_seq2seq/enwiki1GB_seq2seq_c.txt'
-        train_ans='/media/tamaki/HDCL-UT/tamaki/M2/data_for_seq2seq/enwiki1GB_seq2seq_ans.txt'
-        '''
-        if args.mode == 'mini':
-            #合同ゼミ
-            train_cloze=file_path+'text8_cloze50000.txt'
-            train_ans=file_path+'text8_ans50000.txt'
+        train_cloze=file_path+'CLOTH_train_cloze.txt'
+        train_choices=file_path+'CLOTH_train_choices.txt'
+        train_ans=file_path+'CLOTH_train_ans.txt'
+
 
         #all_data=readData(train_cloze, train_ans)
         print("Reading data...")
-        all_X=readData2(train_cloze)
-        all_Y=readData2(train_ans)
+        train_X=readData2(train_cloze)
+        train_C
+        train_Y=readData2(train_ans)
+
+        valid_X
+        valid_C
+        valid_Y
 
 
         if args.mode == 'mini':
             #all_data=all_data[:20]
-            all_X=all_X[:20]
-            all_Y=all_Y[:20]
+            train_X=train_X[:20]
+            train_C=train_C[:20]
+            train_Y=train_Y[:20]
 
-        #train_data, val_data = train_test_split(all_data, test_size=0.1)
-        train_X, val_X = train_test_split(all_X, test_size=0.1)
-        train_Y, val_Y = train_test_split(all_Y, test_size=0.1)
+            valid_X=valid_X[:20]
+            valid_C=valid_C[:20]
+            valid_Y=valid_Y[:20]
+
 
         train_data = (train_X, train_Y)
         val_data = (val_X, val_Y)
@@ -1448,7 +1404,17 @@ if __name__ == '__main__':
         save_path=save_path+'/'
 
         # 3.学習
-        my_encoder, my_decoder = trainIters(vocab, my_encoder, my_decoder, train_data, val_data, n_iters=args.epoch, saveModel=True)
+        if torch.cuda.device_count() > 1:
+            print("Use", torch.cuda.device_count(), "GPUs")
+            # dim = 0 [30, xxx] -> [10, ...], [10, ...], [10, ...] on 3 GPUs
+            model=nn.DataParallel(MPnet(vocab.n_words, EMB_DIM, HIDDEN_DIM, 4, weights_matrix))
+            my_encoder = nn.DataParallel(EncoderRNN(vocab.n_words, EMB_DIM, HIDDEN_DIM, weights_matrix))
+            my_decoder = nn.DataParallel(AttnDecoderRNN2(EMB_DIM, HIDDEN_DIM, ATTN_DIM, vocab.n_words, weights_matrix))
+            my_encoder.to(my_device)
+            my_decoder.to(my_device)
+        else:
+            my_encoder = EncoderRNN(vocab.n_words, EMB_DIM, HIDDEN_DIM, weights_matrix).to(my_device)
+            my_decoder = AttnDecoderRNN2(EMB_DIM, HIDDEN_DIM, ATTN_DIM, vocab.n_words, weights_matrix).to(my_device)
 
     #すでにあるモデルでテスト時
     else:
@@ -1467,6 +1433,17 @@ if __name__ == '__main__':
     MS_cloze=git_data_path+'microsoft_cloze.txt'
     MS_ans=git_data_path+'microsoft_ans.txt'
     MS_choi=git_data_path+'microsoft_choices.txt'
+
+    high_path=git_data_path+'CLOTH_test_high'
+    middle_path=git_data_path+'CLOTH_test_middle'
+
+    CLOTH_high_cloze = high_path+'_cloze.txt'
+    CLOTH_high_ans = high_path+'_ans.txt'
+    CLOTH_high_choi = high_path+'_choices.txt'
+
+    CLOTH_middle_cloze = middle_path+'_cloze.txt'
+    CLOTH_middle_ans = middle_path+'_ans.txt'
+    CLOTH_middle_choi = middle_path+'_choices.txt'
 
     print("Reading data...")
     center_data=readData(center_cloze, center_ans)
