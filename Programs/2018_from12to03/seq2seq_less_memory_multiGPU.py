@@ -1342,12 +1342,16 @@ if __name__ == '__main__':
     #選択肢を使ったテスト
     #これは前からの予測
     print('center')
+    tmp=save_path
+    save_path=tmp+'center_'
     test_choices(vocab, my_encoder, my_decoder, center_data, center_choices, saveAttention=False, file_output=True)
 
     #これは文スコア
     test_choices_by_sent_score(vocab, my_encoder, my_decoder, center_data, center_choices, saveAttention=False, file_output=False)
 
     print('MS')
+    tmp=save_path
+    save_path=tmp+'MS_'
     test_choices(vocab, my_encoder, my_decoder, MS_data, MS_choices, saveAttention=False, file_output=True)
 
     #これは文スコア
