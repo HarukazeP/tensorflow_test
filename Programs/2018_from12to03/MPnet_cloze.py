@@ -173,6 +173,7 @@ def token_to_ids(lang, tokens, maxlen):
 
 #空所つき1文をidsへ
 def sent_to_ids_cloze(lang, s):
+    # s は文字列
     s = unicodeToAscii(s)
     s = re.sub(r'[ ]+', ' ', s)
     s = s.strip()
@@ -183,16 +184,36 @@ def sent_to_ids_cloze(lang, s):
     return ids
 
 
-#選択肢一つをidsへ
-def choice_to_ids(lang, s):
-    s = unicodeToAscii(s)
-    s = re.sub(r'[ ]+', ' ', s)
-    s = s.strip()
-    token=nltk.word_tokenize(s)
-    ids=token_to_ids(lang, token, C_MAXLEN)
+#選択肢4つをidsへ
+def choices_to_ids(lang, choices):
+    # choices は文字列のリスト
+    ids=[]
+    for choi in choices:
+        choi = unicodeToAscii(choi)
+        choi = re.sub(r'[ ]+', ' ', choi)
+        choi = choi.strip()
+        token=nltk.word_tokenize(choi)
+        id=token_to_ids(lang, token, C_MAXLEN)
+        ids.append(id)
 
     return ids
 
+
+#正答一つをidsへ
+def ans_to_ids(lang, ans, choices):
+    # ans は文字列
+    # choices は文字列のリスト
+    ids = [1 if choi==ans else 0 for choi in choices]
+
+    #デバッグ時確認用
+    if sum(ids)!=1:
+        print('### ans_to_ids_ERROR')
+        print(ids)
+        print(ans)
+        print(choices)
+        exit()
+
+    return ids
 
 #Googleのword2vec読み取り
 def get_weight_matrix(lang):
@@ -247,7 +268,7 @@ def readData(input_file, target_file):
 
 
 #ペアじゃなくて単独で読み取るやつ
-def readData2(file):
+def readCloze(file):
     #print("Reading data...")
     data=[]
     with open(file, encoding='utf-8') as f:
@@ -268,6 +289,17 @@ def readChoices(file_name):
             choices.append(line.split(' ### '))     #選択肢を区切る文字列
 
     return choices
+
+
+def readAns(file_name):
+    data=[]
+    with open(file_name, encoding='utf-8') as f:
+        for line in f:
+            line=re.sub(r'.*{ ', '', line)
+            line=re.sub(r' }.*', '', line)
+            data.append(line.strip())
+
+    return data
 
 ###########################
 # 2.モデル定義
@@ -317,13 +349,8 @@ class AttnReader(nn.Module):
     def __init__(self, hid_dim, num_direction):
         super(AttnReader, self).__init__()
         self.hidden_dim = hid_dim
-        self.output_dim = out_dim   #選択肢の数
 
-        self.GateWeight_P = Parameter(torch.Tensor(self.hidden_dim, self.hidden_dim*P_dim))
-        self.GateWeight_C = Parameter(torch.Tensor(self.hidden_dim, self.hidden_dim*C_dim))
-        self.GateBias = Parameter(torch.Tensor(self.hidden_dim))
-
-        self.weight = Parameter(torch.Tensor(self.output_dim*num_directions, self.output_dim*num_directions))
+        self.weight = Parameter(torch.Tensor(self.hidden_dim*num_directions, self.hidden_dim*num_directions))
         self.bias = Parameter(torch.Tensor(self.output_dim*num_directions))
 
     def forward(self, sents_vec, c1_vec, c2_vec, c3_vec, c4_vec):
@@ -365,6 +392,10 @@ class AttnReader(nn.Module):
 
         return P1, P2, P3, P4
 
+
+
+'''
+元のモデル
 
 # --- 論文中のMulti-Perspective Aggregation Layer ---
 class MPALayer(nn.Module):
@@ -522,9 +553,9 @@ class MPnet(nn.Module):
         # --- 論文中のOutput Layer ---
         self.OutLayer=PointerNet(self.hidden_dim, self.output_dim, num_directions)
 
-    def make_choices_vec(choice, Emb, GRU, Li):
-        choice.squeeze()   # (b, c, 1) -> (b, c)
-        c_emb = Emb(choice) # (b, c) -> (b, c, h)
+    def make_choice_vec(choi, Emb, GRU, Li):
+        choi.squeeze()   # (b, c, 1) -> (b, c)
+        c_emb = Emb(choi) # (b, c) -> (b, c, h)
         c_gru, _ = GRU(c_emb)    # (b, c, h) -> (b, c, 2h) , (b, 1*2, h)
         c_out=c_gru.view(batch_size, -1) # (b, c*2h)
         c_vec=Li(c_out)    # (b, 2h)
@@ -550,10 +581,225 @@ class MPnet(nn.Module):
 
         c1, c2, c3, c4=torch.chunk(choices_batch, self.out_dim, dim=2)
 
-        c1_vec = make_choices_vec(c1, self.embedding, self.choicesBiGRU, self.choicesLiner)
-        c2_vec = make_choices_vec(c2, self.embedding, self.choicesBiGRU, self.choicesLiner)
-        c3_vec = make_choices_vec(c3, self.embedding, self.choicesBiGRU, self.choicesLiner)
-        c4_vec = make_choices_vec(c4, self.embedding, self.choicesBiGRU, self.choicesLiner)
+        c1_vec = make_choice_vec(c1, self.embedding, self.choicesBiGRU, self.choicesLiner)
+        c2_vec = make_choice_vec(c2, self.embedding, self.choicesBiGRU, self.choicesLiner)
+        c3_vec = make_choice_vec(c3, self.embedding, self.choicesBiGRU, self.choicesLiner)
+        c4_vec = make_choice_vec(c4, self.embedding, self.choicesBiGRU, self.choicesLiner)
+
+        # --- 論文中のMulti-Perspective Aggregation Layer ---
+        P, C1, C2, C3, C4=self.MPA(sent_vec, input_batch, c1_vec, c2_vec, c3_vec, c4_vec)
+        # P: (b, 4h),  C:(b, 6h)
+
+        # --- 論文中のOutput Layer ---
+        output=self.OutLayer(P, C1, C2, C3, C4, batch_size) # (b, 4)
+
+        return output   # (b, 4)
+
+'''
+
+
+#試しに動かす用のモデル
+
+
+# --- 論文中のMulti-Perspective Aggregation Layer ---
+class MPALayer(nn.Module):
+    def __init__(self, hid_dim, out_dim, num_directions):
+        super(MPALayer, self).__init__()
+        self.hidden_dim = hid_dim
+        self.output_dim = out_dim   #選択肢の数
+
+        #self.SC=
+        self.IDC=IDCNN(self.hidden_dim, num_direction)
+        self.AR=AttnReader(self.hidden_dim, num_direction)
+        #self.NG=
+
+
+    def forward(self, sents_vec, input_batch, c1_vec, c2_vec, c3_vec, c4_vec):
+        '''
+            入力: sents_vec    (b, s, 2h)
+                  input_batch  (b, s)
+                  c1_vec       (b, 2h)
+
+            出力：PとC1,C2,C3,C4
+                P  : (b, 4h)
+                C1 : (b, 6h)
+        '''
+        # --- Selective Copying ---
+
+
+        # --- Iterative Dilated Convolution ---
+        P_idc=self.IDC(sents_vec)   #(b,2h)
+
+
+        # --- Attentive Reader ---
+        P1_ar, P2_ar, P3_ar, P4_ar=self.AR(sents_vec, c1_vec, c2_vec, c3_vec, c4_vec)
+        # P1_ar: (b, 2h)
+
+
+        # --- N-gram Statistics ---
+        '''
+            入力：input_batch  (s, b)
+            出力：ngram_prob (？, b, ？？？) #TODO これ次元数どうなる
+        '''
+
+
+        #最後にマージ
+        '''
+        PはP_scとP_idcの連結 (b, (h+h*num_directions))？
+        C1はc1_vecとP1_arとP1_ngの連結 (b, (h+h+h)*num_directions)？
+
+        P  : (b, 2*num_directions*h)
+        C1 : (b, 3*num_directions*h)
+        '''
+        P=P_idc
+
+        C1=torch.cat([c1_vec, P1_ar], dim=1)
+        C2=torch.cat([c2_vec, P2_ar], dim=1)
+        C3=torch.cat([c3_vec, P3_ar], dim=1)
+        C4=torch.cat([c4_vec, P4_ar], dim=1)
+
+        return P, C1, C2, C3, C4
+
+
+class PointerNet(nn.Module):
+    # TODO: 引数とか適当
+    def __init__(self, hid_dim, out_dim, num_directions):
+        super(PointerNet, self).__init__()
+        self.hidden_dim = hid_dim
+        self.output_dim = out_dim   #選択肢の数
+        #TODO ここ変更した場所
+        '''
+        P_dim=2*num_directions
+        C_dim=3*num_directions
+        '''
+        P_dim=1*num_directions
+        C_dim=2*num_directions
+
+        self.GateWeight_P = Parameter(torch.Tensor(self.hidden_dim, self.hidden_dim*P_dim))
+        self.GateWeight_C = Parameter(torch.Tensor(self.hidden_dim, self.hidden_dim*C_dim))
+        self.GateBias = Parameter(torch.Tensor(self.hidden_dim))
+
+        self.OutWeight_P = Parameter(torch.Tensor(self.output_dim, self.hidden_dim*P_dim))
+        self.OutBias = Parameter(torch.Tensor(self.output_dim))
+
+    def forward(self, P, C1, C2, C3, C4, batch_size):
+        '''
+            入力:PとC1,C2,C3,C4
+            出力： (b, n)  #各選択肢に対する確率
+
+            P  : (b, 2h)
+            C1 : (b, 3h)
+
+            matmul()やbmm()は内積，mul()は要素積
+        '''
+
+        WP=P.matmul(self.GateWeight_P.t())      # (b, 4h) -> (b, h)
+        WC1=C1.matmul(self.GateWeight_C.t())    # (b, 6h) -> (b, h)
+        WC2=C2.matmul(self.GateWeight_C.t())
+        WC3=C3.matmul(self.GateWeight_C.t())
+        WC4=C4.matmul(self.GateWeight_C.t())
+
+        g1=WP+WC1+self.GateBias #(b, h)　#これでちゃんとバッチ数分バイス足せてる
+        g2=WP+WC2+self.GateBias #(b, h)
+        g3=WP+WC3+self.GateBias #(b, h)
+        g4=WP+WC4+self.GateBias #(b, h)
+
+        C_dash1=torch.mul(C1, F.sigmoid(g1))    #(b, h)
+        C_dash2=torch.mul(C2, F.sigmoid(g2))
+        C_dash3=torch.mul(C3, F.sigmoid(g3))
+        C_dash4=torch.mul(C4, F.sigmoid(g4))
+
+        WP_out=P.matmul(self.OutWeight_P.t())   # (b, 4h) -> (b, h)
+
+        #(b, h)と(b,h)の内積で(b,1)にしたいが
+        #pytorchでバッチごとの内積はbmmしかないため変形してる
+        C1WP=torch.bmm(C_dash1.view(batch_size, 1, self.hidden_dim), WP_out.view(batch_size, self.hidden_dim, 1))   #(b,1,1)
+        C1WP=C1WP.squeeze(2) #(b,1)
+        C2WP=torch.bmm(C_dash2.view(batch_size, 1, self.hidden_dim), WP_out.view(batch_size, self.hidden_dim, 1))
+        C2WP=C2WP.squeeze(2)
+        C3WP=torch.bmm(C_dash3.view(batch_size, 1, self.hidden_dim), WP_out.view(batch_size, self.hidden_dim, 1))
+        C3WP=C3WP.squeeze(2)
+        C4WP=torch.bmm(C_dash4.view(batch_size, 1, self.hidden_dim), WP_out.view(batch_size, self.hidden_dim, 1))
+        C4WP=C4WP.squeeze(2)
+
+        bC1=torch.matmul(C_dash1, self.OutBias) #(b)
+        bC1=bC1.unsqueeze(1)    #(b,1)
+        bC2=torch.matmul(C_dash2, self.OutBias)
+        bC2=bC2.unsqueeze(1)
+        bC3=torch.matmul(C_dash3, self.OutBias)
+        bC3=bC3.unsqueeze(1)
+        bC4=torch.matmul(C_dash4, self.OutBias)
+        bC4=bC4.unsqueeze(1)
+
+        out1=C1WP+bC1   #(b,1)
+        out2=C1WP+bC1
+        out3=C1WP+bC1
+        out4=C1WP+bC1
+
+        output=torch.cat([out1, out2, out3, out4], dim=1)   #(b,4)
+        prob=F.softmax(output, dim=1)   #(b,4)
+
+        return prob #(b, 4)
+
+
+#できる限り再現したモデル
+#選択肢は4つ限定
+class MPnet(nn.Module):
+    def __init__(self, vocab_size, emb_dim, hid_dim, out_dim, weights_matrix, BiDi=True):
+        super(MPnet, self).__init__()
+        self.vocab_size = vocab_size
+        self.embedding_dim = emb_dim
+        self.hidden_dim = hid_dim
+        self.output_dim = out_dim   #選択肢の数
+        num_directions = 2 if BiDi else 1
+
+
+        # --- 論文中のInput layer ---
+        self.embedding = nn.Embedding(self.vocab_size, self.embedding_dim, padding_idx=PAD_token) #語彙数×次元数
+        self.embedding.weight.data.copy_(torch.from_numpy(weights_matrix))
+
+        self.BiGRU=nn.GRU(input_size=self.embedding_dim, hidden_size=self.hidden_dim, dropout=0.5, num_layers=1, batch_first=True, bidirectional=BiDi)
+        self.choicesBiGRU=nn.GRU(input_size=self.embedding_dim, hidden_size=self.hidden_dim, dropout=0.5, num_layers=1, batch_first=True, bidirectional=BiDi)
+        self.choicesLiner = nn.Linear(self.hidden_dim*num_directions*C_MAXLEN, self.hidden_dim*num_directions)
+
+        # --- 論文中のMulti-Perspective Aggregation Layer ---
+        self.MPA=MPALayer(self.hidden_dim, self.output_dim, num_directions)
+
+        # --- 論文中のOutput Layer ---
+        self.OutLayer=PointerNet(self.hidden_dim, self.output_dim, num_directions)
+
+    def make_choice_vec(choi, Emb, GRU, Li):
+        choi.squeeze()   # (b, c, 1) -> (b, c)
+        c_emb = Emb(choi) # (b, c) -> (b, c, h)
+        c_gru, _ = GRU(c_emb)    # (b, c, h) -> (b, c, 2h) , (b, 1*2, h)
+        c_out=c_gru.view(batch_size, -1) # (b, c*2h)
+        c_vec=Li(c_out)    # (b, 2h)
+
+        return c_vec
+
+    def forward(self, input_batch, choices_batch):
+        """
+        :param
+            input_batch:   (b, s)
+            choices_batch: (b, c, n)
+                c:選択肢の最大長(パディング後)
+                n:1問あたりの選択肢数
+
+        :returns (b, 4)
+        """
+        # --- 論文中のInput layer ---
+        #TODO inputからCLZの場所特定しておく？→それバッチでできる？
+        batch_size = input_batch.shape[1]
+
+        embedded = self.embedding(input_batch)  # (b, s) -> (b, s, h)
+        sent_vec, _ = self.BiGRU(embedded)    # (b, s, h) -> (b, s, 2h) , (b, 1*2, h)
+
+        c1, c2, c3, c4=torch.chunk(choices_batch, self.out_dim, dim=2)
+
+        c1_vec = make_choice_vec(c1, self.embedding, self.choicesBiGRU, self.choicesLiner)
+        c2_vec = make_choice_vec(c2, self.embedding, self.choicesBiGRU, self.choicesLiner)
+        c3_vec = make_choice_vec(c3, self.embedding, self.choicesBiGRU, self.choicesLiner)
+        c4_vec = make_choice_vec(c4, self.embedding, self.choicesBiGRU, self.choicesLiner)
 
         # --- 論文中のMulti-Perspective Aggregation Layer ---
         P, C1, C2, C3, C4=self.MPA(sent_vec, input_batch, c1_vec, c2_vec, c3_vec, c4_vec)
@@ -566,12 +812,15 @@ class MPnet(nn.Module):
 
 
 
+
+
+
 ###########################
 # 3.モデルの学習
 ###########################
 
 #バッチデータあたりの学習
-def batch_train(X, Y, model, model_optimizer, decoder_optimizer, criterion, max_length=MAX_LENGTH):
+def batch_train(X, C, Y, model, model_optimizer, decoder_optimizer, criterion, max_length=MAX_LENGTH):
     '''
     X : (s, b)
     X : (s, b)
@@ -580,9 +829,7 @@ def batch_train(X, Y, model, model_optimizer, decoder_optimizer, criterion, max_
     loss=0
     model_optimizer.zero_grad()
 
-    batch_size = X.size(1)
-
-    model_outputs = model(X) #出力 (b, 4)
+    model_outputs = model(X, C) #出力 (b, 4)
     loss = criterion(model_outputs, Y)
 
     loss.backward()
@@ -595,21 +842,26 @@ def batch_train(X, Y, model, model_optimizer, decoder_optimizer, criterion, max_
 
 
 #バッチデータあたりのバリデーション
-def batch_eval(X, Y, model, criterion, lang):
+def batch_eval(X, C, Y, model, criterion, lang):
     with torch.no_grad():
         loss=0
 
-        batch_size = X.size(1)
-
-        model_outputs = model(X) #出力 (b, 4)
+        model_outputs = model(X, C) #出力 (b, 4)
         loss = criterion(model_outputs, Y)
         acc = calc_batch_acc(model_outputs, Y)
 
     return loss.item(), acc
 
-#TODO この関数定義する
-# acc = calc_batch_acc(model_outputs, Y)
+def calc_batch_acc(model_outputs, Y):
+    batch=0
+    OK=0
+    model_pred=torch.argmax(model_outputs, dim=1)
+    for pred, ans in zip(model_pred, Y):
+        batch+=1
+        if pred==ans:
+            OK+=1
 
+    return 1.0*OK/batch
 
 #秒を分秒に変換
 def asMinutes(s):
@@ -651,12 +903,12 @@ def trainIters(lang, model, train_pairs, val_pairs, n_iters, print_every=10, lea
     model_optimizer = optim.SGD(model.parameters(), lr=learning_rate)
 
     X_train=sent_to_ids_cloze(lang, train_pairs[0])
-    C_train=choice_to_ids(lang, train_pairs[1])
-    Y_train=sent_to_ids_cloze(lang, train_pairs[2])     #TODO ansも何か必要
+    C_train=choices_to_ids(lang, train_pairs[1])
+    Y_train=ans_to_ids(lang, train_pairs[2], train_pairs[1])
 
     X_val=sent_to_ids_cloze(lang, val_pairs[0])
-    C_val=choice_to_ids(lang, val_pairs[1])
-    Y_val=sent_to_ids_cloze(lang, val_pairs[2])
+    C_val=choices_to_ids(lang, val_pairs[1])
+    Y_val=ans_to_ids(lang, val_pairs[2], train_pairs[1])
 
     train_data_num=len(X_train)
     val_data_num=len(X_val)
@@ -690,7 +942,7 @@ def trainIters(lang, model, train_pairs, val_pairs, n_iters, print_every=10, lea
                 c=c.to(my_device)
                 y=y.to(my_device)
 
-                loss, acc = batch_train(x, y, model, model_optimizer, criterion)
+                loss= batch_train(x, c, y, model, model_optimizer, criterion)
                 loss=loss*x.size(1)
 
                 print_loss_total += loss
@@ -702,8 +954,9 @@ def trainIters(lang, model, train_pairs, val_pairs, n_iters, print_every=10, lea
                 c=c.to(my_device)
                 y=y.to(my_device)
 
-                val_loss, val_acc = batch_eval(x, y, model, model_optimizer, criterion)
+                val_loss, val_acc = batch_eval(x, c, y, model, model_optimizer, criterion)
                 val_loss = val_loss*x.size(1)
+                val_acc = val_acc*x.size(1)
 
                 print_val_loss_total += val_loss
                 plot_val_loss_total += val_loss
@@ -734,8 +987,8 @@ def trainIters(lang, model, train_pairs, val_pairs, n_iters, print_every=10, lea
             plot_val_losses.append(plot_val_loss_avg)
             plot_val_loss_total = 0
 
-            plot_val_acc_avg = plot_val_acc_total/val_data_num
-            plot_val_accs.append(plot_val_acc_avg)
+            #TODO acc はaveとかいる？
+            plot_val_accs.append(plot_val_acc_total)
             plot_val_acc_total = 0
 
             #val_loss最小更新
@@ -796,6 +1049,8 @@ def showPlot4(val_plot, file_name, label_name):
 ###########################
 # 4.モデルによる予測
 ###########################
+'''
+#TODO テスト部分後日実装
 
 # 1データに対する予測
 def evaluate(lang, model, sentence, max_length=MAX_LENGTH):
@@ -959,6 +1214,7 @@ def test_choices(lang, model, test_data, choices, saveAttention=False, file_outp
     print("Calc scores ...")
     score(preds, ans, file_output, save_path+'score.txt')
 
+'''
 
 #コマンドライン引数の設定いろいろ
 def get_args():
@@ -977,6 +1233,7 @@ if __name__ == '__main__':
     #コマンドライン引数読み取り
     args = get_args()
     print(args.mode)
+    epoch=args.epoch
 
     # 1.語彙データ読み込み
     vocab_path=file_path+'enwiki_vocab30000.txt'
@@ -1009,15 +1266,16 @@ if __name__ == '__main__':
         valid_ans=file_path+'CLOTH_valid_ans.txt'
 
         print("Reading train/valid data...")
-        train_X=readData2(train_cloze)
+        train_X=readCloze(train_cloze)
         train_C=readChoices(train_choices)
-        train_Y=readData2(train_ans)
+        train_Y=readAns(train_ans)
 
-        valid_X=readData2(valid_cloze)
+        valid_X=readCloze(valid_cloze)
         valid_C=readChoices(valid_choices)
-        valid_Y=readData2(valid_ans)
+        valid_Y=readAns(valid_ans)
 
         if args.mode == 'mini':
+            epoch=3
             train_X=train_X[:20]
             train_C=train_C[:20]
             train_Y=train_Y[:20]
@@ -1036,7 +1294,7 @@ if __name__ == '__main__':
         save_path=save_path+'/'
 
         # 3.学習
-        model = trainIters(vocab, model, train_data, val_data, n_iters=args.epoch, saveModel=True)
+        model = trainIters(vocab, model, train_data, val_data, n_iters=epoch, saveModel=True)
 
     #すでにあるモデルでテスト時
     else:
@@ -1045,6 +1303,7 @@ if __name__ == '__main__':
         save_path=save_path+today_str
 
     # 4.評価
+    print('Train end')
     '''
     #TODO テスト未実装
 
@@ -1068,21 +1327,21 @@ if __name__ == '__main__':
     CLOTH_middle_choi = middle_path+'_choices.txt'
 
     print("Reading test data...")
-    center_X=readData2(center_cloze)
+    center_X=readCloze(center_cloze)
     center_C=readChoices(center_choices)
-    center_Y=readData2(center_ans)
+    center_Y=readAns(center_ans)
 
-    MS_X=readData2(MS_cloze)
+    MS_X=readCloze(MS_cloze)
     MS_C=readChoices(MS_choices)
-    MS_Y=readData2(MS_ans)
+    MS_Y=readAns(MS_ans)
 
-    CLOTH_high_X=readData2(CLOTH_high_cloze)
+    CLOTH_high_X=readCloze(CLOTH_high_cloze)
     CLOTH_high_C=readChoices(CLOTH_high_choices)
-    CLOTH_high_Y=readData2(CLOTH_high_ans)
+    CLOTH_high_Y=readAns(CLOTH_high_ans)
 
-    CLOTH_middle_X=readData2(CLOTH_middle_cloze)
+    CLOTH_middle_X=readCloze(CLOTH_middle_cloze)
     CLOTH_middle_C=readChoices(CLOTH_middle_choices)
-    CLOTH_middle_Y=readData2(CLOTH_middle_ans)
+    CLOTH_middle_Y=readAns(CLOTH_middle_ans)
 
     if args.mode == 'mini' or args.mode == 'mini_test':
         center_data=center_data[:5]
