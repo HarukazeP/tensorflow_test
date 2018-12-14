@@ -403,6 +403,210 @@ class AttnReader(nn.Module):
 
 
 
+
+#元のモデル
+
+# --- 論文中のMulti-Perspective Aggregation Layer ---
+class MPALayer_orig(nn.Module):
+    def __init__(self, hid_dim, out_dim, num_directions):
+        super(MPALayer_orig, self).__init__()
+        self.hidden_dim = hid_dim
+        self.output_dim = out_dim   #選択肢の数
+
+        #self.SC=
+        self.IDC=IDCNN(self.hidden_dim, num_directions)
+        self.AR=AttnReader()
+        #self.NG=
+
+
+    def forward(self, sents_vec, input_batch, c1_vec, c2_vec, c3_vec, c4_vec):
+        '''
+            入力: sents_vec    (b, s, 2h)
+                  input_batch  (b, s)
+                  c1_vec       (b, 2h)
+
+            出力：PとC1,C2,C3,C4
+                P  : (b, 2h)
+                C1 : (b, 3h)
+        '''
+        # --- Selective Copying ---
+
+
+        # --- Iterative Dilated Convolution ---
+        P_idc=self.IDC(sents_vec)   #(b,2h)
+
+
+        # --- Attentive Reader ---
+        P1_ar, P2_ar, P3_ar, P4_ar=self.AR(sents_vec, c1_vec, c2_vec, c3_vec, c4_vec)
+        # P1_ar: (b, 2h)
+
+
+        # --- N-gram Statistics ---
+        '''
+            入力：input_batch  (s, b)
+            出力：ngram_prob (？, b, ？？？) #TODO これ次元数どうなる
+        '''
+
+
+        #最後にマージ
+        '''
+        PはP_scとP_idcの連結 (b, (h+h*num_directions))？
+        C1はc1_vecとP1_arとP1_ngの連結 (b, (h+h+h)*num_directions)？
+
+        P  : (b, 2*num_directions*h)
+        C1 : (b, 3*num_directions*h)
+        '''
+
+        return P, C1, C2, C3, C4
+
+
+class PointerNet_orig(nn.Module):
+    def __init__(self, hid_dim, out_dim, num_directions):
+        super(PointerNet_orig, self).__init__()
+        # TODO: 引数とか適当
+        self.hidden_dim = hid_dim
+        self.output_dim = out_dim   #選択肢の数
+        P_dim=2*num_directions
+        C_dim=3*num_directions
+
+        self.GateWeight_P = Parameter(torch.Tensor(self.hidden_dim, self.hidden_dim*P_dim))
+        self.GateWeight_C = Parameter(torch.Tensor(self.hidden_dim, self.hidden_dim*C_dim))
+        self.GateBias = Parameter(torch.Tensor(self.hidden_dim))
+
+        self.OutWeight_P = Parameter(torch.Tensor(self.output_dim, self.hidden_dim*P_dim))
+        self.OutBias = Parameter(torch.Tensor(self.output_dim))
+
+    def forward(self, P, C1, C2, C3, C4, batch_size):
+        '''
+            入力:PとC1,C2,C3,C4
+            出力： (b, n)  #各選択肢に対する確率
+
+            P  : (b, 2h)
+            C1 : (b, 3h)
+
+            matmul()やbmm()は内積，mul()は要素積
+        '''
+
+        WP=P.matmul(self.GateWeight_P.t())      # (b, 4h) -> (b, h)
+        WC1=C1.matmul(self.GateWeight_C.t())    # (b, 6h) -> (b, h)
+        WC2=C2.matmul(self.GateWeight_C.t())
+        WC3=C3.matmul(self.GateWeight_C.t())
+        WC4=C4.matmul(self.GateWeight_C.t())
+
+        g1=WP+WC1+self.GateBias #(b, h)　#これでちゃんとバッチ数分バイス足せてる
+        g2=WP+WC2+self.GateBias #(b, h)
+        g3=WP+WC3+self.GateBias #(b, h)
+        g4=WP+WC4+self.GateBias #(b, h)
+
+        C_dash1=torch.mul(C1, F.sigmoid(g1))    #(b, h)
+        C_dash2=torch.mul(C2, F.sigmoid(g2))
+        C_dash3=torch.mul(C3, F.sigmoid(g3))
+        C_dash4=torch.mul(C4, F.sigmoid(g4))
+
+        WP_out=P.matmul(self.OutWeight_P.t())   # (b, 4h) -> (b, h)
+
+        #(b, h)と(b,h)の内積で(b,1)にしたいが
+        #pytorchでバッチごとの内積はbmmしかないため変形してる
+        C1WP=torch.bmm(C_dash1.view(batch_size, 1, self.hidden_dim), WP_out.view(batch_size, self.hidden_dim, 1))   #(b,1,1)
+        C1WP=C1WP.squeeze(2) #(b,1)
+        C2WP=torch.bmm(C_dash2.view(batch_size, 1, self.hidden_dim), WP_out.view(batch_size, self.hidden_dim, 1))
+        C2WP=C2WP.squeeze(2)
+        C3WP=torch.bmm(C_dash3.view(batch_size, 1, self.hidden_dim), WP_out.view(batch_size, self.hidden_dim, 1))
+        C3WP=C3WP.squeeze(2)
+        C4WP=torch.bmm(C_dash4.view(batch_size, 1, self.hidden_dim), WP_out.view(batch_size, self.hidden_dim, 1))
+        C4WP=C4WP.squeeze(2)
+
+        bC1=torch.matmul(C_dash1, self.OutBias) #(b)
+        bC1=bC1.unsqueeze(1)    #(b,1)
+        bC2=torch.matmul(C_dash2, self.OutBias)
+        bC2=bC2.unsqueeze(1)
+        bC3=torch.matmul(C_dash3, self.OutBias)
+        bC3=bC3.unsqueeze(1)
+        bC4=torch.matmul(C_dash4, self.OutBias)
+        bC4=bC4.unsqueeze(1)
+
+        out1=C1WP+bC1   #(b,1)
+        out2=C1WP+bC1
+        out3=C1WP+bC1
+        out4=C1WP+bC1
+
+        output=torch.cat([out1, out2, out3, out4], dim=1)   #(b,4)
+        prob=F.softmax(output, dim=1)   #(b,4)
+
+        return prob #(b, 4)
+
+
+#できる限り再現したモデル
+#選択肢は4つ限定
+class MPnet_orig(nn.Module):
+    def __init__(self, vocab_size, emb_dim, hid_dim, out_dim, weights_matrix, BiDi=True):
+        super(MPnet_orig, self).__init__()
+        self.vocab_size = vocab_size
+        self.embedding_dim = emb_dim
+        self.hidden_dim = hid_dim
+        self.output_dim = out_dim   #選択肢の数
+        num_directions = 2 if BiDi else 1
+
+
+        # --- 論文中のInput layer ---
+        self.embedding = nn.Embedding(self.vocab_size, self.embedding_dim, padding_idx=PAD_token) #語彙数×次元数
+        self.embedding.weight.data.copy_(torch.from_numpy(weights_matrix))
+
+        self.BiGRU=nn.GRU(input_size=self.embedding_dim, hidden_size=self.hidden_dim, dropout=0.5, num_layers=1, batch_first=True, bidirectional=BiDi)
+        self.choicesBiGRU=nn.GRU(input_size=self.embedding_dim, hidden_size=self.hidden_dim, dropout=0.5, num_layers=1, batch_first=True, bidirectional=BiDi)
+        self.choicesLiner = nn.Linear(self.hidden_dim*num_directions*C_MAXLEN, self.hidden_dim*num_directions)
+
+        # --- 論文中のMulti-Perspective Aggregation Layer ---
+        self.MPA=MPALayer(self.hidden_dim, self.output_dim, num_directions)
+
+        # --- 論文中のOutput Layer ---
+        self.OutLayer=PointerNet(self.hidden_dim, self.output_dim, num_directions)
+
+    def make_choice_vec(choi, Emb, GRU, Li):
+        choi.squeeze()   # (b, c, 1) -> (b, c)
+        c_emb = Emb(choi) # (b, c) -> (b, c, h)
+        c_gru, _ = GRU(c_emb)    # (b, c, h) -> (b, c, 2h) , (b, 1*2, h)
+        c_out=c_gru.view(batch_size, -1) # (b, c*2h)
+        c_vec=Li(c_out)    # (b, 2h)
+
+        return c_vec
+
+    def forward(self, input_batch, choices_batch):
+        """
+        :param
+            input_batch:   (b, s)
+            choices_batch: (b, c, n)
+                c:選択肢の最大長(パディング後)
+                n:1問あたりの選択肢数
+
+        :returns (b, 4)
+        """
+        # --- 論文中のInput layer ---
+        #TODO inputからCLZの場所特定しておく？→それバッチでできる？
+        batch_size = input_batch.shape[1]
+
+        embedded = self.embedding(input_batch)  # (b, s) -> (b, s, h)
+        sent_vec, _ = self.BiGRU(embedded)    # (b, s, h) -> (b, s, 2h) , (b, 1*2, h)
+
+        c1, c2, c3, c4=torch.chunk(choices_batch, self.out_dim, dim=2)
+
+        c1_vec = make_choice_vec(c1, self.embedding, self.choicesBiGRU, self.choicesLiner)
+        c2_vec = make_choice_vec(c2, self.embedding, self.choicesBiGRU, self.choicesLiner)
+        c3_vec = make_choice_vec(c3, self.embedding, self.choicesBiGRU, self.choicesLiner)
+        c4_vec = make_choice_vec(c4, self.embedding, self.choicesBiGRU, self.choicesLiner)
+
+        # --- 論文中のMulti-Perspective Aggregation Layer ---
+        P, C1, C2, C3, C4=self.MPA(sent_vec, input_batch, c1_vec, c2_vec, c3_vec, c4_vec)
+        # P: (b, 4h),  C:(b, 6h)
+
+        # --- 論文中のOutput Layer ---
+        output=self.OutLayer(P, C1, C2, C3, C4, batch_size) # (b, 4)
+
+        return output   # (b, 4)
+
+
+
+
 #試しに動かす用のモデル
 
 
@@ -573,20 +777,11 @@ class MPnet(nn.Module):
         self.OutLayer=PointerNet(self.hidden_dim, self.output_dim, num_directions)
 
     def make_choice_vec(choi, Emb, GRU, Li):
-        new_choi=choi.squeeze()   # (b, 1, c) -> (b, c)
-        c_emb = Emb(new_choi) # (b, c) -> (b, c, h)
+        choi.squeeze()   # (b, 1, c) -> (b, c)
+        c_emb = Emb(choi) # (b, c) -> (b, c, h)
         c_gru, _ = GRU(c_emb)    # (b, c, h) -> (b, c, 2h) , (b, 1*2, h)
         c_out=c_gru.view(batch_size, -1) # (b, c*2h)
         c_vec=Li(c_out)    # (b, 2h)
-
-        return c_vec
-
-    def make_choice_vec2(choi):
-        new_choi=choi.squeeze()   # (b, 1, c) -> (b, c)
-        c_emb = self.embedding(new_choi) # (b, c) -> (b, c, h)
-        c_gru, _ = self.choicesBiGRU(c_emb)    # (b, c, h) -> (b, c, 2h) , (b, 1*2, h)
-        c_out=c_gru.view(batch_size, -1) # (b, c*2h)
-        c_vec=choicesLiner(c_out)    # (b, 2h)
 
         return c_vec
 
@@ -608,22 +803,17 @@ class MPnet(nn.Module):
         sent_vec, _ = self.BiGRU(embedded)    # (b, s, h) -> (b, s, 2h) , (b, 1*2, h)
 
         c1, c2, c3, c4 =torch.chunk(choices_batch, self.output_dim, dim=1)
-        '''
+        print(c1.size())
+        print(len(c1))
+
         c1_vec = self.make_choice_vec(choi=c1, Emb=self.embedding, GRU=self.choicesBiGRU, Li=self.choicesLiner)
         c2_vec = self.make_choice_vec(c2, self.embedding, self.choicesBiGRU, self.choicesLiner)
         c3_vec = self.make_choice_vec(c3, self.embedding, self.choicesBiGRU, self.choicesLiner)
         c4_vec = self.make_choice_vec(c4, self.embedding, self.choicesBiGRU, self.choicesLiner)
-        '''
-
-        c1_vec = self.make_choice_vec2(c1)
-        c2_vec = self.make_choice_vec2(c2)
-        c3_vec = self.make_choice_vec2(c3)
-        c4_vec = self.make_choice_vec2(c4)
-
 
         # --- 論文中のMulti-Perspective Aggregation Layer ---
         P, C1, C2, C3, C4=self.MPA(sent_vec, input_batch, c1_vec, c2_vec, c3_vec, c4_vec)
-        # P: (b, 2h),  C:(b, 4h)
+        # P: (b, 4h),  C:(b, 6h)
 
         # --- 論文中のOutput Layer ---
         output=self.OutLayer(P, C1, C2, C3, C4, batch_size) # (b, 4)

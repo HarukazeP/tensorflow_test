@@ -246,7 +246,7 @@ def json_to_text(json_path, output_pass):
 
     cloze_file = output_pass+'_cloze.txt'
     ans_file = output_pass+'_ans.txt'
-    choice_file = output_pass+'_choice.txt'
+    choice_file = output_pass+'_choices.txt'
 
     before=''
     with open(cloze_file, 'a') as f_clz:
