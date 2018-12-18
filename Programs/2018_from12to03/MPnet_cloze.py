@@ -543,9 +543,9 @@ class PointerNet(nn.Module):
         out4=C1WP+bC1
 
         output=torch.cat([out1, out2, out3, out4], dim=1)   #(b,4)
-        prob=F.softmax(output, dim=1)   #(b,4)
+        #output=F.softmax(output, dim=1)   #(b,4)
 
-        return prob #(b, 4)
+        return output #(b, 4)
 
 
 #できる限り再現したモデル
@@ -724,7 +724,7 @@ def timeSince(since, percent):
 
 
 #学習をn_iters回，残り時間の算出をlossグラフの描画も
-def trainIters(lang, model, train_pairs, val_pairs, n_iters, print_every=10, learning_rate=0.01, saveModel=False):
+def trainIters(lang, model, train_pairs, val_pairs, n_iters, print_every=10, learning_rate=0.001, saveModel=False):
     start = time.time()
     plot_losses = []
     print_loss_total = 0  # Reset every print_every
@@ -771,7 +771,8 @@ def trainIters(lang, model, train_pairs, val_pairs, n_iters, print_every=10, lea
     loader_train = DataLoader(ds_train, batch_size=BATCH_SIZE, shuffle=True)
     loader_val = DataLoader(ds_val, batch_size=BATCH_SIZE, shuffle=False)
 
-    criterion = nn.NLLLoss()
+    #criterion = nn.NLLLoss()
+    criterion = nn.CrossEntropyLoss()
 
     print("Training...")
     # Ctrl+c で強制終了してもそこまでのモデルとか保存
