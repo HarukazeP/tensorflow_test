@@ -85,7 +85,7 @@ MAX_LENGTH = 80
 C_MAXLEN = 6
 HIDDEN_DIM = 128
 EMB_DIM = 300
-BATCH_SIZE = 128
+BATCH_SIZE = 256
 
 file_path='../../../pytorch_data/'
 git_data_path='../../Data/'
@@ -319,7 +319,8 @@ class IDCNN(nn.Module):
     def __init__(self, hid_dim, num_directions):
         super(IDCNN, self).__init__()
         self.hidden_dim = hid_dim
-        conv_in_dim=self.hidden_dim*num_directions
+        #conv_in_dim=self.hidden_dim*num_directions
+        conv_in_dim=MAX_LENGTH
         conv_out_dim=self.hidden_dim*num_directions
 
         self.CNN1_1=nn.Conv1d(conv_in_dim, conv_out_dim, kernel_size=3, dilation=1)
@@ -384,10 +385,10 @@ class AttnReader(nn.Module):
         u3_Wh=torch.bmm(Wh, u3)
         u4_Wh=torch.bmm(Wh, u4)
 
-        attn1=F.softmax(u1_Wh+bh, dim=1) # (b, s, 1)
-        attn2=F.softmax(u2_Wh+bh, dim=1)
-        attn3=F.softmax(u3_Wh+bh, dim=1)
-        attn4=F.softmax(u4_Wh+bh, dim=1)
+        attn_1=F.softmax(u1_Wh+bh, dim=1) # (b, s, 1)
+        attn_2=F.softmax(u2_Wh+bh, dim=1)
+        attn_3=F.softmax(u3_Wh+bh, dim=1)
+        attn_4=F.softmax(u4_Wh+bh, dim=1)
 
         attn1_h=torch.mul(sents_vec, attn_1)  # (b, s, 2h)
         attn2_h=torch.mul(sents_vec, attn_2)
@@ -450,7 +451,7 @@ class MPALayer(nn.Module):
 
         #最後にマージ
         '''
-        PはP_scとP_idcの連結 (b, (h+h*num_directions))？
+        PはP_scとP_idcの連結 (b, (h+h)*num_directions)？
         C1はc1_vecとP1_arとP1_ngの連結 (b, (h+h+h)*num_directions)？
 
         P  : (b, 2*num_directions*h)
@@ -473,18 +474,18 @@ class PointerNet(nn.Module):
         self.output_dim = out_dim   #選択肢の数
         #TODO ここ変更した場所
         '''
-        P_dim=2*num_directions
-        C_dim=3*num_directions
+        self.P_dim=2*num_directions
+        self.C_dim=3*num_directions
         '''
-        P_dim=1*num_directions
-        C_dim=2*num_directions
+        self.P_dim=1*num_directions
+        self.C_dim=2*num_directions
 
-        self.GateWeight_P = Parameter(torch.Tensor(self.hidden_dim, self.hidden_dim*P_dim))
-        self.GateWeight_C = Parameter(torch.Tensor(self.hidden_dim, self.hidden_dim*C_dim))
-        self.GateBias = Parameter(torch.Tensor(self.hidden_dim))
+        self.GateWeight_P = Parameter(torch.Tensor(self.hidden_dim*self.C_dim, self.hidden_dim*self.P_dim))
+        self.GateWeight_C = Parameter(torch.Tensor(self.hidden_dim*self.C_dim, self.hidden_dim*self.C_dim))
+        self.GateBias = Parameter(torch.Tensor(self.hidden_dim*self.C_dim))
 
-        self.OutWeight_P = Parameter(torch.Tensor(self.output_dim, self.hidden_dim*P_dim))
-        self.OutBias = Parameter(torch.Tensor(self.output_dim))
+        self.OutWeight_P = Parameter(torch.Tensor(self.hidden_dim*self.C_dim, self.hidden_dim*self.P_dim))
+        self.OutBias = Parameter(torch.Tensor(self.hidden_dim*self.C_dim))
 
     def forward(self, P, C1, C2, C3, C4, batch_size):
         '''
@@ -492,38 +493,39 @@ class PointerNet(nn.Module):
             出力： (b, n)  #各選択肢に対する確率
 
             P  : (b, 2h)
-            C1 : (b, 3h)
+            C1 : (b, 4h)
 
             matmul()やbmm()は内積，mul()は要素積
-        '''
 
-        WP=P.matmul(self.GateWeight_P.t())      # (b, 4h) -> (b, h)
-        WC1=C1.matmul(self.GateWeight_C.t())    # (b, 6h) -> (b, h)
+            print('', .size())
+        '''
+        WP=P.matmul(self.GateWeight_P.t())      # (b, 2h) -> (b, 4h)
+        WC1=C1.matmul(self.GateWeight_C.t())    # (b, 4h) -> (b, 4h)
         WC2=C2.matmul(self.GateWeight_C.t())
         WC3=C3.matmul(self.GateWeight_C.t())
         WC4=C4.matmul(self.GateWeight_C.t())
 
-        g1=WP+WC1+self.GateBias #(b, h)　#これでちゃんとバッチ数分バイス足せてる
-        g2=WP+WC2+self.GateBias #(b, h)
-        g3=WP+WC3+self.GateBias #(b, h)
-        g4=WP+WC4+self.GateBias #(b, h)
+        g1=WP+WC1+self.GateBias #(b, 4h)　#これでちゃんとバッチ数分バイス足せてる
+        g2=WP+WC2+self.GateBias #(b, 4h)
+        g3=WP+WC3+self.GateBias #(b, 4h)
+        g4=WP+WC4+self.GateBias #(b, 4h)
 
-        C_dash1=torch.mul(C1, F.sigmoid(g1))    #(b, h)
-        C_dash2=torch.mul(C2, F.sigmoid(g2))
-        C_dash3=torch.mul(C3, F.sigmoid(g3))
-        C_dash4=torch.mul(C4, F.sigmoid(g4))
+        C_dash1=torch.mul(C1, torch.sigmoid(g1))    #(b, 4h)
+        C_dash2=torch.mul(C2, torch.sigmoid(g2))
+        C_dash3=torch.mul(C3, torch.sigmoid(g3))
+        C_dash4=torch.mul(C4, torch.sigmoid(g4))
 
-        WP_out=P.matmul(self.OutWeight_P.t())   # (b, 4h) -> (b, h)
+        WP_out=P.matmul(self.OutWeight_P.t())   # (b, 2h) -> (b, 4h)
 
-        #(b, h)と(b,h)の内積で(b,1)にしたいが
+        #(b, 6h)と(b,6h)の内積で(b,1)にしたいが
         #pytorchでバッチごとの内積はbmmしかないため変形してる
-        C1WP=torch.bmm(C_dash1.view(batch_size, 1, self.hidden_dim), WP_out.view(batch_size, self.hidden_dim, 1))   #(b,1,1)
+        C1WP=torch.bmm(C_dash1.view(batch_size, 1, self.hidden_dim*self.C_dim), WP_out.view(batch_size, self.hidden_dim*self.C_dim, 1))   #(b,1,1)
         C1WP=C1WP.squeeze(2) #(b,1)
-        C2WP=torch.bmm(C_dash2.view(batch_size, 1, self.hidden_dim), WP_out.view(batch_size, self.hidden_dim, 1))
+        C2WP=torch.bmm(C_dash2.view(batch_size, 1, self.hidden_dim*self.C_dim), WP_out.view(batch_size, self.hidden_dim*self.C_dim, 1))
         C2WP=C2WP.squeeze(2)
-        C3WP=torch.bmm(C_dash3.view(batch_size, 1, self.hidden_dim), WP_out.view(batch_size, self.hidden_dim, 1))
+        C3WP=torch.bmm(C_dash3.view(batch_size, 1, self.hidden_dim*self.C_dim), WP_out.view(batch_size, self.hidden_dim*self.C_dim, 1))
         C3WP=C3WP.squeeze(2)
-        C4WP=torch.bmm(C_dash4.view(batch_size, 1, self.hidden_dim), WP_out.view(batch_size, self.hidden_dim, 1))
+        C4WP=torch.bmm(C_dash4.view(batch_size, 1, self.hidden_dim*self.C_dim), WP_out.view(batch_size, self.hidden_dim*self.C_dim, 1))
         C4WP=C4WP.squeeze(2)
 
         bC1=torch.matmul(C_dash1, self.OutBias) #(b)
@@ -562,8 +564,8 @@ class MPnet(nn.Module):
         self.embedding = nn.Embedding(self.vocab_size, self.embedding_dim, padding_idx=PAD_token) #語彙数×次元数
         self.embedding.weight.data.copy_(torch.from_numpy(weights_matrix))
 
-        self.BiGRU=nn.GRU(input_size=self.embedding_dim, hidden_size=self.hidden_dim, dropout=0.5, num_layers=1, batch_first=True, bidirectional=BiDi)
-        self.choicesBiGRU=nn.GRU(input_size=self.embedding_dim, hidden_size=self.hidden_dim, dropout=0.5, num_layers=1, batch_first=True, bidirectional=BiDi)
+        self.BiGRU=nn.GRU(input_size=self.embedding_dim, hidden_size=self.hidden_dim, num_layers=1, batch_first=True, bidirectional=BiDi)
+        self.choicesBiGRU=nn.GRU(input_size=self.embedding_dim, hidden_size=self.hidden_dim, num_layers=1, batch_first=True, bidirectional=BiDi)
         self.choicesLiner = nn.Linear(self.hidden_dim*num_directions*C_MAXLEN, self.hidden_dim*num_directions)
 
         # --- 論文中のMulti-Perspective Aggregation Layer ---
@@ -571,55 +573,75 @@ class MPnet(nn.Module):
 
         # --- 論文中のOutput Layer ---
         self.OutLayer=PointerNet(self.hidden_dim, self.output_dim, num_directions)
-
-    def make_choice_vec(choi, Emb, GRU, Li):
-        new_choi=choi.squeeze()   # (b, 1, c) -> (b, c)
-        c_emb = Emb(new_choi) # (b, c) -> (b, c, h)
-        c_gru, _ = GRU(c_emb)    # (b, c, h) -> (b, c, 2h) , (b, 1*2, h)
-        c_out=c_gru.view(batch_size, -1) # (b, c*2h)
-        c_vec=Li(c_out)    # (b, 2h)
-
-        return c_vec
-
-    def make_choice_vec2(choi):
+    '''
+    def make_choice_vec(choi):
         new_choi=choi.squeeze()   # (b, 1, c) -> (b, c)
         c_emb = self.embedding(new_choi) # (b, c) -> (b, c, h)
         c_gru, _ = self.choicesBiGRU(c_emb)    # (b, c, h) -> (b, c, 2h) , (b, 1*2, h)
-        c_out=c_gru.view(batch_size, -1) # (b, c*2h)
-        c_vec=choicesLiner(c_out)    # (b, 2h)
+
+        c_out=c_gru.contiguous().view(batch_size, -1) # (b, c*2h)
+        c_vec=self.choicesLiner(c_out)    # (b, 2h)
 
         return c_vec
+    '''
 
     def forward(self, input_batch, choices_batch):
         """
         :param
             input_batch:   (b, s)
-            choices_batch: (b, c, n)
-                c:選択肢の最大長(パディング後)
+            choices_batch: (b, n, c)
                 n:1問あたりの選択肢数
+                c:選択肢の最大長(パディング後)
+
 
         :returns (b, 4)
         """
         # --- 論文中のInput layer ---
         #TODO inputからCLZの場所特定しておく？→それバッチでできる？
-        batch_size = input_batch.shape[1]
-
+        batch_size = input_batch.shape[0]
         embedded = self.embedding(input_batch)  # (b, s) -> (b, s, h)
         sent_vec, _ = self.BiGRU(embedded)    # (b, s, h) -> (b, s, 2h) , (b, 1*2, h)
+        sent_vec = F.dropout(sent_vec, p=0.5, training=self.training)
 
         c1, c2, c3, c4 =torch.chunk(choices_batch, self.output_dim, dim=1)
-        '''
-        c1_vec = self.make_choice_vec(choi=c1, Emb=self.embedding, GRU=self.choicesBiGRU, Li=self.choicesLiner)
-        c2_vec = self.make_choice_vec(c2, self.embedding, self.choicesBiGRU, self.choicesLiner)
-        c3_vec = self.make_choice_vec(c3, self.embedding, self.choicesBiGRU, self.choicesLiner)
-        c4_vec = self.make_choice_vec(c4, self.embedding, self.choicesBiGRU, self.choicesLiner)
-        '''
 
-        c1_vec = self.make_choice_vec2(c1)
-        c2_vec = self.make_choice_vec2(c2)
-        c3_vec = self.make_choice_vec2(c3)
-        c4_vec = self.make_choice_vec2(c4)
+        '''
+        こう書きたかったけど何故かエラー出る
+        c1_vec = self.make_choice_vec(c1)
+        TypeError: make_choice_vec() takes 1 positional argument but 2 were given
 
+        c1_vec = self.make_choice_vec(c1)
+        c2_vec = self.make_choice_vec(c2)
+        c3_vec = self.make_choice_vec(c3)
+        c4_vec = self.make_choice_vec(c4)
+        '''
+        # c1_vec作成
+        c1=c1.squeeze()   # (b, 1, c) -> (b, c)
+        c1_gru, _ = self.choicesBiGRU(self.embedding(c1))
+        c1_gru = F.dropout(c1_gru, p=0.5, training=self.training)
+        c1_out=c1_gru.contiguous().view(batch_size, -1) # (b, c*2h)
+        c1_vec=self.choicesLiner(c1_out)    # (b, 2h)
+
+        # c2_vec作成
+        c2=c2.squeeze()
+        c2_gru, _ = self.choicesBiGRU(self.embedding(c2))
+        c2_gru = F.dropout(c2_gru, p=0.5, training=self.training)
+        c2_out=c2_gru.contiguous().view(batch_size, -1)
+        c2_vec=self.choicesLiner(c2_out)
+
+        # c3_vec作成
+        c3=c3.squeeze()
+        c3_gru, _ = self.choicesBiGRU(self.embedding(c3))
+        c3_gru = F.dropout(c3_gru, p=0.5, training=self.training)
+        c3_out=c3_gru.contiguous().view(batch_size, -1)
+        c3_vec=self.choicesLiner(c3_out)
+
+        # c4_vec作成
+        c4=c4.squeeze()
+        c4_gru, _ = self.choicesBiGRU(self.embedding(c4))
+        c4_gru = F.dropout(c4_gru, p=0.5, training=self.training)
+        c4_out=c4_gru.contiguous().view(batch_size, -1)
+        c4_vec=self.choicesLiner(c4_out)
 
         # --- 論文中のMulti-Perspective Aggregation Layer ---
         P, C1, C2, C3, C4=self.MPA(sent_vec, input_batch, c1_vec, c2_vec, c3_vec, c4_vec)
@@ -650,7 +672,8 @@ def batch_train(X, C, Y, model, model_optimizer, criterion, max_length=MAX_LENGT
     model_optimizer.zero_grad()
 
     model_outputs = model(X, C) #出力 (b, 4)
-    loss = criterion(model_outputs, Y)
+    #pytorchでNLLlossのpredは(b,4)だけどtargetは(4)
+    loss = criterion(model_outputs, torch.argmax(Y, dim=1))
 
     loss.backward()
     #↑lossはdouble型ではなくVariableクラスになっている
@@ -662,12 +685,12 @@ def batch_train(X, C, Y, model, model_optimizer, criterion, max_length=MAX_LENGT
 
 
 #バッチデータあたりのバリデーション
-def batch_eval(X, C, Y, model, criterion, lang):
+def batch_eval(X, C, Y, model, criterion):
     with torch.no_grad():
         loss=0
 
         model_outputs = model(X, C) #出力 (b, 4)
-        loss = criterion(model_outputs, Y)
+        loss = criterion(model_outputs, torch.argmax(Y, dim=1))
         acc = calc_batch_acc(model_outputs, Y)
 
     return loss.item(), acc
@@ -676,12 +699,13 @@ def calc_batch_acc(model_outputs, Y):
     batch=0
     OK=0
     model_pred=torch.argmax(model_outputs, dim=1)
-    for pred, ans in zip(model_pred, Y):
+    for pred, y in zip(model_pred, Y):
+        ans=torch.argmax(y, dim=0)
         batch+=1
         if pred==ans:
             OK+=1
 
-    return 1.0*OK/batch
+    return 100.0*OK/batch
 
 #秒を分秒に変換
 def asMinutes(s):
@@ -701,7 +725,6 @@ def timeSince(since, percent):
 
 #学習をn_iters回，残り時間の算出をlossグラフの描画も
 def trainIters(lang, model, train_pairs, val_pairs, n_iters, print_every=10, learning_rate=0.01, saveModel=False):
-    print("Training...")
     start = time.time()
     plot_losses = []
     print_loss_total = 0  # Reset every print_every
@@ -731,6 +754,8 @@ def trainIters(lang, model, train_pairs, val_pairs, n_iters, print_every=10, lea
 
     train_data_num=len(X_train)
     val_data_num=len(X_val)
+    #print(train_data_num)
+    #print(val_data_num)
 
     #データ全体はRAMに載せる
     X_train=torch.tensor(X_train, dtype=torch.long, device=my_CPU)
@@ -746,8 +771,9 @@ def trainIters(lang, model, train_pairs, val_pairs, n_iters, print_every=10, lea
     loader_train = DataLoader(ds_train, batch_size=BATCH_SIZE, shuffle=True)
     loader_val = DataLoader(ds_val, batch_size=BATCH_SIZE, shuffle=False)
 
-    criterion = nn.NLLLoss(ignore_index=PAD_token)
+    criterion = nn.NLLLoss()
 
+    print("Training...")
     # Ctrl+c で強制終了してもそこまでのモデルとか保存
     try:
         for iter in range(1, n_iters + 1):
@@ -762,7 +788,8 @@ def trainIters(lang, model, train_pairs, val_pairs, n_iters, print_every=10, lea
                 y=y.to(my_device)
 
                 loss= batch_train(x, c, y, model, model_optimizer, criterion)
-                loss=loss*x.size(1)
+                #NLLLossはバッチ平均を返すから元に戻す
+                loss=loss*x.size(0)
 
                 print_loss_total += loss
                 plot_loss_total += loss
@@ -773,9 +800,8 @@ def trainIters(lang, model, train_pairs, val_pairs, n_iters, print_every=10, lea
                 c=c.to(my_device)
                 y=y.to(my_device)
 
-                val_loss, val_acc = batch_eval(x, c, y, model, model_optimizer, criterion)
-                val_loss = val_loss*x.size(1)
-                val_acc = val_acc*x.size(1)
+                val_loss, val_acc = batch_eval(x, c, y, model, criterion)
+                val_loss=val_loss*x.size(0)
 
                 print_val_loss_total += val_loss
                 plot_val_loss_total += val_loss
@@ -786,7 +812,7 @@ def trainIters(lang, model, train_pairs, val_pairs, n_iters, print_every=10, lea
             #画面にlossと時間表示
             #経過時間 (- 残り時間) (現在のiter 進行度) loss val_loss
             if iter == 1:
-                print('%s (%d %d%%) train_loss=%.4f, val_loss=%.4f, val_acc=%.4f' % (timeSince(start, iter / n_iters), iter, iter / n_iters * 100, print_loss_total, print_val_loss_total, print_val_acc_total))
+                print('%s (%d %d%%) train_loss=%.4f, val_loss=%.4f, val_acc=%.4f' % (timeSince(start, iter / n_iters), iter, iter / n_iters * 100, print_loss_total/train_data_num, print_val_loss_total/val_data_num, print_val_acc_total/val_data_num))
 
             elif iter % print_every == 0:
                 print_loss_avg = (print_loss_total/train_data_num) / print_every
@@ -795,7 +821,7 @@ def trainIters(lang, model, train_pairs, val_pairs, n_iters, print_every=10, lea
                 print_val_loss_total = 0
                 print_val_acc_avg = (print_val_acc_total/val_data_num) / print_every
                 print_val_acc_total = 0
-                print('%s (%d %d%%) train_loss=%.4f, val_loss=%.4f, val_acc=%.4f' % (timeSince(start, iter / n_iters), iter, iter / n_iters * 100, print_loss_total, print_val_loss_total, print_val_acc_total))
+                print('%s (%d %d%%) train_loss=%.4f, val_loss=%.4f, val_acc=%.4f' % (timeSince(start, iter / n_iters), iter, iter / n_iters * 100, print_loss_avg, print_val_loss_avg, print_val_acc_avg))
 
             #loss/accグラフ用記録
             plot_loss_avg = plot_loss_total/train_data_num
@@ -807,7 +833,8 @@ def trainIters(lang, model, train_pairs, val_pairs, n_iters, print_every=10, lea
             plot_val_loss_total = 0
 
             #TODO acc はaveとかいる？
-            plot_val_accs.append(plot_val_acc_total)
+            plot_val_acc_avg = plot_val_acc_total/val_data_num
+            plot_val_accs.append(plot_val_acc_avg)
             plot_val_acc_total = 0
 
             #val_loss最小更新
@@ -844,14 +871,14 @@ def trainIters(lang, model, train_pairs, val_pairs, n_iters, print_every=10, lea
 
 #グラフの描画（画像ファイル保存）
 def showPlot3(train_plot, val_plot, file_name, label_name):
-    fig = plt.figure()
+    #fig = plt.figure()
     plt.plot(train_plot, color='blue', marker='o', label='train_'+label_name)
     plt.plot(val_plot, color='green', marker='o', label='val_'+label_name)
     plt.title('model '+label_name)
     plt.xlabel('epoch')
     plt.ylabel(label_name)
     plt.legend()
-    fig.savefig(save_path + file_name)
+    plt.savefig(save_path + file_name)
 
 
 #グラフの描画（画像ファイル保存）
@@ -1094,14 +1121,14 @@ if __name__ == '__main__':
         valid_Y=readAns(valid_ans)
 
         if args.mode == 'mini':
-            epoch=3
-            train_X=train_X[:20]
-            train_C=train_C[:20]
-            train_Y=train_Y[:20]
+            epoch=5
+            train_X=train_X[:300]
+            train_C=train_C[:300]
+            train_Y=train_Y[:300]
 
-            valid_X=valid_X[:20]
-            valid_C=valid_C[:20]
-            valid_Y=valid_Y[:20]
+            valid_X=valid_X[:300]
+            valid_C=valid_C[:300]
+            valid_Y=valid_Y[:300]
 
         train_data = (train_X, train_C, train_Y)
         val_data = (valid_X, valid_C, valid_Y)
