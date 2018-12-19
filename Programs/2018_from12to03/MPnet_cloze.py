@@ -161,13 +161,13 @@ def token_to_ids(lang, tokens, maxlen):
     #他のNLTKタグについては nltk.help.upenn_tagset()
     tagged = nltk.pos_tag(tokens)
     for word, tag in tagged:
-        if tag in symbol_tag:
+        if word==CLZ_word:
+            ids.append(CLZ_token)
+        elif tag in symbol_tag:
             pass
             #記号は無視
         elif tag in num_tag:
             ids.append(lang.check_word2index('NUM'))
-        elif word==CLZ_word:
-            ids.append(CLZ_token)
         else:
             ids.append(lang.check_word2index(word.lower()))
 
@@ -223,30 +223,6 @@ def ans_to_ids(lang, ans, choices):
         exit()
 
     return ids
-
-#Googleのword2vec読み取り
-def get_weight_matrix(lang):
-    print('Loading word vector ...')
-    #ここのgensimの書き方がバージョンによって異なる
-    vec_model = gensim.models.KeyedVectors.load_word2vec_format(file_path+'GoogleNews-vectors-negative300.bin', binary=True)
-    # https://code.google.com/archive/p/word2vec/ ここからダウンロード&解凍
-
-    weights_matrix = np.zeros((lang.n_words, EMB_DIM))
-
-    for i, word in lang.index2word.items():
-        try:
-            weights_matrix[i] = vec_model.wv[word]
-        except KeyError:
-            weights_matrix[i] = np.random.normal(size=(EMB_DIM, ))
-
-    del vec_model
-    #これメモリ解放的なことらしい、なくてもいいかも
-
-    #パディングのところを初期化
-    #Emneddingで引数のpad_index指定は、そこだけ更新(微分)しないらしい？
-    weights_matrix[PAD_token]=np.zeros(EMB_DIM)
-
-    return weights_matrix
 
 
 #与えた語彙読み込み
@@ -309,6 +285,33 @@ def readAns(file_name):
             data.append(line.strip())
 
     return data
+
+#Googleのword2vec読み取り
+def get_weight_matrix(lang):
+    print('Loading word vector ...')
+    #ここのgensimの書き方がバージョンによって異なる
+    vec_model = gensim.models.KeyedVectors.load_word2vec_format(file_path+'GoogleNews-vectors-negative300.bin', binary=True)
+    # https://code.google.com/archive/p/word2vec/ ここからダウンロード&解凍
+
+    weights_matrix = np.zeros((lang.n_words, EMB_DIM))
+
+    for i, word in lang.index2word.items():
+        try:
+            weights_matrix[i] = vec_model.wv[word]
+        except KeyError:
+            weights_matrix[i] = np.random.normal(size=(EMB_DIM, ))
+
+    del vec_model
+    #これメモリ解放的なことらしい、なくてもいいかも
+
+    #パディングのところを初期化
+    #Emneddingで引数のpad_index指定は、そこだけ更新(微分)しないらしい？
+    weights_matrix[PAD_token]=np.zeros(EMB_DIM)
+
+    return weights_matrix
+
+
+
 
 ###########################
 # 2.モデル定義
@@ -401,10 +404,6 @@ class AttnReader(nn.Module):
         P4=torch.sum(attn4_h, dim=1)
 
         return P1, P2, P3, P4
-
-
-
-#試しに動かす用のモデル
 
 
 # --- 論文中のMulti-Perspective Aggregation Layer ---
@@ -544,6 +543,7 @@ class PointerNet(nn.Module):
 
         output=torch.cat([out1, out2, out3, out4], dim=1)   #(b,4)
         #output=F.softmax(output, dim=1)   #(b,4)
+        #output = F.log_softmax(output, dim=1)
 
         return output #(b, 4)
 
@@ -559,12 +559,12 @@ class MPnet(nn.Module):
         self.output_dim = out_dim   #選択肢の数
         num_directions = 2 if BiDi else 1
 
-
         # --- 論文中のInput layer ---
         self.embedding = nn.Embedding(self.vocab_size, self.embedding_dim, padding_idx=PAD_token) #語彙数×次元数
         self.embedding.weight.data.copy_(torch.from_numpy(weights_matrix))
 
         self.BiGRU=nn.GRU(input_size=self.embedding_dim, hidden_size=self.hidden_dim, num_layers=1, batch_first=True, bidirectional=BiDi)
+        
         self.choicesBiGRU=nn.GRU(input_size=self.embedding_dim, hidden_size=self.hidden_dim, num_layers=1, batch_first=True, bidirectional=BiDi)
         self.choicesLiner = nn.Linear(self.hidden_dim*num_directions*C_MAXLEN, self.hidden_dim*num_directions)
 
@@ -600,8 +600,8 @@ class MPnet(nn.Module):
         #TODO inputからCLZの場所特定しておく？→それバッチでできる？
         batch_size = input_batch.shape[0]
         embedded = self.embedding(input_batch)  # (b, s) -> (b, s, h)
-        sent_vec, _ = self.BiGRU(embedded)    # (b, s, h) -> (b, s, 2h) , (b, 1*2, h)
-        sent_vec = F.dropout(sent_vec, p=0.5, training=self.training)
+        sent_gru, _ = self.BiGRU(embedded)    # (b, s, h) -> (b, s, 2h) , (b, 1*2, h)
+        sent_vec = F.dropout(sent_gru, p=0.5, training=self.training)
 
         c1, c2, c3, c4 =torch.chunk(choices_batch, self.output_dim, dim=1)
 
@@ -643,12 +643,29 @@ class MPnet(nn.Module):
         c4_out=c4_gru.contiguous().view(batch_size, -1)
         c4_vec=self.choicesLiner(c4_out)
 
+
         # --- 論文中のMulti-Perspective Aggregation Layer ---
         P, C1, C2, C3, C4=self.MPA(sent_vec, input_batch, c1_vec, c2_vec, c3_vec, c4_vec)
         # P: (b, 2h),  C:(b, 4h)
 
+
         # --- 論文中のOutput Layer ---
         output=self.OutLayer(P, C1, C2, C3, C4, batch_size) # (b, 4)
+
+        #デバッグ用
+        '''
+        print('sent',input_batch[5])
+        print('sent emb',embedded[5])
+        #print('choices',choices_batch[5])
+        #print('c1',c1[5])
+        #print('sent_gru:',sent_gru[5])
+        #print('c1_gru:',c1_gru[5])
+        #print('sent_vec:',sent_vec[5])
+        #print('c1_vec:',c1_vec[5])
+        #print('P:',P[5])
+        #print('C1:',C1[5])
+        #print('model output:',output[5])
+        '''
 
         return output   # (b, 4)
 
@@ -668,20 +685,19 @@ def batch_train(X, C, Y, model, model_optimizer, criterion, max_length=MAX_LENGT
     X : (s, b)
     Y : (b, 4)
     '''
-    loss=0
+    #loss=0
     model_optimizer.zero_grad()
 
     model_outputs = model(X, C) #出力 (b, 4)
+
     #pytorchでNLLlossのpredは(b,4)だけどtargetは(4)
     loss = criterion(model_outputs, torch.argmax(Y, dim=1))
 
     loss.backward()
-    #↑lossはdouble型ではなくVariableクラスになっている
-    #backwardメソッドを呼ぶことで逆伝搬がスタート，直前のノードに微分値をセット
-
     model_optimizer.step()  #重みの更新
 
     return loss.item()
+
 
 
 #バッチデータあたりのバリデーション
@@ -693,19 +709,22 @@ def batch_eval(X, C, Y, model, criterion):
         loss = criterion(model_outputs, torch.argmax(Y, dim=1))
         acc = calc_batch_acc(model_outputs, Y)
 
-    return loss.item(), acc
+        return loss.item(), acc
 
 def calc_batch_acc(model_outputs, Y):
     batch=0
     OK=0
     model_pred=torch.argmax(model_outputs, dim=1)
-    for pred, y in zip(model_pred, Y):
-        ans=torch.argmax(y, dim=0)
+    y=torch.argmax(Y, dim=1)
+    for pred, ans in zip(model_pred, y):
         batch+=1
         if pred==ans:
             OK+=1
 
-    return 100.0*OK/batch
+    acc = 100.0*OK/batch
+    #print('OK: %d batch: %d acc: %.2f %%' % (OK, batch, acc))
+
+    return acc
 
 #秒を分秒に変換
 def asMinutes(s):
@@ -725,7 +744,6 @@ def timeSince(since, percent):
 
 #学習をn_iters回，残り時間の算出をlossグラフの描画も
 def trainIters(lang, model, train_pairs, val_pairs, n_iters, print_every=10, learning_rate=0.001, saveModel=False):
-    start = time.time()
     plot_losses = []
     print_loss_total = 0  # Reset every print_every
     plot_loss_total = 0
@@ -754,8 +772,8 @@ def trainIters(lang, model, train_pairs, val_pairs, n_iters, print_every=10, lea
 
     train_data_num=len(X_train)
     val_data_num=len(X_val)
-    #print(train_data_num)
-    #print(val_data_num)
+    print('train data:', train_data_num)
+    print('valid data:', val_data_num)
 
     #データ全体はRAMに載せる
     X_train=torch.tensor(X_train, dtype=torch.long, device=my_CPU)
@@ -774,7 +792,10 @@ def trainIters(lang, model, train_pairs, val_pairs, n_iters, print_every=10, lea
     #criterion = nn.NLLLoss()
     criterion = nn.CrossEntropyLoss()
 
-    print("Training...")
+    start = time.time()
+    st_time=datetime.datetime.today().strftime('%H:%M')
+    print("Training... ", st_time)
+
     # Ctrl+c で強制終了してもそこまでのモデルとか保存
     try:
         for iter in range(1, n_iters + 1):
@@ -787,10 +808,11 @@ def trainIters(lang, model, train_pairs, val_pairs, n_iters, print_every=10, lea
                 x=x.to(my_device)
                 c=c.to(my_device)
                 y=y.to(my_device)
+                batch=x.size(0)
 
                 loss= batch_train(x, c, y, model, model_optimizer, criterion)
                 #NLLLossはバッチ平均を返すから元に戻す
-                loss=loss*x.size(0)
+                loss=loss*batch
 
                 print_loss_total += loss
                 plot_loss_total += loss
@@ -800,9 +822,11 @@ def trainIters(lang, model, train_pairs, val_pairs, n_iters, print_every=10, lea
                 x=x.to(my_device)
                 c=c.to(my_device)
                 y=y.to(my_device)
+                batch=x.size(0)
 
                 val_loss, val_acc = batch_eval(x, c, y, model, criterion)
-                val_loss=val_loss*x.size(0)
+                val_loss=val_loss*batch
+                val_acc=val_acc*batch
 
                 print_val_loss_total += val_loss
                 plot_val_loss_total += val_loss
@@ -813,7 +837,7 @@ def trainIters(lang, model, train_pairs, val_pairs, n_iters, print_every=10, lea
             #画面にlossと時間表示
             #経過時間 (- 残り時間) (現在のiter 進行度) loss val_loss
             if iter == 1:
-                print('%s (%d %d%%) train_loss=%.4f, val_loss=%.4f, val_acc=%.4f' % (timeSince(start, iter / n_iters), iter, iter / n_iters * 100, print_loss_total/train_data_num, print_val_loss_total/val_data_num, print_val_acc_total/val_data_num))
+                print('%s (%d %d%%) train_loss=%.4f, val_loss=%.4f, val_acc=%.2f' % (timeSince(start, iter / n_iters), iter, iter / n_iters * 100, print_loss_total/train_data_num, print_val_loss_total/val_data_num, print_val_acc_total/val_data_num))
 
             elif iter % print_every == 0:
                 print_loss_avg = (print_loss_total/train_data_num) / print_every
@@ -822,7 +846,7 @@ def trainIters(lang, model, train_pairs, val_pairs, n_iters, print_every=10, lea
                 print_val_loss_total = 0
                 print_val_acc_avg = (print_val_acc_total/val_data_num) / print_every
                 print_val_acc_total = 0
-                print('%s (%d %d%%) train_loss=%.4f, val_loss=%.4f, val_acc=%.4f' % (timeSince(start, iter / n_iters), iter, iter / n_iters * 100, print_loss_avg, print_val_loss_avg, print_val_acc_avg))
+                print('%s (%d %d%%) train_loss=%.4f, val_loss=%.4f, val_acc=%.2f' % (timeSince(start, iter / n_iters), iter, iter / n_iters * 100, print_loss_avg, print_val_loss_avg, print_val_acc_avg))
 
             #loss/accグラフ用記録
             plot_loss_avg = plot_loss_total/train_data_num
@@ -899,167 +923,167 @@ def showPlot4(val_plot, file_name, label_name):
 '''
 #TODO テスト部分後日実装
 
-# 1データに対する予測
-def evaluate(lang, model, sentence, max_length=MAX_LENGTH):
-    with torch.no_grad():
-        #no_grad()の間はパラメータが固定される（更新されない）
-        input_indexes = pad_indexes(lang, sentence)
-        input_batch = torch.tensor([input_indexes], dtype=torch.long, device=my_device)  # (1, s)
+    # 1データに対する予測
+    def evaluate(lang, model, sentence, max_length=MAX_LENGTH):
+        with torch.no_grad():
+            #no_grad()の間はパラメータが固定される（更新されない）
+            input_indexes = pad_indexes(lang, sentence)
+            input_batch = torch.tensor([input_indexes], dtype=torch.long, device=my_device)  # (1, s)
 
-        encoder_outputs, encoder_hidden = encoder(input_batch.transpose(0, 1))
+            encoder_outputs, encoder_hidden = encoder(input_batch.transpose(0, 1))
 
-        decoder_input = torch.tensor([SOS_token], device=my_device)  # SOS
-        decoder_hidden = (
-            (encoder_hidden[0][0].squeeze(0), encoder_hidden[1][0].squeeze(0)),
-            (encoder_hidden[0][1].squeeze(0), encoder_hidden[1][1].squeeze(0))
-            )
+            decoder_input = torch.tensor([SOS_token], device=my_device)  # SOS
+            decoder_hidden = (
+                (encoder_hidden[0][0].squeeze(0), encoder_hidden[1][0].squeeze(0)),
+                (encoder_hidden[0][1].squeeze(0), encoder_hidden[1][1].squeeze(0))
+                )
 
-        decoded_words = []
-        decoder_attentions = []
+            decoded_words = []
+            decoder_attentions = []
 
-        for di in range(max_length):
-            decoder_output, decoder_hidden, attention = decoder(decoder_input, decoder_hidden, encoder_outputs)  # (1,outdim), ((1,h),(1,h)), (l,1)
-            decoder_attentions.append(attention)
-            _, topi = decoder_output.topk(1)  # (1, 1)
-            if topi.item() == EOS_token:
-                decoded_words.append('<EOS>')
-                break
-            else:
-                decoded_words.append(lang.index2word[topi.item()])
+            for di in range(max_length):
+                decoder_output, decoder_hidden, attention = decoder(decoder_input, decoder_hidden, encoder_outputs)  # (1,outdim), ((1,h),(1,h)), (l,1)
+                decoder_attentions.append(attention)
+                _, topi = decoder_output.topk(1)  # (1, 1)
+                if topi.item() == EOS_token:
+                    decoded_words.append('<EOS>')
+                    break
+                else:
+                    decoded_words.append(lang.index2word[topi.item()])
 
-            decoder_input = topi[0]
+                decoder_input = topi[0]
 
-        decoder_attentions = torch.cat(decoder_attentions, dim=0)  # (l, n)
+            decoder_attentions = torch.cat(decoder_attentions, dim=0)  # (l, n)
 
-        #返り値は予測した単語列とattentionの重み？
-        return decoded_words, decoder_attentions.squeeze(0)
-
-
-#attentionの重みの対応グラフの描画
-def showAttention(file_header, input_sentence, output_words, attentions):
-    #TODO 描画方法は要改善
-    #目盛り間隔、軸ラベルの位置など
-
-    fig = plt.figure()
-    ax = fig.add_subplot(111)
-    cax = ax.matshow(attentions.numpy().T, cmap='bone')
-    fig.colorbar(cax)
-
-    ax.set_yticklabels([''] + input_sentence.split(' ') +
-                       ['<EOS>'])
-    ax.set_xticklabels([''] + output_words, rotation=90)
-
-    ax.xaxis.set_major_locator(ticker.MultipleLocator(1))
-    ax.yaxis.set_major_locator(ticker.MultipleLocator(1))
-    if len(input_sentence)>10:
-        plt.savefig(save_path + file_header + input_sentence[:10] + '_attn.png')
-    else:
-        plt.savefig(save_path + file_header + input_sentence + '_attn.png')
+            #返り値は予測した単語列とattentionの重み？
+            return decoded_words, decoder_attentions.squeeze(0)
 
 
-#精度いろいろ計算
-#問題文、完全一致文、空所の完答文、空所の一部正答文、BLEU値、空所ミス文
-def calc_score(preds_sentences, ans_sentences):
-    line_num=0
-    allOK=0
-    clozeOK=0
-    partOK=0
-    miss=0
-    BLEU=0
+    #attentionの重みの対応グラフの描画
+    def showAttention(file_header, input_sentence, output_words, attentions):
+        #TODO 描画方法は要改善
+        #目盛り間隔、軸ラベルの位置など
 
-    for pred, ans in zip(preds_sentences, ans_sentences):
-        pred=pred.replace(' <EOS>', '')
-        flag=0
-        if pred == ans:
-            allOK+=1
-            flag=1
-        pred_cloze = get_cloze(pred)
-        ans_cloze = get_cloze(ans)
-        tmp_ans_length=len(ans_cloze.split(' '))
-        line_num+=1
-        if is_correct_cloze(pred):
-            tmp_match=match(pred_cloze, ans_cloze)
-            if tmp_match > 0:
-                partOK+=1
-            if pred_cloze == ans_cloze:
-                clozeOK+=1
-                if flag==0:
-                    print(pred)
-                    print(ans)
+        fig = plt.figure()
+        ax = fig.add_subplot(111)
+        cax = ax.matshow(attentions.numpy().T, cmap='bone')
+        fig.colorbar(cax)
+
+        ax.set_yticklabels([''] + input_sentence.split(' ') +
+                           ['<EOS>'])
+        ax.set_xticklabels([''] + output_words, rotation=90)
+
+        ax.xaxis.set_major_locator(ticker.MultipleLocator(1))
+        ax.yaxis.set_major_locator(ticker.MultipleLocator(1))
+        if len(input_sentence)>10:
+            plt.savefig(save_path + file_header + input_sentence[:10] + '_attn.png')
         else:
-            miss+=1
-
-    #BLEU=compute_bleu(preds_sentences, ans_sentences)
-
-    return line_num, allOK, clozeOK, partOK, BLEU, miss
+            plt.savefig(save_path + file_header + input_sentence + '_attn.png')
 
 
-def output_preds(file_name, preds):
-    with open(file_name, 'w') as f:
-        for p in preds:
-            f.write(p+'\n')
+    #精度いろいろ計算
+    #問題文、完全一致文、空所の完答文、空所の一部正答文、BLEU値、空所ミス文
+    def calc_score(preds_sentences, ans_sentences):
+        line_num=0
+        allOK=0
+        clozeOK=0
+        partOK=0
+        miss=0
+        BLEU=0
+
+        for pred, ans in zip(preds_sentences, ans_sentences):
+            pred=pred.replace(' <EOS>', '')
+            flag=0
+            if pred == ans:
+                allOK+=1
+                flag=1
+            pred_cloze = get_cloze(pred)
+            ans_cloze = get_cloze(ans)
+            tmp_ans_length=len(ans_cloze.split(' '))
+            line_num+=1
+            if is_correct_cloze(pred):
+                tmp_match=match(pred_cloze, ans_cloze)
+                if tmp_match > 0:
+                    partOK+=1
+                if pred_cloze == ans_cloze:
+                    clozeOK+=1
+                    if flag==0:
+                        print(pred)
+                        print(ans)
+            else:
+                miss+=1
+
+        #BLEU=compute_bleu(preds_sentences, ans_sentences)
+
+        return line_num, allOK, clozeOK, partOK, BLEU, miss
 
 
-def print_score(line, allOK, clozeOK, partOK, BLEU, miss):
-    print('  acc(all): ', '{0:.2f}'.format(1.0*allOK/line*100),' %')
-    #print('acc(cloze): ', '{0:.2f}'.format(1.0*clozeOK/line*100),' %')
-    #print(' acc(part): ', '{0:.2f}'.format(1.0*partOK/line*100),' %')
-
-    #print(' BLEU: ','{0:.2f}'.format(BLEU*100.0))
-    print('  all: ', allOK)
-    #print('cloze: ',clozeOK)
-    #print(' part: ',partOK)
-    print(' line: ',line)
-    print(' miss: ',miss)
+    def output_preds(file_name, preds):
+        with open(file_name, 'w') as f:
+            for p in preds:
+                f.write(p+'\n')
 
 
-def output_score(file_name, line, allOK, clozeOK, partOK, BLEU, miss):
-    output=''
-    output=output+'  acc(all): '+str(1.0*allOK/line*100)+' %\n'
-    #output=output+'acc(cloze): '+str(1.0*clozeOK/line*100)+' %\n'
-    #output=output+' acc(part): '+str(1.0*partOK/line*100)+' %\n\n'
-    #output=output+'      BLEU: '+str(BLEU*100.0)+' %\n\n'
-    output=output+'       all: '+str(allOK)+'\n'
-    #output=output+'     cloze: '+str(clozeOK)+'\n'
-    #output=output+'      part: '+str(partOK)+'\n'
-    output=output+'      line: '+str(line)+'\n'
-    output=output+'      miss: '+str(miss)+'\n'
+    def print_score(line, allOK, clozeOK, partOK, BLEU, miss):
+        print('  acc(all): ', '{0:.2f}'.format(1.0*allOK/line*100),' %')
+        #print('acc(cloze): ', '{0:.2f}'.format(1.0*clozeOK/line*100),' %')
+        #print(' acc(part): ', '{0:.2f}'.format(1.0*partOK/line*100),' %')
 
-    with open(file_name, 'w') as f:
-        f.write(output)
+        #print(' BLEU: ','{0:.2f}'.format(BLEU*100.0))
+        print('  all: ', allOK)
+        #print('cloze: ',clozeOK)
+        #print(' part: ',partOK)
+        print(' line: ',line)
+        print(' miss: ',miss)
 
 
-def score(preds, ans, file_output, file_name):
-    #精度のprintとファイル出力
-    line, allOK, clozeOK, partOK, BLEU, miss = calc_score(preds, ans)
-    print_score(line, allOK, clozeOK, partOK, BLEU, miss)
-    if file_output:
-        output_score(file_name, line, allOK, clozeOK, partOK, BLEU, miss)
+    def output_score(file_name, line, allOK, clozeOK, partOK, BLEU, miss):
+        output=''
+        output=output+'  acc(all): '+str(1.0*allOK/line*100)+' %\n'
+        #output=output+'acc(cloze): '+str(1.0*clozeOK/line*100)+' %\n'
+        #output=output+' acc(part): '+str(1.0*partOK/line*100)+' %\n\n'
+        #output=output+'      BLEU: '+str(BLEU*100.0)+' %\n\n'
+        output=output+'       all: '+str(allOK)+'\n'
+        #output=output+'     cloze: '+str(clozeOK)+'\n'
+        #output=output+'      part: '+str(partOK)+'\n'
+        output=output+'      line: '+str(line)+'\n'
+        output=output+'      miss: '+str(miss)+'\n'
+
+        with open(file_name, 'w') as f:
+            f.write(output)
 
 
-#テストデータに対する予測と精度計算
-#空所内のみを予測するモード
-#および、選択肢を利用するモード
-def test_choices(lang, model, test_data, choices, saveAttention=False, file_output=False):
-    print("Test ...")
-    #input_sentence や ansは文字列であるのに対し、output_wordsはリストであることに注意
-    preds=[]
-    ans=[]
-    for pair, choi in zip(test_data, choices):
-        input_sentence=pair[0]
-        ans.append(pair[1])
-
-        output_words, attentions = evaluate(lang, model, input_sentence)
-        preds.append(' '.join(output_words))
-
-        if saveAttention:
-            showAttention('all', input_sentence, output_words, attentions)
-
+    def score(preds, ans, file_output, file_name):
+        #精度のprintとファイル出力
+        line, allOK, clozeOK, partOK, BLEU, miss = calc_score(preds, ans)
+        print_score(line, allOK, clozeOK, partOK, BLEU, miss)
         if file_output:
-            output_preds(save_path+'preds.txt', preds)
+            output_score(file_name, line, allOK, clozeOK, partOK, BLEU, miss)
 
-    print("Calc scores ...")
-    score(preds, ans, file_output, save_path+'score.txt')
+
+    #テストデータに対する予測と精度計算
+    #空所内のみを予測するモード
+    #および、選択肢を利用するモード
+    def test_choices(lang, model, test_data, choices, saveAttention=False, file_output=False):
+        print("Test ...")
+        #input_sentence や ansは文字列であるのに対し、output_wordsはリストであることに注意
+        preds=[]
+        ans=[]
+        for pair, choi in zip(test_data, choices):
+            input_sentence=pair[0]
+            ans.append(pair[1])
+
+            output_words, attentions = evaluate(lang, model, input_sentence)
+            preds.append(' '.join(output_words))
+
+            if saveAttention:
+                showAttention('all', input_sentence, output_words, attentions)
+
+            if file_output:
+                output_preds(save_path+'preds.txt', preds)
+
+        print("Calc scores ...")
+        score(preds, ans, file_output, save_path+'score.txt')
 
 '''
 
@@ -1088,9 +1112,28 @@ if __name__ == '__main__':
 
     # 2.モデル定義
     if args.mode == 'all':
-        weights_matrix=get_weight_matrix(vocab)
+        weights_matrix = get_weight_matrix(vocab)
     else:
         weights_matrix = np.zeros((vocab.n_words, EMB_DIM))
+
+    #デバッグ用
+    '''
+    print(torch.from_numpy(weights_matrix))
+    exit()
+
+    print('weights matrix')
+    ct=0
+    print(torch.from_numpy(weights matrix))
+    for line in weights_matrix:
+        for x in line:
+            if math.isnan(x):
+                print(line)
+                break
+
+    print('check end')
+    exit()
+    '''
+
 
     #マルチGPU対応
     if torch.cuda.device_count() > 1:
@@ -1151,6 +1194,7 @@ if __name__ == '__main__':
 
     # 4.評価
     print('Train end')
+
     '''
     #TODO テスト未実装
 
