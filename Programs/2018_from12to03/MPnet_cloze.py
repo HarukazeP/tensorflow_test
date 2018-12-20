@@ -1,6 +1,14 @@
 # -*- coding: utf-8 -*-
 
 '''
+
+※ 未完成
+
+※ embedding層の返り値がnanになるためうまく動作しない
+※ 原因は不明のまま
+
+
+
 Liang Wangらnoの論文
 「Multi-Perspective Context Aggregation for Semi-supervised Cloze-style Reading Comprehension」
 ttps://aclanthology.coli.uni-saarland.de/papers/C18-1073/c18-1073
@@ -564,7 +572,6 @@ class MPnet(nn.Module):
         self.embedding.weight.data.copy_(torch.from_numpy(weights_matrix))
 
         self.BiGRU=nn.GRU(input_size=self.embedding_dim, hidden_size=self.hidden_dim, num_layers=1, batch_first=True, bidirectional=BiDi)
-        
         self.choicesBiGRU=nn.GRU(input_size=self.embedding_dim, hidden_size=self.hidden_dim, num_layers=1, batch_first=True, bidirectional=BiDi)
         self.choicesLiner = nn.Linear(self.hidden_dim*num_directions*C_MAXLEN, self.hidden_dim*num_directions)
 

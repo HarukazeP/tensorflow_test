@@ -56,7 +56,7 @@ MAX_LENGTH = 40
 HIDDEN_DIM = 128
 ATTN_DIM = 128
 EMB_DIM = 300
-BATCH_SIZE = 256
+BATCH_SIZE = 128
 
 #自分で定義したグローバル関数とか
 file_path='../../../pytorch_data/'
@@ -217,8 +217,10 @@ class EncoderRNN(nn.Module):
         self.embedding_dim = emb_dim
         self.hidden_dim = hid_dim
 
-        self.embedding = nn.Embedding(self.input_dim, self.embedding_dim, padding_idx=PAD_token) #語彙数×次元数
-        self.embedding.weight.data.copy_(torch.from_numpy(weights_matrix))
+        #self.embedding = nn.Embedding(self.input_dim, self.embedding_dim, padding_idx=PAD_token) #語彙数×次元数
+        #self.embedding.weight.data.copy_(torch.from_numpy(weights_matrix))
+
+        self.embedding = nn.Embedding(self.input_dim, self.embedding_dim, padding_idx=PAD_token).from_pretrained(torch.from_numpy(weights_matrix)) #この書き方はpytorch 1.0から
 
         self.lstm = nn.LSTM(input_size=self.embedding_dim,
                             hidden_size=self.hidden_dim,
@@ -1265,14 +1267,16 @@ if __name__ == '__main__':
     if args.mode == 'all' or args.mode == 'mini':
         #train_cloze=file_path+'tmp_cloze.txt'
         #train_ans=file_path+'tmp_ans.txt'
-        '''
+
         #text8全体
         train_cloze=file_path+'text8_cloze.txt'
         train_ans=file_path+'text8_ans.txt'
+
         '''
         #enwiki1GB
         train_cloze='/media/tamaki/HDCL-UT/tamaki/M2/data_for_seq2seq/enwiki1GB_seq2seq_cloze.txt'
         train_ans='/media/tamaki/HDCL-UT/tamaki/M2/data_for_seq2seq/enwiki1GB_seq2seq_ans.txt'
+        '''
 
         if args.mode == 'mini':
             #合同ゼミ
