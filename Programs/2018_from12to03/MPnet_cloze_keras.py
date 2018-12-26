@@ -349,10 +349,10 @@ class AttnReader(nn.Module):
         attn3_h=torch.mul(sents_vec, attn_3)
         attn4_h=torch.mul(sents_vec, attn_4)
 
-        P1=torch.sum(attn1_h, dim=1)    # (b, s, 2h) -> (b, 2h)
-        P2=torch.sum(attn2_h, dim=1)
-        P3=torch.sum(attn3_h, dim=1)
-        P4=torch.sum(attn4_h, dim=1)
+        P1=torch.sum(attn1_h, axis=1)    # (b, s, 2h) -> (b, 2h)
+        P2=torch.sum(attn2_h, axis=1)
+        P3=torch.sum(attn3_h, axis=1)
+        P4=torch.sum(attn4_h, axis=1)
 
         return P1, P2, P3, P4
 
@@ -448,6 +448,66 @@ from keras.layers import Add, Multiply, Dot
 from keras.utils.vis_utils import plot_model
 from keras import regularizers
 from keras.layers.normalization import BatchNormalization
+from keras.engine.topology import Layer
+from keras import backend as K
+
+
+#自作レイヤー Attentive Reader用
+class ARLayer(Layer):
+    def __init__(self, output_dim, **kwargs):
+        self.output_dim = output_dim
+        super(ARLayer, self).__init__(**kwargs)
+
+    def build(self, input_shape):
+        # Create a trainable weight variable for this layer.
+        self.kernel = self.add_weight(name='kernel',
+                                      shape=(input_shape[-1], self.output_dim),
+                                      trainable=True)
+        self.bias = self.add_weight(shape=(self.output_dim,1),
+                                    name='bias',
+                                    trainable=True)
+        super(ARLayer, self).build(input_shape)  # Be sure to call this somewhere!
+
+    def call(self, sent_vec, c1, c2, c3, c4):
+        #TODO 途中
+        Wh=K.dot(sent_vec, self.kernel)  # (b, s, 2h)
+
+        bh=K.dot(sents_vec, self.bias) # (b, s, 1)
+
+        u1=K.expand_dims(c1_vec, axis=2) # (b, 2h) -> (b, 2h, 1)
+        u2=K.expand_dims(c2_vec, axis=2)
+        u3=K.expand_dims(c3_vec, axis=2)
+        u4=K.expand_dims(c4_vec, axis=2)
+
+        u1_Wh=K.batch_dot(Wh, u1, axes=[2,1]) # (b, s, 1)
+        u2_Wh=K.batch_dot(Wh, u2, axes=[2,1])
+        u3_Wh=K.batch_dot(Wh, u3, axes=[2,1])
+        u4_Wh=K.batch_dot(Wh, u4, axes=[2,1])
+
+        attn_1=K.softmax(u1_Wh+bh, axis=1) # (b, s, 1)
+        attn_2=K.softmax(u2_Wh+bh, axis=1)
+        attn_3=K.softmax(u3_Wh+bh, axis=1)
+        attn_4=K.softmax(u4_Wh+bh, axis=1)
+
+        attn1_h=torch.mul(sents_vec, attn_1)  # (b, s, 2h)
+        attn2_h=torch.mul(sents_vec, attn_2)
+        attn3_h=torch.mul(sents_vec, attn_3)
+        attn4_h=torch.mul(sents_vec, attn_4)
+
+        P1=K.sum(attn1_h, axis=1)    # (b, s, 2h) -> (b, 2h)
+        P2=K.sum(attn2_h, axis=1)
+        P3=K.sum(attn3_h, axis=1)
+        P4=K.sum(attn4_h, axis=1)
+
+
+        return P1, P2, P3, P4
+
+    def compute_output_shape(self, input_shape):
+        bs=input_shape[0]
+        h=self.output_dim
+        return ((bs, h), (bs, h), (bs, h), (bs, h))
+
+
 
 def build_model(vocab_size, emb_size, hidden_size, emb_matrix):
     # --- 論文中のInput Layer ---
@@ -498,7 +558,10 @@ def build_model(vocab_size, emb_size, hidden_size, emb_matrix):
     P_idc = Dense(hidden_size*2)(sent_cnn)  #(b, 2h)
 
     # --- MPALayerの一部: Attentive Reader ---
+    P1, P2, P3, P4=ARLayer(hidden_size*2)(sent_vec, c1_vec, c2_vec, c3_vec, c4_vec)
     #TODO 途中
+
+
 
     # MPALayer最後にマージ
     P = P_idc   #(b, 2h)
