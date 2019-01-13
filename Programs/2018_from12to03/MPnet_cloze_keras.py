@@ -308,54 +308,6 @@ def get_weight_matrix(lang):
 # 2.モデル定義
 ###########################
 
-# --- MPALayerの一部: Attentive Reader ---
-class AttnReader(nn.Module):
-    def __init__(self, hid_dim, num_directions):
-        super(AttnReader, self).__init__()
-        self.hidden_dim = hid_dim
-
-        self.weight = Parameter(torch.Tensor(self.hidden_dim*num_directions, self.hidden_dim*num_directions))
-        self.bias = Parameter(torch.Tensor(self.hidden_dim*num_directions))
-
-    def forward(self, sents_vec, c1_vec, c2_vec, c3_vec, c4_vec):
-        '''
-            入力: sents_vec  (b, s, 2h)
-                  c1_vecなど  (b, 2h)
-            出力：p1など      (b, 2h)
-        '''
-
-        Wh=torch.matmul(sents_vec, self.weight) # (b, s, 2h)
-
-        bh=torch.matmul(sents_vec, self.bias) # (b, s)
-        bh=bh.unsqueeze(2)  # (b, s, 1)
-
-        u1=c1_vec.unsqueeze(2) # (b, 2h) -> (b, 2h, 1)
-        u2=c2_vec.unsqueeze(2)
-        u3=c3_vec.unsqueeze(2)
-        u4=c4_vec.unsqueeze(2)
-
-        u1_Wh=torch.bmm(Wh, u1) # (b, s, 1)
-        u2_Wh=torch.bmm(Wh, u2)
-        u3_Wh=torch.bmm(Wh, u3)
-        u4_Wh=torch.bmm(Wh, u4)
-
-        attn_1=F.softmax(u1_Wh+bh, dim=1) # (b, s, 1)
-        attn_2=F.softmax(u2_Wh+bh, dim=1)
-        attn_3=F.softmax(u3_Wh+bh, dim=1)
-        attn_4=F.softmax(u4_Wh+bh, dim=1)
-
-        attn1_h=torch.mul(sents_vec, attn_1)  # (b, s, 2h)
-        attn2_h=torch.mul(sents_vec, attn_2)
-        attn3_h=torch.mul(sents_vec, attn_3)
-        attn4_h=torch.mul(sents_vec, attn_4)
-
-        P1=torch.sum(attn1_h, axis=1)    # (b, s, 2h) -> (b, 2h)
-        P2=torch.sum(attn2_h, axis=1)
-        P3=torch.sum(attn3_h, axis=1)
-        P4=torch.sum(attn4_h, axis=1)
-
-        return P1, P2, P3, P4
-
 
 class PointerNet(nn.Module):
     def __init__(self, hid_dim, out_dim, num_directions):
@@ -391,19 +343,10 @@ class PointerNet(nn.Module):
         '''
         WP=P.matmul(self.GateWeight_P.t())      # (b, 2h) -> (b, 4h)
         WC1=C1.matmul(self.GateWeight_C.t())    # (b, 4h) -> (b, 4h)
-        WC2=C2.matmul(self.GateWeight_C.t())
-        WC3=C3.matmul(self.GateWeight_C.t())
-        WC4=C4.matmul(self.GateWeight_C.t())
 
         g1=WP+WC1+self.GateBias #(b, 4h)　#これでちゃんとバッチ数分バイス足せてる
-        g2=WP+WC2+self.GateBias #(b, 4h)
-        g3=WP+WC3+self.GateBias #(b, 4h)
-        g4=WP+WC4+self.GateBias #(b, 4h)
 
         C_dash1=torch.mul(C1, torch.sigmoid(g1))    #(b, 4h)
-        C_dash2=torch.mul(C2, torch.sigmoid(g2))
-        C_dash3=torch.mul(C3, torch.sigmoid(g3))
-        C_dash4=torch.mul(C4, torch.sigmoid(g4))
 
         WP_out=P.matmul(self.OutWeight_P.t())   # (b, 2h) -> (b, 4h)
 
@@ -411,26 +354,11 @@ class PointerNet(nn.Module):
         #pytorchでバッチごとの内積はbmmしかないため変形してる
         C1WP=torch.bmm(C_dash1.view(batch_size, 1, self.hidden_dim*self.C_dim), WP_out.view(batch_size, self.hidden_dim*self.C_dim, 1))   #(b,1,1)
         C1WP=C1WP.squeeze(2) #(b,1)
-        C2WP=torch.bmm(C_dash2.view(batch_size, 1, self.hidden_dim*self.C_dim), WP_out.view(batch_size, self.hidden_dim*self.C_dim, 1))
-        C2WP=C2WP.squeeze(2)
-        C3WP=torch.bmm(C_dash3.view(batch_size, 1, self.hidden_dim*self.C_dim), WP_out.view(batch_size, self.hidden_dim*self.C_dim, 1))
-        C3WP=C3WP.squeeze(2)
-        C4WP=torch.bmm(C_dash4.view(batch_size, 1, self.hidden_dim*self.C_dim), WP_out.view(batch_size, self.hidden_dim*self.C_dim, 1))
-        C4WP=C4WP.squeeze(2)
 
         bC1=torch.matmul(C_dash1, self.OutBias) #(b)
         bC1=bC1.unsqueeze(1)    #(b,1)
-        bC2=torch.matmul(C_dash2, self.OutBias)
-        bC2=bC2.unsqueeze(1)
-        bC3=torch.matmul(C_dash3, self.OutBias)
-        bC3=bC3.unsqueeze(1)
-        bC4=torch.matmul(C_dash4, self.OutBias)
-        bC4=bC4.unsqueeze(1)
 
         out1=C1WP+bC1   #(b,1)
-        out2=C1WP+bC1
-        out3=C1WP+bC1
-        out4=C1WP+bC1
 
         output=torch.cat([out1, out2, out3, out4], dim=1)   #(b,4)
         #output=F.softmax(output, dim=1)   #(b,4)
@@ -450,18 +378,19 @@ from keras import regularizers
 from keras.layers.normalization import BatchNormalization
 from keras.engine.topology import Layer
 from keras import backend as K
-
+from keras.activations import softmax, sigmoid
 
 #自作レイヤー Attentive Reader用
 class ARLayer(Layer):
-    def __init__(self, output_dim, **kwargs):
+    def __init__(self, output_dim, bsize, **kwargs):
         self.output_dim = output_dim
+        self.bs = bsize
         super(ARLayer, self).__init__(**kwargs)
 
     def build(self, input_shape):
         # Create a trainable weight variable for this layer.
         self.kernel = self.add_weight(name='kernel',
-                                      shape=(input_shape[-1], self.output_dim),
+                                      shape=(self.output_dim, self.output_dim),
                                       trainable=True)
         self.bias = self.add_weight(shape=(self.output_dim,1),
                                     name='bias',
@@ -469,7 +398,6 @@ class ARLayer(Layer):
         super(ARLayer, self).build(input_shape)  # Be sure to call this somewhere!
 
     def call(self, sent_vec, c1, c2, c3, c4):
-        #TODO 途中
         Wh=K.dot(sent_vec, self.kernel)  # (b, s, 2h)
 
         bh=K.dot(sents_vec, self.bias) # (b, s, 1)
@@ -484,15 +412,15 @@ class ARLayer(Layer):
         u3_Wh=K.batch_dot(Wh, u3, axes=[2,1])
         u4_Wh=K.batch_dot(Wh, u4, axes=[2,1])
 
-        attn_1=K.softmax(u1_Wh+bh, axis=1) # (b, s, 1)
-        attn_2=K.softmax(u2_Wh+bh, axis=1)
-        attn_3=K.softmax(u3_Wh+bh, axis=1)
-        attn_4=K.softmax(u4_Wh+bh, axis=1)
+        attn_1=softmax(u1_Wh+bh, axis=1) # (b, s, 1)
+        attn_2=softmax(u2_Wh+bh, axis=1)
+        attn_3=softmax(u3_Wh+bh, axis=1)
+        attn_4=softmax(u4_Wh+bh, axis=1)
 
-        attn1_h=torch.mul(sents_vec, attn_1)  # (b, s, 2h)
-        attn2_h=torch.mul(sents_vec, attn_2)
-        attn3_h=torch.mul(sents_vec, attn_3)
-        attn4_h=torch.mul(sents_vec, attn_4)
+        attn1_h=sents_vec*attn_1  # (b, s, 2h)
+        attn2_h=sents_vec*attn_2
+        attn3_h=sents_vec*attn_3
+        attn4_h=sents_vec*attn_4
 
         P1=K.sum(attn1_h, axis=1)    # (b, s, 2h) -> (b, 2h)
         P2=K.sum(attn2_h, axis=1)
@@ -503,9 +431,83 @@ class ARLayer(Layer):
         return P1, P2, P3, P4
 
     def compute_output_shape(self, input_shape):
-        bs=input_shape[0]
+        bs=self.bs
         h=self.output_dim
         return ((bs, h), (bs, h), (bs, h), (bs, h))
+
+
+#自作レイヤー 出力層用
+class PointerNet(Layer):
+    def __init__(self, output_dim, Pdim, Cdim, bsize, **kwargs):
+        self.output_dim = output_dim
+        self.choices_num = 4 #選択肢の数
+        self.P_hidden=Pdim
+        self.C_hidden=Cdim
+        self.bs=bsize
+
+        super(PointerNet, self).__init__(**kwargs)
+
+    def build(self, input_shape):
+        # Create a trainable weight variable for this layer.
+        self.GateWeight_P = self.add_weight(name='gateWP',
+                                      shape=(self.P_hidden, self.C_hidden),
+                                      trainable=True)
+        self.GateWeight_C = self.add_weight(name='gateWC',
+                                      shape=(self.C_hidden, self.C_hidden),
+                                      trainable=True)
+        self.Gatebias = self.add_weight(shape=(self.C_hidden,),
+                                    name='gatebias',
+                                    trainable=True)
+        self.OutWeight = self.add_weight(name='outW',
+                                      shape=(self.P_hidden, self.C_hidden),
+                                      trainable=True)
+        self.Outbias = self.add_weight(shape=(self.C_hidden,1),
+                                    name='outbias',
+                                    trainable=True)
+        super(PointerNet, self).build(input_shape)  # Be sure to call this somewhere!
+
+    def call(self, P, C1, C2, C3, C4):
+
+        WP=K.dot(P, self.GateWeight_P)  # (b, 2h) -> (b, 4h)
+
+        WC1=K.dot(C1, self.GateWeight_C)    # (b, 4h) -> (b, 4h)
+        WC2=K.dot(C2, self.GateWeight_C)
+        WC3=K.dot(C3, self.GateWeight_C)
+        WC4=K.dot(C4, self.GateWeight_C)
+
+        g1=sigmoid(WP+WC1+self.GateBias) #(b, 4h)　#これでちゃんとバッチ数分バイス足せてる
+        g2=sigmoid(WP+WC2+self.GateBias)
+        g3=sigmoid(WP+WC3+self.GateBias)
+        g4=sigmoid(WP+WC4+self.GateBias)
+
+        C_dash1=C1*g1   #(b, 4h)
+        C_dash2=C2*g2
+        C_dash3=C3*g3
+        C_dash4=C4*g4
+
+        WP_out=K.dot(P, self.OutWeight_P)   # (b, 2h) -> (b, 4h)
+
+        C1WP=K.batch_dot(C_dash1, WP_out, axes=[1,1]) # (b, 1)
+        C2WP=K.batch_dot(C_dash2, WP_out, axes=[1,1])
+        C3WP=K.batch_dot(C_dash3, WP_out, axes=[1,1])
+        C4WP=K.batch_dot(C_dash4, WP_out, axes=[1,1])
+
+        bC1=K.dot(C_dash1, self.Outbias)    # (b, 1)
+        bC2=K.dot(C_dash2, self.Outbias)
+        bC3=K.dot(C_dash3, self.Outbias)
+        bC4=K.dot(C_dash4, self.Outbias)
+
+        out1=C1WP+bC1   #(b,1)
+        out2=C1WP+bC1
+        out3=C1WP+bC1
+        out4=C1WP+bC1
+
+        output=K.concatenate([out1, out2, out3, out4], axis=1)   #(b,4)
+
+        return output
+
+    def compute_output_shape(self, input_shape):
+        return (self.bs, self.choices_num)
 
 
 
@@ -545,46 +547,57 @@ def build_model(vocab_size, emb_size, hidden_size, emb_matrix):
 
     # --- 論文中のMulti-Perspective Aggregation Layer ---
 
+    # --- MPALayerの一部: Selective Copying ---
+    #TODO 未実装
+    '''
+    空所の位置についてのone-hotベクトルをInputとかで受け取って
+    sent_vecとマージ(mul)
+    そのあとsumとか？
+    '''
+
     # --- MPALayerの一部: Iterative Dilated Convolution ---
-    sent_cnn = Conv1D(hidden_size*2, kernel_size=3, dilation_rate=1)(sent_vec)
-    sent_cnn = BatchNormalization(axis=2)(sent_cnn)
+    # CNNのやつ一応完了
+    sent_cnn = BatchNormalization(axis=2)(sent_vec)
     sent_cnn = Activation("relu")(sent_cnn)
-    sent_cnn = Conv1D(hidden_size*2, kernel_size=3, dilation_rate=3)(sent_cnn)
     sent_cnn = Conv1D(hidden_size*2, kernel_size=3, dilation_rate=1)(sent_cnn)
-    sent_cnn = BatchNormalization(axis=2)(sent_cnn)
-    sent_cnn = Activation("relu")(sent_cnn)
     sent_cnn = Conv1D(hidden_size*2, kernel_size=3, dilation_rate=3)(sent_cnn)
-    sent_cnn = GlobalMaxPooling1D()(sent_cnn)
-    P_idc = Dense(hidden_size*2)(sent_cnn)  #(b, 2h)
+    #sent_cnn = BatchNormalization(axis=2)(sent_cnn)
+    #sent_cnn = Activation("relu")(sent_cnn)
+    sent_cnn = Conv1D(hidden_size*2, kernel_size=3, dilation_rate=1)(sent_cnn)
+
+    sent_cnn = Conv1D(hidden_size*2, kernel_size=3, dilation_rate=3)(sent_cnn)
+    P_idc = GlobalMaxPooling1D()(sent_cnn)
+    #P_idc = Dense(hidden_size*2)(sent_cnn)  #(b, 2h)
+    #これもしかしてsent_cnnの次元不明のままでもいい？
+    #n-gramのやつとか128じゃないし
 
     # --- MPALayerの一部: Attentive Reader ---
-    P1, P2, P3, P4=ARLayer(hidden_size*2)(sent_vec, c1_vec, c2_vec, c3_vec, c4_vec)
-    #TODO 途中
+    # ARやつ一応完了
+    bsize=K.input_shape(sent_vec)[0]
+    P1, P2, P3, P4=ARLayer(hidden_size*2, bsize)(sent_vec, c1_vec, c2_vec, c3_vec, c4_vec)
 
+    # --- MPALayerの一部: N-gram Statistics ---
+    #TODO 未実装
+    '''
+    単にInputとして受け取る？
+    '''
 
-
-    # MPALayer最後にマージ
+    # --- MPALayerの一部: 最後にマージ ---
     P = P_idc   #(b, 2h)
     C1 = Concatenate(axis=1)([c1_vec, P1_ar])   #(b, 2h+2h)
     C2 = Concatenate(axis=1)([c2_vec, P2_ar])
     C3 = Concatenate(axis=1)([c3_vec, P3_ar])
     C4 = Concatenate(axis=1)([c4_vec, P4_ar])
 
-
-
-
-
     # --- 論文中のOutput Layer (PointerNet) ---
-    #TODO 途中
+    # 出力層一応完了
+    Pdim=K.input_shape(P)[-1]
+    Cdim=K.input_shape(C1)[-1]
+    output=PointerNet(hidden_size*2, Pdim, Cdim, bsize)(sent_vec, c1_vec, c2_vec, c3_vec, c4_vec) #(b, 4)
+    preds = softmax(output, axis=1)   #(b, 4)
 
-    output = Concatenate(axis=1)([out1, out2, out3, out4])  #(b, 4)
-    preds = Activation("softmax")(output)   #(b, 4)
-
-
-
-
+    #--------------------------
     my_model=Model([sent_input, c1, c2, c3, c4], preds)
-
     my_model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
 
     return my_model
