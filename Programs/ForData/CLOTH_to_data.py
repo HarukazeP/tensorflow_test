@@ -202,9 +202,15 @@ def json_to_text(json_path, output_pass):
     text = text.replace('\n', ' ')
     text = text.replace('\r', ' ')
 
+    text = text.replace('<IMG>', '')
+    
+    #ここ追加したやつ(2019/1/14)
+    text = text.replace("[KS5UKS5U]", "")
+    text = text.replace("[:Z|xx|k.Com]", "")
+    text = text.replace("(;)", "")
+
     text = text.replace('{', ' ')
     text = text.replace('}', ' ')
-    text = text.replace('<IMG>', '')
     text = text.replace('<', ' ')
     text = text.replace('>', ' ')
 

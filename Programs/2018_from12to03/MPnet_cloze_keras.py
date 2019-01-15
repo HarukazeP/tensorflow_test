@@ -77,6 +77,19 @@ import copy
 import gensim
 import nltk
 
+from keras.models import Model, model_from_json, load_model
+from keras.layers import Dense, Activation, Input, Embedding, GRU, Bidirectional, Reshape, Concatenate
+from keras.layers import Add, Multiply, Dot
+from keras.utils.vis_utils import plot_model
+from keras import regularizers
+from keras.layers.normalization import BatchNormalization
+from keras.engine.topology import Layer
+from keras import backend as K
+from keras.activations import softmax, sigmoid
+from keras.callbacks import ModelCheckpoint
+
+from glob import glob
+
 #----- グローバル変数一覧 -----
 MAX_LENGTH = 80
 C_MAXLEN = 6
@@ -93,6 +106,7 @@ save_path=file_path + today_str
 PAD_token = 0
 UNK_token = 1
 CLZ_token = 2
+NUM_token = 3
 
 CLZ_word = 'XXXX'
 
@@ -110,8 +124,8 @@ print('Start: '+today_str)
 class Lang:
     def __init__(self):
         self.word2index = {"<UNK>": UNK_token}
-        self.index2word = {PAD_token: "PAD", UNK_token: "<UNK>", CLZ_token: "CLZ"}
-        self.n_words = 3  # PAD と UNK とCLZ
+        self.index2word = {PAD_token: "PAD", UNK_token: "<UNK>", CLZ_token: "CLZ", NUM_token: "NUM"}
+        self.n_words = 4  # PAD, UNK, CLZ, NUM
 
     #文から単語を語彙へ
     def addSentence(self, sentence):
@@ -130,89 +144,6 @@ class Lang:
             return self.word2index[word]
         else:
             return self.word2index["<UNK>"]
-
-
-#半角カナとか特殊記号とかを正規化
-# Ａ→A，Ⅲ→III，①→1とかそういうの
-def unicodeToAscii(s):
-    return ''.join(
-        c for c in unicodedata.normalize('NFD', s)
-        if unicodedata.category(c) != 'Mn'
-    )
-
-
-#nltkのtoken列をidsへ
-def token_to_ids(lang, tokens, maxlen):
-    ids=[]
-    #NLTKの記号を表すタグ
-    symbol_tag=("$", "''", "(", ")", ",", "--", ".", ":", "``", "SYM")
-    #NLTKの数詞を表すタグ
-    num_tag=("LS", "CD")
-    #他のNLTKタグについては nltk.help.upenn_tagset()
-    tagged = nltk.pos_tag(tokens)
-    for word, tag in tagged:
-        if word==CLZ_word:
-            ids.append(CLZ_token)
-        elif tag in symbol_tag:
-            pass
-            #記号は無視
-        elif tag in num_tag:
-            ids.append(lang.check_word2index('NUM'))
-        else:
-            ids.append(lang.check_word2index(word.lower()))
-
-    return ids + [PAD_token] * (maxlen - len(ids))
-
-
-#空所つき1文をidsへ
-def sent_to_ids_cloze(lang, s):
-    # s は文字列
-    s = unicodeToAscii(s)
-    s = re.sub(r'[ ]+', ' ', s)
-    s = s.strip()
-    s = re.sub(r'{.+}', CLZ_word, s)
-    token=nltk.word_tokenize(s)
-    ids=token_to_ids(lang, token, MAX_LENGTH)
-
-    return ids
-
-
-#選択肢4つをidsへ
-def choices_to_ids(lang, choices):
-    # choices は文字列のリスト
-    ids=[]
-    for choi in choices:
-        choi = unicodeToAscii(choi)
-        choi = re.sub(r'[ ]+', ' ', choi)
-        choi = choi.strip()
-        token=nltk.word_tokenize(choi)
-        id=token_to_ids(lang, token, C_MAXLEN)
-        ids.append(id)
-
-    #デバッグ時確認用
-    if len(ids)!=4:
-        print('### choices_to_ids ERROR')
-        print(choices)
-        exit()
-
-    return ids
-
-
-#正答一つをidsへ
-def ans_to_ids(lang, ans, choices):
-    # ans は文字列
-    # choices は文字列のリスト
-    ids = [1 if choi==ans else 0 for choi in choices]
-
-    #デバッグ時確認用
-    if sum(ids)!=1:
-        print('### ans_to_ids ERROR')
-        print(ids)
-        print(ans)
-        print(choices)
-        exit()
-
-    return ids
 
 
 #与えた語彙読み込み
@@ -277,6 +208,90 @@ def readAns(file_name):
 
     return data
 
+
+#nltkのtoken列をidsへ
+def token_to_ids(lang, tokens, maxlen):
+    ids=[]
+    #NLTKの記号を表すタグ
+    symbol_tag=("$", "''", "(", ")", ",", "--", ".", ":", "``", "SYM")
+    #NLTKの数詞を表すタグ
+    num_tag=("LS", "CD")
+    #他のNLTKタグについては nltk.help.upenn_tagset()
+    tagged = nltk.pos_tag(tokens)
+    for word, tag in tagged:
+        if word==CLZ_word:
+            ids.append(CLZ_token)
+        elif tag in symbol_tag:
+            pass
+            #記号は無視
+        elif tag in num_tag:
+            ids.append(NUM_token)
+        else:
+            ids.append(lang.check_word2index(word.lower()))
+
+    return ids + [PAD_token] * (maxlen - len(ids))
+
+
+#半角カナとか特殊記号とかを正規化
+# Ａ→A，Ⅲ→III，①→1とかそういうの
+def unicodeToAscii(s):
+    return ''.join(
+        c for c in unicodedata.normalize('NFD', s)
+        if unicodedata.category(c) != 'Mn'
+    )
+
+
+#空所つき1文をidsへ
+def sent_to_ids_cloze(lang, s):
+    # s は文字列
+    s = unicodeToAscii(s)
+    s = re.sub(r'[ ]+', ' ', s)
+    s = s.strip()
+    s = re.sub(r'{.+}', CLZ_word, s)
+    token=nltk.word_tokenize(s)
+    ids=token_to_ids(lang, token, MAX_LENGTH)
+
+    return ids
+
+
+#選択肢4つをidsへ
+def choices_to_ids(lang, choices):
+    # choices は文字列のリスト
+    ids=[]
+    for choi in choices:
+        choi = unicodeToAscii(choi)
+        choi = re.sub(r'[ ]+', ' ', choi)
+        choi = choi.strip()
+        token=nltk.word_tokenize(choi)
+        id=token_to_ids(lang, token, C_MAXLEN)
+        ids.append(id)
+
+    #デバッグ時確認用
+    if len(ids)!=4:
+        print('### choices_to_ids ERROR')
+        print(choices)
+        exit()
+
+    return ids
+
+
+#正答一つをidsへ
+def ans_to_ids(lang, ans, choices):
+    # ans は文字列
+    # choices は文字列のリスト
+    ids = [1 if choi==ans else 0 for choi in choices]
+
+    #デバッグ時確認用
+    if sum(ids)!=1:
+        print('### ans_to_ids ERROR')
+        print(ids)
+        print(ans)
+        print(choices)
+        exit()
+
+    return ids
+
+
 #Googleのword2vec読み取り
 def get_weight_matrix(lang):
     print('Loading word vector ...')
@@ -303,82 +318,9 @@ def get_weight_matrix(lang):
 
 
 
-
 ###########################
 # 2.モデル定義
 ###########################
-
-
-class PointerNet(nn.Module):
-    def __init__(self, hid_dim, out_dim, num_directions):
-        super(PointerNet, self).__init__()
-        self.hidden_dim = hid_dim
-        self.output_dim = out_dim   #選択肢の数
-        #TODO ここ変更した場所
-        '''
-        self.P_dim=2*num_directions
-        self.C_dim=3*num_directions
-        '''
-        self.P_dim=1*num_directions
-        self.C_dim=2*num_directions
-
-        self.GateWeight_P = Parameter(torch.Tensor(self.hidden_dim*self.C_dim, self.hidden_dim*self.P_dim))
-        self.GateWeight_C = Parameter(torch.Tensor(self.hidden_dim*self.C_dim, self.hidden_dim*self.C_dim))
-        self.GateBias = Parameter(torch.Tensor(self.hidden_dim*self.C_dim))
-
-        self.OutWeight_P = Parameter(torch.Tensor(self.hidden_dim*self.C_dim, self.hidden_dim*self.P_dim))
-        self.OutBias = Parameter(torch.Tensor(self.hidden_dim*self.C_dim))
-
-    def forward(self, P, C1, C2, C3, C4, batch_size):
-        '''
-            入力:PとC1,C2,C3,C4
-            出力： (b, n)  #各選択肢に対する確率
-
-            P  : (b, 2h)
-            C1 : (b, 4h)
-
-            matmul()やbmm()は内積，mul()は要素積
-
-            print('', .size())
-        '''
-        WP=P.matmul(self.GateWeight_P.t())      # (b, 2h) -> (b, 4h)
-        WC1=C1.matmul(self.GateWeight_C.t())    # (b, 4h) -> (b, 4h)
-
-        g1=WP+WC1+self.GateBias #(b, 4h)　#これでちゃんとバッチ数分バイス足せてる
-
-        C_dash1=torch.mul(C1, torch.sigmoid(g1))    #(b, 4h)
-
-        WP_out=P.matmul(self.OutWeight_P.t())   # (b, 2h) -> (b, 4h)
-
-        #(b, 6h)と(b,6h)の内積で(b,1)にしたいが
-        #pytorchでバッチごとの内積はbmmしかないため変形してる
-        C1WP=torch.bmm(C_dash1.view(batch_size, 1, self.hidden_dim*self.C_dim), WP_out.view(batch_size, self.hidden_dim*self.C_dim, 1))   #(b,1,1)
-        C1WP=C1WP.squeeze(2) #(b,1)
-
-        bC1=torch.matmul(C_dash1, self.OutBias) #(b)
-        bC1=bC1.unsqueeze(1)    #(b,1)
-
-        out1=C1WP+bC1   #(b,1)
-
-        output=torch.cat([out1, out2, out3, out4], dim=1)   #(b,4)
-        #output=F.softmax(output, dim=1)   #(b,4)
-        #output = F.log_softmax(output, dim=1)
-
-        return output #(b, 4)
-
-
-
-
-
-from keras.models import Model, model_from_json
-from keras.layers import Dense, Activation, Input, Embedding, GRU, Bidirectional, Reshape, Concatenate
-from keras.layers import Add, Multiply, Dot
-from keras.utils.vis_utils import plot_model
-from keras import regularizers
-from keras.layers.normalization import BatchNormalization
-from keras.engine.topology import Layer
-from keras import backend as K
-from keras.activations import softmax, sigmoid
 
 #自作レイヤー Attentive Reader用
 class ARLayer(Layer):
@@ -510,7 +452,6 @@ class PointerNet(Layer):
         return (self.bs, self.choices_num)
 
 
-
 def build_model(vocab_size, emb_size, hidden_size, emb_matrix):
     # --- 論文中のInput Layer ---
     sent_input=Input(shape=(MAX_LENGTH,))   #(b, s)
@@ -604,203 +545,60 @@ def build_model(vocab_size, emb_size, hidden_size, emb_matrix):
 
 
 
-
 ###########################
 # 3.モデルの学習
 ###########################
 
-#バッチデータあたりの学習
-def batch_train(X, C, Y, model, model_optimizer, criterion, max_length=MAX_LENGTH):
-    '''
-    X : (s, b)
-    X : (s, b)
-    Y : (b, 4)
-    '''
-    #loss=0
-    model_optimizer.zero_grad()
-
-    model_outputs = model(X, C) #出力 (b, 4)
-
-    #pytorchでNLLlossのpredは(b,4)だけどtargetは(4)
-    loss = criterion(model_outputs, torch.argmax(Y, dim=1))
-
-    loss.backward()
-    model_optimizer.step()  #重みの更新
-
-    return loss.item()
+#checkpoint で保存された最新のモデル(ベストモデルをロード)
+def getNewestModel(model):
+    files = [(f, os.path.getmtime(f)) for f in glob(save_path+'*hdf5')]
+    if len(files) == 0:
+        return model
+    else:
+        newestModel = sorted(files, key=lambda files: files[1])[-1]
+        model.load_weights(newestModel[0])
+        return model
 
 
+def split_choices(choices_array):
+    c1, c2, c3, c4=np.split(choices_array, axis=1)
+    c1=np.squeeze(c1)
+    c2=np.squeeze(c2)
+    c3=np.squeeze(c3)
+    c4=np.squeeze(c4)
 
-#バッチデータあたりのバリデーション
-def batch_eval(X, C, Y, model, criterion):
-    with torch.no_grad():
-        loss=0
-
-        model_outputs = model(X, C) #出力 (b, 4)
-        loss = criterion(model_outputs, torch.argmax(Y, dim=1))
-        acc = calc_batch_acc(model_outputs, Y)
-
-        return loss.item(), acc
-
-def calc_batch_acc(model_outputs, Y):
-    batch=0
-    OK=0
-    model_pred=torch.argmax(model_outputs, dim=1)
-    y=torch.argmax(Y, dim=1)
-    for pred, ans in zip(model_pred, y):
-        batch+=1
-        if pred==ans:
-            OK+=1
-
-    acc = 100.0*OK/batch
-    #print('OK: %d batch: %d acc: %.2f %%' % (OK, batch, acc))
-
-    return acc
-
-#秒を分秒に変換
-def asMinutes(s):
-    m = math.floor(s / 60)
-    s -= m * 60
-    return '%dm %ds' % (m, s)
-
-
-#経過時間と残り時間の算出
-def timeSince(since, percent):
-    now = time.time()
-    s = now - since       #経過時間
-    es = s / (percent)    #終了までにかかる総時間
-    rs = es - s           #終了までの残り時間
-    return '%s (- %s)' % (asMinutes(s), asMinutes(rs))
+    return c1, c2, c3, c4
 
 
 #学習をn_iters回，残り時間の算出をlossグラフの描画も
 def trainIters(lang, model, train_pairs, val_pairs, n_iters, print_every=10, learning_rate=0.001, saveModel=False):
-    plot_losses = []
-    print_loss_total = 0  # Reset every print_every
-    plot_loss_total = 0
 
-    plot_val_losses = []
-    print_val_loss_total = 0  # Reset every print_every
-    plot_val_loss_total = 0
+    X_train_tmp=np.array([sent_to_ids_cloze(lang, s) for s in train_pairs[0]], dtype=np.int)
+    C_train=np.array([choices_to_ids(lang, s) for s in train_pairs[1]], dtype=np.int)
+    Y_train=np.array([ans_to_ids(lang, s, c) for s,c in zip(train_pairs[2], train_pairs[1])], dtype=np.bool)
 
-    plot_val_accs = []
-    print_val_acc_total = 0  # Reset every print_every
-    plot_val_acc_total = 0
-
-    best_iter=0
-    best_val_acc = None
-
-    best_model_weight = copy.deepcopy(model.state_dict())
-
-    model_optimizer = optim.SGD(model.parameters(), lr=learning_rate)
-    X_train=[sent_to_ids_cloze(lang, s) for s in train_pairs[0]]
-    C_train=[choices_to_ids(lang, s) for s in train_pairs[1]]
-    Y_train=[ans_to_ids(lang, s, c) for s,c in zip(train_pairs[2], train_pairs[1])]
-
-    X_val=[sent_to_ids_cloze(lang, s) for s in val_pairs[0]]
-    C_val=[choices_to_ids(lang, s) for s in val_pairs[1]]
-    Y_val=[ans_to_ids(lang, s, c) for s,c in zip(val_pairs[2], val_pairs[1])]
-
+    X_val_tmp=np.array([sent_to_ids_cloze(lang, s) for s in val_pairs[0]], dtype=np.int)
+    C_val=np.array([choices_to_ids(lang, s) for s in val_pairs[1]], dtype=np.int)
+    Y_val=np.array([ans_to_ids(lang, s, c) for s,c in zip(val_pairs[2], val_pairs[1])], dtype=np.bool)
+    '''
     train_data_num=len(X_train)
     val_data_num=len(X_val)
     print('train data:', train_data_num)
     print('valid data:', val_data_num)
+    '''
 
-    #データ全体はRAMに載せる
-    X_train=torch.tensor(X_train, dtype=torch.long, device=my_CPU)
-    C_train=torch.tensor(C_train, dtype=torch.long, device=my_CPU)
-    Y_train=torch.tensor(Y_train, dtype=torch.long, device=my_CPU)
-    X_val=torch.tensor(X_val, dtype=torch.long, device=my_CPU)
-    C_val=torch.tensor(C_val, dtype=torch.long, device=my_CPU)
-    Y_val=torch.tensor(Y_val, dtype=torch.long, device=my_CPU)
+    X_train=[X_train_tmp, split_choices(C_train)]
+    X_val=[X_val_tmp, split_choices(C_val)]
 
-    ds_train = TensorDataset(X_train, C_train, Y_train)
-    ds_val = TensorDataset(X_val, C_val, Y_val)
-
-    loader_train = DataLoader(ds_train, batch_size=BATCH_SIZE, shuffle=True)
-    loader_val = DataLoader(ds_val, batch_size=BATCH_SIZE, shuffle=False)
-
-    #criterion = nn.NLLLoss()
-    criterion = nn.CrossEntropyLoss()
+    cp_cb = ModelCheckpoint(filepath = save_path+'model_ep{epoch:02d}.hdf5', monitor='val_acc', verbose=1, save_best_only=True, mode='max')
 
     start = time.time()
     st_time=datetime.datetime.today().strftime('%H:%M')
     print("Training... ", st_time)
 
-    # Ctrl+c で強制終了してもそこまでのモデルとか保存
+    # Ctrl+c で強制終了してもそこまでのモデルで残りの処理継続
     try:
-        for iter in range(1, n_iters + 1):
-            for x, c, y in loader_train:
-                '''
-                x:(バッチサイズ, 文長)
-                y:(バッチサイズ, 文長)
-                '''
-                #計算はGPUのメモリ上で
-                x=x.to(my_device)
-                c=c.to(my_device)
-                y=y.to(my_device)
-                batch=x.size(0)
-
-                loss= batch_train(x, c, y, model, model_optimizer, criterion)
-                #NLLLossはバッチ平均を返すから元に戻す
-                loss=loss*batch
-
-                print_loss_total += loss
-                plot_loss_total += loss
-            #ここで学習1回分終わり
-
-            for x, c, y in loader_val:
-                x=x.to(my_device)
-                c=c.to(my_device)
-                y=y.to(my_device)
-                batch=x.size(0)
-
-                val_loss, val_acc = batch_eval(x, c, y, model, criterion)
-                val_loss=val_loss*batch
-                val_acc=val_acc*batch
-
-                print_val_loss_total += val_loss
-                plot_val_loss_total += val_loss
-
-                print_val_acc_total += val_acc
-                plot_val_acc_total += val_acc
-
-            #画面にlossと時間表示
-            #経過時間 (- 残り時間) (現在のiter 進行度) loss val_loss
-            if iter == 1:
-                print('%s (%d %d%%) train_loss=%.4f, val_loss=%.4f, val_acc=%.2f' % (timeSince(start, iter / n_iters), iter, iter / n_iters * 100, print_loss_total/train_data_num, print_val_loss_total/val_data_num, print_val_acc_total/val_data_num))
-
-            elif iter % print_every == 0:
-                print_loss_avg = (print_loss_total/train_data_num) / print_every
-                print_loss_total = 0
-                print_val_loss_avg = (print_val_loss_total/val_data_num) / print_every
-                print_val_loss_total = 0
-                print_val_acc_avg = (print_val_acc_total/val_data_num) / print_every
-                print_val_acc_total = 0
-                print('%s (%d %d%%) train_loss=%.4f, val_loss=%.4f, val_acc=%.2f' % (timeSince(start, iter / n_iters), iter, iter / n_iters * 100, print_loss_avg, print_val_loss_avg, print_val_acc_avg))
-
-            #loss/accグラフ用記録
-            plot_loss_avg = plot_loss_total/train_data_num
-            plot_losses.append(plot_loss_avg)
-            plot_loss_total = 0
-
-            plot_val_loss_avg = plot_val_loss_total/val_data_num
-            plot_val_losses.append(plot_val_loss_avg)
-            plot_val_loss_total = 0
-
-            #TODO acc はaveとかいる？
-            plot_val_acc_avg = plot_val_acc_total/val_data_num
-            plot_val_accs.append(plot_val_acc_avg)
-            plot_val_acc_total = 0
-
-            #val_loss最小更新
-            if not best_val_acc or val_acc > best_val_acc:
-                best_val_acc = val_acc
-                best_iter=iter
-                best_model_weight = copy.deepcopy(model.state_dict())
-            else:
-                # val_accが向上しない場合は学習率小さくする
-                learning_rate /= 4.0    #この4に特に意味はない，マジックナンバー
+        hist=model.fit(X_train, Y_train, batch_size=BATCH_SIZE, epochs=n_iters,  verbose=1,　validation_data=(X_val, Y_val),　callbacks=[cp_cb], shuffle=True)
 
     except KeyboardInterrupt:
         print('-' * 89)
@@ -810,24 +608,20 @@ def trainIters(lang, model, train_pairs, val_pairs, n_iters, print_every=10, lea
             exit()
 
     #全学習終わり
-    #lossグラフ描画
-    showPlot3(plot_losses, plot_val_losses, 'loss.png', 'loss')
-    showPlot4(plot_val_accs, 'acc.png', 'acc')
+    #lossとaccのグラフ描画
+    showPlot3(hist.history['loss'], hist.history['val_loss'], 'loss.png', 'loss')
+    showPlot3(hist.history['acc'], hist.history['val_acc'], 'acc.png', 'acc')
     #showPlot2(plot_accs, plot_val_accs, 'acc.png')
 
-    #val_loss最小のモデルロード
-    model.load_state_dict(best_model_weight)
-    print('best iter='+str(best_iter))
-
-    if saveModel:
-        torch.save(model.state_dict(), save_path+'MPnet_'+str(best_iter)+'.pth')
+    #ベストモデルのロード
+    model=getNewestModel(model)
 
     return model
 
 
 #グラフの描画（画像ファイル保存）
 def showPlot3(train_plot, val_plot, file_name, label_name):
-    #fig = plt.figure()
+    fig = plt.figure()
     plt.plot(train_plot, color='blue', marker='o', label='train_'+label_name)
     plt.plot(val_plot, color='green', marker='o', label='val_'+label_name)
     plt.title('model '+label_name)
@@ -846,6 +640,7 @@ def showPlot4(val_plot, file_name, label_name):
     plt.ylabel(label_name)
     plt.legend()
     fig.savefig(save_path + file_name)
+
 
 
 ###########################
@@ -1047,10 +842,12 @@ if __name__ == '__main__':
     else:
         weights_matrix = np.zeros((vocab.n_words, EMB_DIM))
 
-    model = build_model(vocab.n_words, EMB_DIM, HIDDEN_DIM, 4, weights_matrix)
+
+
 
     #学習時
     if args.mode == 'all' or args.mode == 'mini':
+        model = build_model(vocab.n_words, EMB_DIM, HIDDEN_DIM, 4, weights_matrix)
 
         train_cloze=CLOTH_path+'CLOTH_train_cloze.txt'
         train_choices=CLOTH_path+'CLOTH_train_choices.txt'
@@ -1068,6 +865,8 @@ if __name__ == '__main__':
         valid_X=readCloze(valid_cloze)
         valid_C=readChoices(valid_choices)
         valid_Y=readAns(valid_ans)
+
+        ## TODO: cloze selective copyの実装とかに伴ってtrain_Xとか増やす
 
         if args.mode == 'mini':
             epoch=5
@@ -1087,6 +886,8 @@ if __name__ == '__main__':
         if os.path.exists(save_path)==False:
             os.mkdir(save_path)
         save_path=save_path+'/'
+        plot_model(model, to_file=save_path+'model.png', show_shapes=True)
+        model.summary()
 
         # 3.学習
         model = trainIters(vocab, model, train_data, val_data, n_iters=epoch, saveModel=True)
@@ -1094,7 +895,13 @@ if __name__ == '__main__':
     #すでにあるモデルでテスト時
     else:
         save_path=args.model_dir+'/'
-        model.load_state_dict(torch.load(save_path+args.model))
+        '''
+        json_string = open(save_path+args.model+'.json').read()
+        model = model_from_json(json_string)
+        model.load_weights(save_path+args.model+'.h5')
+        model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
+        '''
+        model = load_model(save_path+args.model+'.hdf5')
         save_path=save_path+today_str
 
     # 4.評価
