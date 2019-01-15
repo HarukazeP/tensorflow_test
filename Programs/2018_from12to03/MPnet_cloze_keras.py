@@ -538,6 +538,7 @@ def build_model(vocab_size, emb_size, hidden_size, emb_matrix):
     c4_vec=choices_Dense(c4_vec)
 
     # --- 論文中のMulti-Perspective Aggregation Layer ---
+    bsize=K.int_shape(sent_vec)[0]
 
     # --- MPALayerの一部: Selective Copying ---
     cloze_input=Input(shape=(MAX_LENGTH,))   #(b, s)
@@ -559,7 +560,6 @@ def build_model(vocab_size, emb_size, hidden_size, emb_matrix):
 
     # --- MPALayerの一部: Attentive Reader ---
     # ARやつ一応完了
-    bsize=K.int_shape(sent_vec)[0]
     P1_ar, P2_ar, P3_ar, P4_ar=ARLayer(hidden_size*2, bsize)([NonMasking()(sent_vec), c1_vec, c2_vec, c3_vec, c4_vec])
 
     # --- MPALayerの一部: N-gram Statistics ---
@@ -642,7 +642,7 @@ class Ngram():
         self.count_5gram = {}
 
     #前処理
-    def preprocess(s):
+    def preprocess(self, s):
         sent_tokens=[]
         s = unicodeToAscii(s)
         s = re.sub(r'[ ]+', ' ', s)
@@ -665,7 +665,7 @@ class Ngram():
 
 
     #最初にngramのカウント用
-    def count_ngram_first(tokens):
+    def count_ngram_first(self, tokens):
         dic=[self.count_1gram, self.count_2gram, self.count_3gram, self.count_4gram, self.count_5gram]
         for n in range(1,6):
             count_dic=dic[n-1]
@@ -678,7 +678,7 @@ class Ngram():
 
 
     #最初にngramのカウント用
-    def read_file_first(ans_file):
+    def read_file_first(self, ans_file):
         sent=[]
         with open(ans_file, encoding='utf-8') as f:
             for s in f:
@@ -689,7 +689,7 @@ class Ngram():
 
 
     #空所に選択肢を補充した4文を生成
-    def make_sents(cloze_sent, choices):
+    def make_sents(self, cloze_sent, choices):
         sents=[]
         before=re.sub(r'{.*', '', cloze_sent)
         after=re.sub(r'.*}', '', cloze_sent)
@@ -700,7 +700,7 @@ class Ngram():
         return sents
 
 
-    def sent_to_ngram_count(sent):
+    def sent_to_ngram_count(self, sent):
         ngram_count_sum_in_sent=[0, 0, 0, 0, 0]
         tokens=self.preprocess(sent)
         dic=[self.count_1gram, self.count_2gram, self.count_3gram, self.count_4gram, self.count_5gram]
@@ -716,7 +716,7 @@ class Ngram():
 
 
     # ngram対数頻度のnumpy配列を返す
-    def get_ngram_count(cloze_list, choices_list):
+    def get_ngram_count(self, cloze_list, choices_list):
         '''
         引数：
             cloze_list    (問題数)
@@ -1030,9 +1030,6 @@ if __name__ == '__main__':
     else:
         weights_matrix = np.zeros((vocab.n_words, EMB_DIM))
 
-
-
-
     #学習時
     if args.mode == 'all' or args.mode == 'mini':
         model = build_model(vocab.n_words, EMB_DIM, HIDDEN_DIM, weights_matrix)
@@ -1068,8 +1065,8 @@ if __name__ == '__main__':
         val_data = (valid_X, valid_C, valid_Y)
 
         #Ngram couhnt集計
-        Ng=Ngram()
-        Ng.read_file_first(train_ans)
+        clothNg=Ngram()
+        clothNg.read_file_first(train_ans)
 
         #モデルとか結果とかを格納するディレクトリの作成
         save_path=save_path+args.mode+'_MPnet'
@@ -1080,7 +1077,7 @@ if __name__ == '__main__':
         model.summary()
 
         # 3.学習
-        model = trainIters(Ng, vocab, model, train_data, val_data, n_iters=epoch, saveModel=True)
+        model = trainIters(clothNg, vocab, model, train_data, val_data, n_iters=epoch, saveModel=True)
 
     #すでにあるモデルでテスト時
     else:
