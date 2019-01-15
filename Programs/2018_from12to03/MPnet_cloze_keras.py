@@ -60,9 +60,7 @@ import string
 import re
 import random
 import datetime
-
 import time
-import math
 
 import matplotlib.pyplot as plt
 plt.switch_backend('agg')
@@ -72,13 +70,11 @@ import os
 import argparse
 import collections
 
-import copy
-
 import gensim
 import nltk
 
 from keras.models import Model, model_from_json, load_model
-from keras.layers import Dense, Activation, Input, Embedding, GRU, Bidirectional, Reshape, Concatenate
+from keras.layers import Dense, Activation, Input, Embedding, GRU, Bidirectional, Reshape, Concatenate, Conv1D, GlobalMaxPooling1D
 from keras.layers import Add, Multiply, Dot
 from keras.utils.vis_utils import plot_model
 from keras import regularizers
@@ -322,6 +318,29 @@ def get_weight_matrix(lang):
 # 2.モデル定義
 ###########################
 
+# Reshape処理とかの前にこれを挟まないとエラーでる
+'''
+Layer reshape_1 does not support masking, but was passed an input_mask
+https://github.com/keras-team/keras/issues/4978
+'''
+class NonMasking(Layer):
+    def __init__(self, **kwargs):
+        self.supports_masking = True
+        super(NonMasking, self).__init__(**kwargs)
+
+    def build(self, input_shape):
+        input_shape = input_shape
+
+    def compute_mask(self, input, input_mask=None):
+        # do not pass the mask to the next layers
+        return None
+
+    def call(self, x, mask=None):
+        return x
+
+    def get_output_shape_for(self, input_shape):
+        return input_shape
+
 #自作レイヤー Attentive Reader用
 class ARLayer(Layer):
     def __init__(self, output_dim, bsize, **kwargs):
@@ -333,16 +352,23 @@ class ARLayer(Layer):
         # Create a trainable weight variable for this layer.
         self.kernel = self.add_weight(name='kernel',
                                       shape=(self.output_dim, self.output_dim),
+                                      initializer='uniform',
                                       trainable=True)
-        self.bias = self.add_weight(shape=(self.output_dim,1),
-                                    name='bias',
-                                    trainable=True)
+        self.bias = self.add_weight(name='bias',
+                                    shape=(self.output_dim,1),
+                                    initializer='uniform',          trainable=True)
         super(ARLayer, self).build(input_shape)  # Be sure to call this somewhere!
 
-    def call(self, sent_vec, c1, c2, c3, c4):
+    def call(self, inputs):
+        '''
+        inputs=[sent_vec, c1_vec, c2_vec, c3_vec, c4_vec]
+        引数一つしか無理らしいのでリストにしてる
+        '''
+        sent_vec, c1_vec, c2_vec, c3_vec, c4_vec=inputs
+
         Wh=K.dot(sent_vec, self.kernel)  # (b, s, 2h)
 
-        bh=K.dot(sents_vec, self.bias) # (b, s, 1)
+        bh=K.dot(sent_vec, self.bias) # (b, s, 1)
 
         u1=K.expand_dims(c1_vec, axis=2) # (b, 2h) -> (b, 2h, 1)
         u2=K.expand_dims(c2_vec, axis=2)
@@ -359,10 +385,10 @@ class ARLayer(Layer):
         attn_3=softmax(u3_Wh+bh, axis=1)
         attn_4=softmax(u4_Wh+bh, axis=1)
 
-        attn1_h=sents_vec*attn_1  # (b, s, 2h)
-        attn2_h=sents_vec*attn_2
-        attn3_h=sents_vec*attn_3
-        attn4_h=sents_vec*attn_4
+        attn1_h=sent_vec*attn_1  # (b, s, 2h)
+        attn2_h=sent_vec*attn_2
+        attn3_h=sent_vec*attn_3
+        attn4_h=sent_vec*attn_4
 
         P1=K.sum(attn1_h, axis=1)    # (b, s, 2h) -> (b, 2h)
         P2=K.sum(attn2_h, axis=1)
@@ -370,12 +396,12 @@ class ARLayer(Layer):
         P4=K.sum(attn4_h, axis=1)
 
 
-        return P1, P2, P3, P4
+        return [P1, P2, P3, P4]
 
     def compute_output_shape(self, input_shape):
         bs=self.bs
         h=self.output_dim
-        return ((bs, h), (bs, h), (bs, h), (bs, h))
+        return [(bs, h), (bs, h), (bs, h), (bs, h)]
 
 
 #自作レイヤー 出力層用
@@ -393,22 +419,29 @@ class PointerNet(Layer):
         # Create a trainable weight variable for this layer.
         self.GateWeight_P = self.add_weight(name='gateWP',
                                       shape=(self.P_hidden, self.C_hidden),
+                                      initializer='uniform',
                                       trainable=True)
         self.GateWeight_C = self.add_weight(name='gateWC',
                                       shape=(self.C_hidden, self.C_hidden),
+                                      initializer='uniform',
                                       trainable=True)
-        self.Gatebias = self.add_weight(shape=(self.C_hidden,),
+        self.GateBias = self.add_weight(shape=(self.C_hidden,),
                                     name='gatebias',
+                                    initializer='uniform',
                                     trainable=True)
         self.OutWeight = self.add_weight(name='outW',
                                       shape=(self.P_hidden, self.C_hidden),
+                                      initializer='uniform',
                                       trainable=True)
-        self.Outbias = self.add_weight(shape=(self.C_hidden,1),
-                                    name='outbias',
+        self.OutBias = self.add_weight(name='outbias',
+                                    shape=(self.C_hidden,1),
+                                    initializer='uniform',
                                     trainable=True)
         super(PointerNet, self).build(input_shape)  # Be sure to call this somewhere!
 
-    def call(self, P, C1, C2, C3, C4):
+    def call(self, inputs):
+
+        P, C1, C2, C3, C4 = inputs
 
         WP=K.dot(P, self.GateWeight_P)  # (b, 2h) -> (b, 4h)
 
@@ -427,17 +460,17 @@ class PointerNet(Layer):
         C_dash3=C3*g3
         C_dash4=C4*g4
 
-        WP_out=K.dot(P, self.OutWeight_P)   # (b, 2h) -> (b, 4h)
+        WP_out=K.dot(P, self.OutWeight)   # (b, 2h) -> (b, 4h)
 
         C1WP=K.batch_dot(C_dash1, WP_out, axes=[1,1]) # (b, 1)
         C2WP=K.batch_dot(C_dash2, WP_out, axes=[1,1])
         C3WP=K.batch_dot(C_dash3, WP_out, axes=[1,1])
         C4WP=K.batch_dot(C_dash4, WP_out, axes=[1,1])
 
-        bC1=K.dot(C_dash1, self.Outbias)    # (b, 1)
-        bC2=K.dot(C_dash2, self.Outbias)
-        bC3=K.dot(C_dash3, self.Outbias)
-        bC4=K.dot(C_dash4, self.Outbias)
+        bC1=K.dot(C_dash1, self.OutBias)    # (b, 1)
+        bC2=K.dot(C_dash2, self.OutBias)
+        bC3=K.dot(C_dash3, self.OutBias)
+        bC4=K.dot(C_dash4, self.OutBias)
 
         out1=C1WP+bC1   #(b,1)
         out2=C1WP+bC1
@@ -460,20 +493,25 @@ def build_model(vocab_size, emb_size, hidden_size, emb_matrix):
     c3=Input(shape=(C_MAXLEN,))
     c4=Input(shape=(C_MAXLEN,))
 
+    '''
     share_emb=Embedding(output_dim=emb_size, input_dim=vocab_size, input_length=MAX_LENGTH, mask_zero=True, weights=[emb_matrix], trainable=True)
     sent_emb=share_emb(sent_input)  #(b, s, h)
+    '''
+    sent_emb=Embedding(output_dim=emb_size, input_dim=vocab_size, input_length=MAX_LENGTH, mask_zero=True, weights=[emb_matrix], trainable=True)(sent_input)
+
+    share_emb=Embedding(output_dim=emb_size, input_dim=vocab_size, input_length=C_MAXLEN, mask_zero=True, weights=[emb_matrix], trainable=True)
     c1_emb=share_emb(c1)    #(b, c, h)
     c2_emb=share_emb(c2)
     c3_emb=share_emb(c3)
     c4_emb=share_emb(c4)
 
-    sent_vec=Bidirectional(GRU(hidden_size, dropout=0.5, return_sequences=True))(sent_emb) #(b, s, 2h)
+    sent_vec=NonMasking()(Bidirectional(GRU(hidden_size, dropout=0.5, return_sequences=True))(sent_emb)) #(b, s, 2h)
 
     choices_BiGRU=Bidirectional(GRU(hidden_size, dropout=0.5, return_sequences=True))
-    c1_gru=choices_BiGRU(c1)    #(b, c, 2h)
-    c2_gru=choices_BiGRU(c2)
-    c3_gru=choices_BiGRU(c3)
-    c4_gru=choices_BiGRU(c4)
+    c1_gru=NonMasking()(choices_BiGRU(c1_emb))    #(b, c, 2h)
+    c2_gru=NonMasking()(choices_BiGRU(c2_emb))
+    c3_gru=NonMasking()(choices_BiGRU(c3_emb))
+    c4_gru=NonMasking()(choices_BiGRU(c4_emb))
 
     c1_vec=Reshape((hidden_size*2*C_MAXLEN,))(c1_gru)    #(b, c*2h)
     c2_vec=Reshape((hidden_size*2*C_MAXLEN,))(c2_gru)
@@ -514,8 +552,8 @@ def build_model(vocab_size, emb_size, hidden_size, emb_matrix):
 
     # --- MPALayerの一部: Attentive Reader ---
     # ARやつ一応完了
-    bsize=K.input_shape(sent_vec)[0]
-    P1, P2, P3, P4=ARLayer(hidden_size*2, bsize)(sent_vec, c1_vec, c2_vec, c3_vec, c4_vec)
+    bsize=K.int_shape(sent_vec)[0]
+    P1_ar, P2_ar, P3_ar, P4_ar=ARLayer(hidden_size*2, bsize)([sent_vec, c1_vec, c2_vec, c3_vec, c4_vec])
 
     # --- MPALayerの一部: N-gram Statistics ---
     #TODO 未実装
@@ -532,10 +570,12 @@ def build_model(vocab_size, emb_size, hidden_size, emb_matrix):
 
     # --- 論文中のOutput Layer (PointerNet) ---
     # 出力層一応完了
-    Pdim=K.input_shape(P)[-1]
-    Cdim=K.input_shape(C1)[-1]
-    output=PointerNet(hidden_size*2, Pdim, Cdim, bsize)(sent_vec, c1_vec, c2_vec, c3_vec, c4_vec) #(b, 4)
-    preds = softmax(output, axis=1)   #(b, 4)
+    Pdim=K.int_shape(P)[-1]
+    Cdim=K.int_shape(C1)[-1]
+
+    output=PointerNet(hidden_size*2, Pdim, Cdim, bsize)([P, C1, C2, C3, C4]) #(b, 4)
+    #preds = softmax(output, axis=1)   #(b, 4)
+    preds=Activation('softmax')(output)
 
     #--------------------------
     my_model=Model([sent_input, c1, c2, c3, c4], preds)
@@ -561,7 +601,7 @@ def getNewestModel(model):
 
 
 def split_choices(choices_array):
-    c1, c2, c3, c4=np.split(choices_array, axis=1)
+    c1, c2, c3, c4=np.split(choices_array, 4, axis=1)
     c1=np.squeeze(c1)
     c2=np.squeeze(c2)
     c3=np.squeeze(c3)
@@ -586,9 +626,10 @@ def trainIters(lang, model, train_pairs, val_pairs, n_iters, print_every=10, lea
     print('train data:', train_data_num)
     print('valid data:', val_data_num)
     '''
-
-    X_train=[X_train_tmp, split_choices(C_train)]
-    X_val=[X_val_tmp, split_choices(C_val)]
+    c1_train, c2_train, c3_train, c4_train = split_choices(C_train)
+    X_train=[X_train_tmp, c1_train, c2_train, c3_train, c4_train]
+    c1_val, c2_val, c3_val, c4_val = split_choices(C_val)
+    X_val=[X_val_tmp, c1_val, c2_val, c3_val, c4_val]
 
     cp_cb = ModelCheckpoint(filepath = save_path+'model_ep{epoch:02d}.hdf5', monitor='val_acc', verbose=1, save_best_only=True, mode='max')
 
@@ -598,7 +639,7 @@ def trainIters(lang, model, train_pairs, val_pairs, n_iters, print_every=10, lea
 
     # Ctrl+c で強制終了してもそこまでのモデルで残りの処理継続
     try:
-        hist=model.fit(X_train, Y_train, batch_size=BATCH_SIZE, epochs=n_iters,  verbose=1,　validation_data=(X_val, Y_val),　callbacks=[cp_cb], shuffle=True)
+        hist=model.fit(X_train, Y_train, batch_size=BATCH_SIZE, epochs=n_iters, verbose=1, validation_data=(X_val, Y_val), callbacks=[cp_cb], shuffle=True)
 
     except KeyboardInterrupt:
         print('-' * 89)
@@ -847,7 +888,7 @@ if __name__ == '__main__':
 
     #学習時
     if args.mode == 'all' or args.mode == 'mini':
-        model = build_model(vocab.n_words, EMB_DIM, HIDDEN_DIM, 4, weights_matrix)
+        model = build_model(vocab.n_words, EMB_DIM, HIDDEN_DIM, weights_matrix)
 
         train_cloze=CLOTH_path+'CLOTH_train_cloze.txt'
         train_choices=CLOTH_path+'CLOTH_train_choices.txt'
