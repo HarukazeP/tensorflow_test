@@ -18,8 +18,8 @@ ttps://aclanthology.coli.uni-saarland.de/papers/C18-1073/c18-1073
 !! は再現できていないところ
 
 !! ハイパーパラメータは検証データでのランダムサーチにより決定
-!! embeddingの初期値はGloveの300次元，上位1000単語のみ学習で更新   #これってもしかして1000語のEmbeddingしてる？
-!! 最適化関数はadam
+!! embeddingの初期値はGloveの300次元，上位1000単語のみ学習で更新   # memo:これってもしかして1000語のEmbeddingしてる？
+最適化関数はadam
 !! 学習率は最初10^(-3)，学習を重ねるごとに10^(-4)や10^(-5)に小さくしていく
 GRUは各128ユニット
 入力は最大80単語
@@ -35,7 +35,7 @@ GRUのドロップアウト率は50%
 
 !! 語彙数は上位3万単語
 !! embeddingの初期値はGoogleの学習済みword2vecの300次元，全て学習で更新
-!! 最適化関数はSGD
+最適化関数はadam
 !! 学習率は最初10^(-3)，val_lossが減少しない場合は学習率小さくする
 GRUは各128ユニット
 入力は最大80単語
@@ -73,14 +73,14 @@ import collections
 import gensim
 import nltk
 
-from keras.models import Model, model_from_json, load_model
-from keras.layers import Dense, Activation, Input, Embedding, GRU, Bidirectional, Reshape, Concatenate, Conv1D, GlobalMaxPooling1D
-from keras.layers import Add, Multiply, Dot
-from keras.utils.vis_utils import plot_model
 from keras import regularizers
+from keras import backend as K
+from keras.models import Model, model_from_json, load_model
+from keras.layers import Dense, Embedding, GRU, Bidirectional, Conv1D, GlobalMaxPooling1D
+from keras.layers import Add, Multiply, Input, Activation, Reshape, Concatenate
 from keras.layers.normalization import BatchNormalization
 from keras.engine.topology import Layer
-from keras import backend as K
+from keras.utils.vis_utils import plot_model
 from keras.activations import softmax, sigmoid
 from keras.callbacks import ModelCheckpoint
 
@@ -152,21 +152,6 @@ def readVocab(file):
     #print("Vocab: %s" % lang.n_words)
 
     return lang
-
-
-#入出力データ読み込み用
-def readData(input_file, target_file):
-    #print("Reading data...")
-    pairs=[]
-    i=0
-    with open(input_file, encoding='utf-8') as input:
-        with open(target_file, encoding='utf-8') as target:
-            for line1, line2 in zip(input, target):
-                i+=1
-                pairs.append([line1.strip(), line2.strip()])
-    print("data: %s" % i)
-
-    return pairs
 
 
 #空所つき英文読み取り
@@ -341,6 +326,34 @@ class NonMasking(Layer):
     def get_output_shape_for(self, input_shape):
         return input_shape
 
+
+#自作レイヤー Selective Copying 用
+class SCLayer(Layer):
+    def __init__(self, output_dim, bsize, **kwargs):
+        self.output_dim = output_dim
+        self.bs = bsize
+        super(SCLayer, self).__init__(**kwargs)
+
+    def build(self, input_shape):
+        input_shape = input_shape
+
+    def call(self, inputs):
+        '''
+        inputs=[sent_vec, cloze_input]
+        引数一つしか無理らしいのでリストにしてる
+        '''
+        sent_vec, cloze_input=inputs
+
+        cloze_vec=K.batch_dot(sent_vec, cloze_input, axes=[1,1]) # (b, h)
+
+        return cloze_vec
+
+    def compute_output_shape(self, input_shape):
+        bs=self.bs
+        h=self.output_dim
+        return (bs, h)
+
+
 #自作レイヤー Attentive Reader用
 class ARLayer(Layer):
     def __init__(self, output_dim, bsize, **kwargs):
@@ -505,7 +518,7 @@ def build_model(vocab_size, emb_size, hidden_size, emb_matrix):
     c3_emb=share_emb(c3)
     c4_emb=share_emb(c4)
 
-    sent_vec=NonMasking()(Bidirectional(GRU(hidden_size, dropout=0.5, return_sequences=True))(sent_emb)) #(b, s, 2h)
+    sent_vec=Bidirectional(GRU(hidden_size, dropout=0.5, return_sequences=True))(sent_emb) #(b, s, 2h)
 
     choices_BiGRU=Bidirectional(GRU(hidden_size, dropout=0.5, return_sequences=True))
     c1_gru=NonMasking()(choices_BiGRU(c1_emb))    #(b, c, 2h)
@@ -527,17 +540,14 @@ def build_model(vocab_size, emb_size, hidden_size, emb_matrix):
     # --- 論文中のMulti-Perspective Aggregation Layer ---
 
     # --- MPALayerの一部: Selective Copying ---
-    #TODO 未実装
-    '''
-    空所の位置についてのone-hotベクトルをInputとかで受け取って
-    sent_vecとマージ(mul)
-    そのあとsumとか？
-    '''
+    cloze_input=Input(shape=(MAX_LENGTH,))   #(b, s)
+    P_sc = SCLayer(hidden_size*2, bsize)([NonMasking()(sent_vec), NonMasking()(cloze_input)])
 
     # --- MPALayerの一部: Iterative Dilated Convolution ---
     # CNNのやつ一応完了
     sent_cnn = BatchNormalization(axis=2)(sent_vec)
     sent_cnn = Activation("relu")(sent_cnn)
+    sent_cnn = NonMasking()(sent_cnn)
     sent_cnn = Conv1D(hidden_size*2, kernel_size=3, dilation_rate=1)(sent_cnn)
     sent_cnn = Conv1D(hidden_size*2, kernel_size=3, dilation_rate=3)(sent_cnn)
     #sent_cnn = BatchNormalization(axis=2)(sent_cnn)
@@ -546,27 +556,31 @@ def build_model(vocab_size, emb_size, hidden_size, emb_matrix):
 
     sent_cnn = Conv1D(hidden_size*2, kernel_size=3, dilation_rate=3)(sent_cnn)
     P_idc = GlobalMaxPooling1D()(sent_cnn)
-    #P_idc = Dense(hidden_size*2)(sent_cnn)  #(b, 2h)
-    #これもしかしてsent_cnnの次元不明のままでもいい？
-    #n-gramのやつとか128じゃないし
 
     # --- MPALayerの一部: Attentive Reader ---
     # ARやつ一応完了
     bsize=K.int_shape(sent_vec)[0]
-    P1_ar, P2_ar, P3_ar, P4_ar=ARLayer(hidden_size*2, bsize)([sent_vec, c1_vec, c2_vec, c3_vec, c4_vec])
+    P1_ar, P2_ar, P3_ar, P4_ar=ARLayer(hidden_size*2, bsize)([NonMasking()(sent_vec), c1_vec, c2_vec, c3_vec, c4_vec])
 
     # --- MPALayerの一部: N-gram Statistics ---
-    #TODO 未実装
-    '''
-    単にInputとして受け取る？
-    '''
+
+    Ngram_1=Input(shape=(5,))   #(b, 5)
+    Ngram_2=Input(shape=(5,))
+    Ngram_3=Input(shape=(5,))
+    Ngram_4=Input(shape=(5,))
+
+    P1_ng = NonMasking()(Ngram_1)
+    P2_ng = NonMasking()(Ngram_2)
+    P3_ng = NonMasking()(Ngram_3)
+    P4_ng = NonMasking()(Ngram_4)
+
 
     # --- MPALayerの一部: 最後にマージ ---
-    P = P_idc   #(b, 2h)
-    C1 = Concatenate(axis=1)([c1_vec, P1_ar])   #(b, 2h+2h)
-    C2 = Concatenate(axis=1)([c2_vec, P2_ar])
-    C3 = Concatenate(axis=1)([c3_vec, P3_ar])
-    C4 = Concatenate(axis=1)([c4_vec, P4_ar])
+    P =  Concatenate(axis=1)([P_sc, P_idc])     #(b, 2h+2h)
+    C1 = Concatenate(axis=1)([c1_vec, P1_ar, P1_ng])   #(b, 2h+2h+5)
+    C2 = Concatenate(axis=1)([c2_vec, P2_ar, P2_ng])
+    C3 = Concatenate(axis=1)([c3_vec, P3_ar, P3_ng])
+    C4 = Concatenate(axis=1)([c4_vec, P4_ar, P4_ng])
 
     # --- 論文中のOutput Layer (PointerNet) ---
     # 出力層一応完了
@@ -578,7 +592,7 @@ def build_model(vocab_size, emb_size, hidden_size, emb_matrix):
     preds=Activation('softmax')(output)
 
     #--------------------------
-    my_model=Model([sent_input, c1, c2, c3, c4], preds)
+    my_model=Model([sent_input, c1, c2, c3, c4, cloze_input, Ngram_1, Ngram_2, Ngram_3, Ngram_4], preds)
     my_model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
 
     return my_model
@@ -600,6 +614,7 @@ def getNewestModel(model):
         return model
 
 
+# 選択肢リストをモデルの入力の形へ分割
 def split_choices(choices_array):
     c1, c2, c3, c4=np.split(choices_array, 4, axis=1)
     c1=np.squeeze(c1)
@@ -610,8 +625,128 @@ def split_choices(choices_array):
     return c1, c2, c3, c4
 
 
+# 空所の位置をone_hotで表すnumpy配列を返す
+def make_cloze_onehot(X_tmp):
+    cloze_onehot=np.zeros_like(X_tmp)
+    cloze_onehot[X_tmp==CLZ_token]=1
+
+    return cloze_onehot
+
+
+class Ngram():
+    def __init__(self):
+        self.count_1gram = {}
+        self.count_2gram = {}
+        self.count_3gram = {}
+        self.count_4gram = {}
+        self.count_5gram = {}
+
+    #前処理
+    def preprocess(s):
+        sent_tokens=[]
+        s = unicodeToAscii(s)
+        s = re.sub(r'[ ]+', ' ', s)
+        s = s.strip()
+        s = re.sub(r'{.+}', CLZ_word, s)
+        tokens=nltk.word_tokenize(s)
+        symbol_tag=("$", "''", "(", ")", ",", "--", ".", ":", "``", "SYM")
+        num_tag=("LS", "CD")
+        tagged = nltk.pos_tag(tokens)
+        for word, tag in tagged:
+            if tag in symbol_tag:
+                pass
+                #記号は無視
+            elif tag in num_tag:
+                sent_tokens.append('NUM')
+            else:
+                sent_tokens.append(word.lower())
+
+        return sent_tokens
+
+
+    #最初にngramのカウント用
+    def count_ngram_first(tokens):
+        dic=[self.count_1gram, self.count_2gram, self.count_3gram, self.count_4gram, self.count_5gram]
+        for n in range(1,6):
+            count_dic=dic[n-1]
+            Ngr = nltk.ngrams(tokens, n)
+            for gram in Ngr:
+                if gram not in count_dic:
+                    count_dic[gram]=1
+                else:
+                    count_dic[gram]+=1
+
+
+    #最初にngramのカウント用
+    def read_file_first(ans_file):
+        sent=[]
+        with open(ans_file, encoding='utf-8') as f:
+            for s in f:
+                s=re.sub(r'{', '', s)
+                s=re.sub(r'}', '', s)
+                tokens=self.preprocess(s)
+                self.count_ngram_first(tokens)
+
+
+    #空所に選択肢を補充した4文を生成
+    def make_sents(cloze_sent, choices):
+        sents=[]
+        before=re.sub(r'{.*', '', cloze_sent)
+        after=re.sub(r'.*}', '', cloze_sent)
+        for choice in choices:
+            tmp=before + choice + after
+            tmp=tmp.strip()
+            sents.append(tmp)
+        return sents
+
+
+    def sent_to_ngram_count(sent):
+        ngram_count_sum_in_sent=[0, 0, 0, 0, 0]
+        tokens=self.preprocess(sent)
+        dic=[self.count_1gram, self.count_2gram, self.count_3gram, self.count_4gram, self.count_5gram]
+        for n in range(1,6):
+            count_dic=dic[n-1]
+            Ngr = nltk.ngrams(tokens, n)
+            for gram in Ngr:
+                if gram  in count_dic:
+                    ngram_count_sum_in_sent[n-1]+=count_dic[gram]
+
+        return ngram_count_sum_in_sent
+
+
+
+    # ngram対数頻度のnumpy配列を返す
+    def get_ngram_count(cloze_list, choices_list):
+        '''
+        引数：
+            cloze_list    (問題数)
+            choices_list  (問題数, 選択肢数4)
+        返り値：
+            ngram_count  （問題数，選択肢数4，ngram種類5）
+        '''
+        ngram_count=[]
+        for cloze_sent, choices in zip(cloze_list, choices_list):
+            s1, s2, s3, s4=self.make_sents(cloze_sent, choices)
+            s1_count = self.sent_to_ngram_count(s1)
+            s2_count = self.sent_to_ngram_count(s2)
+            s3_count = self.sent_to_ngram_count(s3)
+            s4_count = self.sent_to_ngram_count(s4)
+            ngram_count.append([s1_count, s2_count, s3_count, s4_count])
+
+        #対数頻度，log1p(x)はlog_{e}(x+1)を返す
+        #頻度が0だとまずいので念のため+1してる
+        log_count=np.log1p(np.array(ngram_count, dtype=np.float))
+
+        n1, n2, n3, n4=np.split(log_count, 4, axis=1)
+        n1=np.squeeze(n1)
+        n2=np.squeeze(n2)
+        n3=np.squeeze(n3)
+        n4=np.squeeze(n4)
+        return n1, n2, n3, n4
+
+
 #学習をn_iters回，残り時間の算出をlossグラフの描画も
-def trainIters(lang, model, train_pairs, val_pairs, n_iters, print_every=10, learning_rate=0.001, saveModel=False):
+def trainIters(Ngram, lang, model, train_pairs, val_pairs, n_iters, print_every=10, learning_rate=0.001, saveModel=False):
 
     X_train_tmp=np.array([sent_to_ids_cloze(lang, s) for s in train_pairs[0]], dtype=np.int)
     C_train=np.array([choices_to_ids(lang, s) for s in train_pairs[1]], dtype=np.int)
@@ -620,22 +755,34 @@ def trainIters(lang, model, train_pairs, val_pairs, n_iters, print_every=10, lea
     X_val_tmp=np.array([sent_to_ids_cloze(lang, s) for s in val_pairs[0]], dtype=np.int)
     C_val=np.array([choices_to_ids(lang, s) for s in val_pairs[1]], dtype=np.int)
     Y_val=np.array([ans_to_ids(lang, s, c) for s,c in zip(val_pairs[2], val_pairs[1])], dtype=np.bool)
-    '''
-    train_data_num=len(X_train)
-    val_data_num=len(X_val)
-    print('train data:', train_data_num)
-    print('valid data:', val_data_num)
-    '''
+
     c1_train, c2_train, c3_train, c4_train = split_choices(C_train)
-    X_train=[X_train_tmp, c1_train, c2_train, c3_train, c4_train]
     c1_val, c2_val, c3_val, c4_val = split_choices(C_val)
-    X_val=[X_val_tmp, c1_val, c2_val, c3_val, c4_val]
+
+    # MPALayerの一部: Selective Copying 用の入力
+    cloze_train=make_cloze_onehot(X_train_tmp)
+    cloze_val=make_cloze_onehot(X_val_tmp)
+
+    # MPALayerの一部: N-gram Statistics 用の入力
+    N1_train, N2_train, N3_train, N4_train=Ngram.get_ngram_count(train_pairs[0], train_pairs[1])
+    N1_val, N2_val, N3_val, N4_val=Ngram.get_ngram_count(val_pairs[0], val_pairs[1])
+
+    # 自作拡張: 空所補充文Attentive Reader 用の入力
+    # TODO:
+
+    # 自作拡張: KenLM Score 用の入力
+    # TODO:
+
+    X_train=[X_train_tmp, c1_train, c2_train, c3_train, c4_train, cloze_train, N1_train, N2_train, N3_train, N4_train]
+    X_val=[X_val_tmp, c1_val, c2_val, c3_val, c4_val, cloze_val, N1_val, N2_val, N3_val, N4_val]
 
     cp_cb = ModelCheckpoint(filepath = save_path+'model_ep{epoch:02d}.hdf5', monitor='val_acc', verbose=1, save_best_only=True, mode='max')
+    hist=None
 
     start = time.time()
     st_time=datetime.datetime.today().strftime('%H:%M')
     print("Training... ", st_time)
+
 
     # Ctrl+c で強制終了してもそこまでのモデルで残りの処理継続
     try:
@@ -643,7 +790,7 @@ def trainIters(lang, model, train_pairs, val_pairs, n_iters, print_every=10, lea
 
     except KeyboardInterrupt:
         print('-' * 89)
-        if best_iter >=0:
+        if hist != None:
             print('Exiting from training early')
         else :
             exit()
@@ -907,8 +1054,6 @@ if __name__ == '__main__':
         valid_C=readChoices(valid_choices)
         valid_Y=readAns(valid_ans)
 
-        ## TODO: cloze selective copyの実装とかに伴ってtrain_Xとか増やす
-
         if args.mode == 'mini':
             epoch=5
             train_X=train_X[:300]
@@ -922,6 +1067,10 @@ if __name__ == '__main__':
         train_data = (train_X, train_C, train_Y)
         val_data = (valid_X, valid_C, valid_Y)
 
+        #Ngram couhnt集計
+        Ng=Ngram()
+        Ng.read_file_first(train_ans)
+
         #モデルとか結果とかを格納するディレクトリの作成
         save_path=save_path+args.mode+'_MPnet'
         if os.path.exists(save_path)==False:
@@ -931,7 +1080,7 @@ if __name__ == '__main__':
         model.summary()
 
         # 3.学習
-        model = trainIters(vocab, model, train_data, val_data, n_iters=epoch, saveModel=True)
+        model = trainIters(Ng, vocab, model, train_data, val_data, n_iters=epoch, saveModel=True)
 
     #すでにあるモデルでテスト時
     else:
