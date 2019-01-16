@@ -777,7 +777,7 @@ def trainIters(Ngram, lang, model, train_pairs, val_pairs, n_iters, print_every=
     X_train=[X_train_tmp, c1_train, c2_train, c3_train, c4_train, cloze_train, N1_train, N2_train, N3_train, N4_train]
     X_val=[X_val_tmp, c1_val, c2_val, c3_val, c4_val, cloze_val, N1_val, N2_val, N3_val, N4_val]
 
-    cp_cb = ModelCheckpoint(filepath = save_path+'model_ep{epoch:02d}.hdf5', monitor='val_acc', verbose=1, save_best_only=False, mode='max')
+    cp_cb = ModelCheckpoint(filepath = save_path+'model_ep{epoch:02d}.hdf5', monitor='val_acc', verbose=1, save_best_only=True, mode='max')
     hist=None
 
     start = time.time()
@@ -788,9 +788,11 @@ def trainIters(Ngram, lang, model, train_pairs, val_pairs, n_iters, print_every=
     # Ctrl+c で強制終了してもそこまでのモデルで残りの処理継続
     try:
         hist=model.fit(X_train, Y_train, batch_size=BATCH_SIZE, epochs=n_iters, verbose=1, validation_data=(X_val, Y_val), callbacks=[cp_cb], shuffle=True)
+
+        print('ans',Y_train[0])
+
         pred=model.predict(X_train[0])
         print('pred',pred)
-        print('ans',Y_train[0])
 
     except KeyboardInterrupt:
         print('-' * 89)
