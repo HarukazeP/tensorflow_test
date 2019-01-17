@@ -87,6 +87,7 @@ from keras.callbacks import ModelCheckpoint
 from keras import optimizers
 
 from glob import glob
+import kenlm
 
 #----- グローバル変数一覧 -----
 MAX_LENGTH = 80
@@ -98,6 +99,10 @@ BATCH_SIZE = 128
 file_path='../../../pytorch_data/'
 git_data_path='../../Data/'
 CLOTH_path = file_path+'CLOTH_for_model/'
+
+#TODO
+KenLM_path=''
+
 today1=datetime.datetime.today()
 today_str=today1.strftime('%m_%d_%H%M')
 save_path=file_path + today_str
@@ -566,8 +571,8 @@ class PointerNet(Layer):
         return (self.bs, self.choices_num)
 
 
-def build_model(vocab_size, emb_size, hidden_size, emb_matrix):
-    use_Ng, use_AR, use_KenLM, use_CAR=use_config(args.model_kind)
+def build_model(vocab_size, emb_size, hidden_size, emb_matrix, my_model_kind):
+    use_Ng, use_AR, use_KenLM, use_CAR=use_config(my_model_kind)
     # --- 論文中のInput Layer ---
     sent_input=Input(shape=(MAX_LENGTH,))   #(b, s)
     c1=Input(shape=(C_MAXLEN,)) #(b, c)
@@ -777,6 +782,14 @@ class Ngram():
         self.count_4gram = {}
         self.count_5gram = {}
 
+        #TODO
+        model_head=''
+        self.KenLM_1gram=''
+        self.KenLM_2gram=''
+        self.KenLM_3gram=''
+        self.KenLM_4gram=''
+        self.KenLM_5gram=''
+
     #前処理
     def preprocess(self, s):
         sent_tokens=[]
@@ -850,6 +863,21 @@ class Ngram():
         return ngram_count_sum_in_sent
 
 
+    def sent_to_KenLM_score(self, sent):
+        KenLM_score=[0.0, 0.0, 0.0, 0.0, 0.0]
+        tokens=self.preprocess(sent)
+        kenlm_sent=' '.join(tokens)
+        sent_len=len(tokens)
+
+        KenLM_models=[self.KenLM_1gram, self.KenLM_2gram, self.KenLM_3gram, self.KenLM_4gram, self.KenLM_5gram]
+        for i in range(5):
+            model = kenlm.LanguageModel(KenLM_models[i])
+            KenLM_score[i]=1.0*model.score(kenlm_sent)/sent_len
+            #メモリ節約のために↓する？
+            #del model
+
+        return KenLM_score
+
 
     # ngram対数頻度のnumpy配列を返す
     def get_ngram_count(self, cloze_list, choices_list):
@@ -881,9 +909,52 @@ class Ngram():
         return n1, n2, n3, n4
 
 
+    def make_CAR_X(self, cloze_list, choices_list):
+        CAR_sent1=[]
+        CAR_sent2=[]
+        CAR_sent3=[]
+        CAR_sent4=[]
+
+        for cloze_sent, choices in zip(cloze_list, choices_list):
+            s1, s2, s3, s4=self.make_sents(cloze_sent, choices)
+            CAR_sent1.append(sent_to_ids_cloze(s1))
+            CAR_sent2.append(sent_to_ids_cloze(s2))
+            CAR_sent3.append(sent_to_ids_cloze(s3))
+            CAR_sent4.append(sent_to_ids_cloze(s4))
+
+        CAR1=np.array(CAR_sent1, dtype=np.int)
+        CAR2=np.array(CAR_sent2, dtype=np.int)
+        CAR3=np.array(CAR_sent3, dtype=np.int)
+        CAR4=np.array(CAR_sent4, dtype=np.int)
+
+        return CAR1, CAR2, CAR3, CAR4
+
+
+    def get_KenLM_score(self, cloze_list, choices_list):
+        KenLM_score=[]
+        for cloze_sent, choices in zip(cloze_list, choices_list):
+            s1, s2, s3, s4=self.make_sents(cloze_sent, choices)
+            s1_score = self.sent_to_KenLM_score(s1)
+            s2_score = self.sent_to_KenLM_score(s2)
+            s3_score = self.sent_to_KenLM_score(s3)
+            s4_score = self.sent_to_KenLM_score(s4)
+            KenLM_score.append([s1_score, s2_score, s3_score, s4_score])
+
+        #対数頻度，log1p(x)はlog_{e}(x+1)を返す
+        #頻度が0だとまずいので念のため+1してる
+        KenLM_array=np.array(KenLM_score, dtype=np.float)
+
+        ks1, ks2, ks3, ks4=np.split(KenLM_array, 4, axis=1)
+        ks1=np.squeeze(ks1)
+        ks2=np.squeeze(ks2)
+        ks3=np.squeeze(ks3)
+        ks4=np.squeeze(ks4)
+        return ks1, ks2, ks3, ks4
+
+
 #学習をn_iters回，残り時間の算出をlossグラフの描画も
-def trainIters(ngram, lang, model, train_pairs, val_pairs, n_iters, print_every=10, learning_rate=0.001, saveModel=False):
-    use_Ng, use_AR, use_KenLM, use_CAR=use_config(args.model_kind)
+def trainIters(ngram, lang, model, train_pairs, val_pairs, n_iters, my_model_kind, print_every=10, learning_rate=0.001, saveModel=False):
+    use_Ng, use_AR, use_KenLM, use_CAR=use_config(my_model_kind)
 
     X_train_tmp=np.array([sent_to_ids_cloze(lang, s) for s in train_pairs[0]], dtype=np.int)
     C_train=np.array([choices_to_ids(lang, s) for s in train_pairs[1]], dtype=np.int)
@@ -915,23 +986,21 @@ def trainIters(ngram, lang, model, train_pairs, val_pairs, n_iters, print_every=
 
     # 自作拡張: 空所補充文Attentive Reader 用の入力
     if use_CAR==1:
-        pass
-        # TODO:
-        '''
-        sent_to_idsとかも使って
+        CAR_sent1_train, CAR_sent2_train, CAR_sent3_train, CAR_sent4_train=ngram.make_CAR_X(train_pairs[0], train_pairs[1])
+        CAR_sent1_val, CAR_sent2_val, CAR_sent3_val, CAR_sent4_val=ngram.make_CAR_X(val_pairs[0], val_pairs[1])
 
         X_train.extend([CAR_sent1_train, CAR_sent2_train, CAR_sent3_train, CAR_sent4_train])
         X_val.extend([CAR_sent1_val, CAR_sent2_val, CAR_sent3_val, CAR_sent4_val])
-        '''
+
 
     # 自作拡張: KenLM Score 用の入力
     if use_KenLM==1:
-        pass
-        # TODO:
-        '''
+        KenLM_1_train, KenLM_2_train, KenLM_3_train, KenLM_4_train=ngram.get_KenLM_score(train_pairs[0], train_pairs[1])
+        KenLM_1_val, KenLM_2_val, KenLM_3_val, KenLM_4_val=ngram.get_KenLM_score(val_pairs[0], val_pairs[1])
+
         X_train.extend([KenLM_1_train, KenLM_2_train, KenLM_3_train, KenLM_4_train])
         X_val.extend([KenLM_1_val, KenLM_2_val, KenLM_3_val, KenLM_4_val])
-        '''
+
 
     cp_cb = ModelCheckpoint(filepath = save_path+'model_ep{epoch:02d}.hdf5', monitor='val_acc', verbose=1, save_best_only=True, mode='max')
 
@@ -1027,9 +1096,9 @@ def use_config(model_kind):
 ###########################
 # 4.モデルによる予測
 ###########################
-def model_test(ngram, lang, model, cloze_path, choices_path, ans_path, data_name, file_output=True):
+def model_test(ngram, lang, model, cloze_path, choices_path, ans_path, my_model_kind, data_name='', file_output=True):
     print(data_name)
-    use_Ng, use_AR, use_KenLM, use_CAR=use_config(args.model_kind)
+    use_Ng, use_AR, use_KenLM, use_CAR=use_config(my_model_kind)
 
     test_X=readCloze(cloze_path)
     test_C=readChoices(choices_path)
@@ -1060,22 +1129,17 @@ def model_test(ngram, lang, model, cloze_path, choices_path, ans_path, data_name
 
     # 自作拡張: 空所補充文Attentive Reader 用の入力
     if use_CAR==1:
-        pass
-        # TODO:
-        '''
-        sent_to_idsとかも使って
+        CAR_sent1_test, CAR_sent2_test, CAR_sent3_test, CAR_sent4_test=ngram.make_CAR_X(test_X, test_C)
 
         X_test.extend([CAR_sent1_test, CAR_sent2_test, CAR_sent3_test, CAR_sent4_test])
-        '''
+
 
     # 自作拡張: KenLM Score 用の入力
     if use_KenLM==1:
-        pass
-        # TODO:
-        '''
+        KenLM_1_test, KenLM_2_test, KenLM_3_test, KenLM_4_test=ngram.get_KenLM_score(test_X, test_C)
+
         X_test.extend([KenLM_1_test, KenLM_2_test, KenLM_3_test, KenLM_4_test])
 
-        '''
 
     loss, acc=model.evaluate(X_test, Y_test, batch_size=BATCH_SIZE, verbose=1)
     print('loss=%.4f, acc=%.2f' % (loss, acc))
@@ -1098,7 +1162,7 @@ def model_test(ngram, lang, model, cloze_path, choices_path, ans_path, data_name
 def get_args():
     parser = argparse.ArgumentParser()
     #miniはプログラムエラーないか確認用的な
-    parser.add_argument('--mode', choices=['all', 'mini', 'test', 'mini_test'], default='all')
+    parser.add_argument('--mode', choices=['all', 'mini', 'test', 'mini_test', 'train_loop'], default='all')
     parser.add_argument('--model_dir', help='model directory path (when load model, mode=test)')
     parser.add_argument('--model', help='model file name (when load model, mode=test)')
     parser.add_argument('--epoch', type=int, default=30)
@@ -1114,6 +1178,7 @@ if __name__ == '__main__':
     args = get_args()
     print(args.mode)
     epoch=args.epoch
+    my_model_kind=args.model_kind
 
     # 1.語彙データ読み込み
     vocab_path=file_path+'enwiki_vocab30000.txt'
@@ -1124,16 +1189,102 @@ if __name__ == '__main__':
     clothNg=Ngram()
     clothNg.read_file_first(train_ans)
 
-    # 2.モデル定義
-    if args.mode == 'all':
+    if args.mode == 'all' or args.mode == 'train_loop':
         weights_matrix = get_weight_matrix(vocab)
     else:
         weights_matrix = np.zeros((vocab.n_words, EMB_DIM))
 
-    model = build_model(vocab.n_words, EMB_DIM, HIDDEN_DIM, weights_matrix)
+    #通常時
+    if args.mode != 'train_loop':
 
-    #学習時
-    if args.mode == 'all' or args.mode == 'mini':
+        # 2.モデル定義
+        model = build_model(vocab.n_words, EMB_DIM, HIDDEN_DIM, weights_matrix, my_model_kind)
+
+        #学習時
+        if args.mode == 'all' or args.mode == 'mini':
+            train_cloze=CLOTH_path+'CLOTH_train_cloze.txt'
+            train_choices=CLOTH_path+'CLOTH_train_choices.txt'
+            train_ans=CLOTH_path+'CLOTH_train_ans.txt'
+
+            valid_cloze=CLOTH_path+'CLOTH_valid_cloze.txt'
+            valid_choices=CLOTH_path+'CLOTH_valid_choices.txt'
+            valid_ans=CLOTH_path+'CLOTH_valid_ans.txt'
+
+            print("Reading train/valid data...")
+            train_X=readCloze(train_cloze)
+            train_C=readChoices(train_choices)
+            train_Y=readAns(train_ans)
+
+            valid_X=readCloze(valid_cloze)
+            valid_C=readChoices(valid_choices)
+            valid_Y=readAns(valid_ans)
+
+            if args.mode == 'mini':
+                epoch=min(5, args.epoch)
+                train_X=train_X[:300]
+                train_C=train_C[:300]
+                train_Y=train_Y[:300]
+
+                valid_X=valid_X[:300]
+                valid_C=valid_C[:300]
+                valid_Y=valid_Y[:300]
+
+            train_data = (train_X, train_C, train_Y)
+            val_data = (valid_X, valid_C, valid_Y)
+
+            #モデルとか結果とかを格納するディレクトリの作成
+            save_path=save_path+args.mode+'_MPNet'
+            if os.path.exists(save_path)==False:
+                os.mkdir(save_path)
+            save_path=save_path+'/'
+            plot_model(model, to_file=save_path+'model_'+args.model_kind+'.png', show_shapes=True)
+            #model.summary()
+
+            # 3.学習
+            model = trainIters(clothNg, vocab, model, train_data, val_data, my_model_kind, n_iters=epoch, saveModel=True)
+            print('Train end')
+
+        #すでにあるモデルでテスト時
+        else:
+            save_path=args.model_dir+'/'
+            model.load_weights(save_path+args.model+'.hdf5')
+            #model.summary()
+
+            save_path=save_path+today_str
+
+        # 4.評価
+        center_cloze=git_data_path+'center_cloze.txt'
+        center_choi=git_data_path+'center_choices.txt'
+        center_ans=git_data_path+'center_ans.txt'
+
+        MS_cloze=git_data_path+'microsoft_cloze.txt'
+        MS_choi=git_data_path+'microsoft_choices.txt'
+        MS_ans=git_data_path+'microsoft_ans.txt'
+
+        high_path=git_data_path+'CLOTH_test_high'
+        middle_path=git_data_path+'CLOTH_test_middle'
+
+        CLOTH_high_cloze = high_path+'_cloze.txt'
+        CLOTH_high_choi = high_path+'_choices.txt'
+        CLOTH_high_ans = high_path+'_ans.txt'
+
+        CLOTH_middle_cloze = middle_path+'_cloze.txt'
+        CLOTH_middle_choi = middle_path+'_choices.txt'
+        CLOTH_middle_ans = middle_path+'_ans.txt'
+
+        is_out=False    #ファイル出力一括設定用
+
+        model_test(clothNg, vocab, model, center_cloze, center_choi, center_ans, my_model_kind, data_name='center', file_output=is_out)
+
+        if args.mode != 'mini' and args.mode != 'mini_test':
+            model_test(clothNg, vocab, model, MS_cloze, MS_choi, MS_ans, data_name='MS', file_output=is_out)
+
+            model_test(clothNg, vocab, model, CLOTH_high_cloze, CLOTH_high_choi, CLOTH_high_ans, my_model_kind, data_name='CLOTH_high', file_output=is_out)
+
+            model_test(clothNg, vocab, model, CLOTH_middle_cloze, CLOTH_middle_choi, CLOTH_middle_ans, my_model_kindn, data_name='CLOTH_middle', file_output=is_out)
+
+    #ループして複数モデル学習放置用
+    else:
         train_cloze=CLOTH_path+'CLOTH_train_cloze.txt'
         train_choices=CLOTH_path+'CLOTH_train_choices.txt'
         train_ans=CLOTH_path+'CLOTH_train_ans.txt'
@@ -1151,70 +1302,66 @@ if __name__ == '__main__':
         valid_C=readChoices(valid_choices)
         valid_Y=readAns(valid_ans)
 
-        if args.mode == 'mini':
-            epoch=min(5, args.epoch)
-            train_X=train_X[:300]
-            train_C=train_C[:300]
-            train_Y=train_Y[:300]
-
-            valid_X=valid_X[:300]
-            valid_C=valid_C[:300]
-            valid_Y=valid_Y[:300]
-
         train_data = (train_X, train_C, train_Y)
         val_data = (valid_X, valid_C, valid_Y)
 
-        #Ngram couhnt集計
-        clothNg=Ngram()
-        clothNg.read_file_first(train_ans)
+        center_cloze=git_data_path+'center_cloze.txt'
+        center_choi=git_data_path+'center_choices.txt'
+        center_ans=git_data_path+'center_ans.txt'
 
-        #モデルとか結果とかを格納するディレクトリの作成
-        save_path=save_path+args.mode+'_MPNet'
-        if os.path.exists(save_path)==False:
-            os.mkdir(save_path)
-        save_path=save_path+'/'
-        plot_model(model, to_file=save_path+'model_'+args.model_kind+'.png', show_shapes=True)
-        #model.summary()
+        MS_cloze=git_data_path+'microsoft_cloze.txt'
+        MS_choi=git_data_path+'microsoft_choices.txt'
+        MS_ans=git_data_path+'microsoft_ans.txt'
 
-        # 3.学習
-        model = trainIters(clothNg, vocab, model, train_data, val_data, n_iters=epoch, saveModel=True)
-        print('Train end')
+        high_path=git_data_path+'CLOTH_test_high'
+        middle_path=git_data_path+'CLOTH_test_middle'
 
-    #すでにあるモデルでテスト時
-    else:
-        save_path=args.model_dir+'/'
-        model.load_weights(save_path+args.model+'.hdf5')
-        #model.summary()
+        CLOTH_high_cloze = high_path+'_cloze.txt'
+        CLOTH_high_choi = high_path+'_choices.txt'
+        CLOTH_high_ans = high_path+'_ans.txt'
 
-        save_path=save_path+today_str
+        CLOTH_middle_cloze = middle_path+'_cloze.txt'
+        CLOTH_middle_choi = middle_path+'_choices.txt'
+        CLOTH_middle_ans = middle_path+'_ans.txt'
 
-    # 4.評価
-    center_cloze=git_data_path+'center_cloze.txt'
-    center_choi=git_data_path+'center_choices.txt'
-    center_ans=git_data_path+'center_ans.txt'
+        is_out=False    #ファイル出力一括設定用
 
-    MS_cloze=git_data_path+'microsoft_cloze.txt'
-    MS_choi=git_data_path+'microsoft_choices.txt'
-    MS_ans=git_data_path+'microsoft_ans.txt'
+        # 2.モデル定義
+        models=['plus_CAR', 'replace_CAR']
+        '''
+        メモ
+        実験済み：'origin',
 
-    high_path=git_data_path+'CLOTH_test_high'
-    middle_path=git_data_path+'CLOTH_test_middle'
+        あとで：KenLm使うやつ
+        'plus_KenLM', 'plus_both' , 'replace_KenLM', 'replace_both'
+        '''
 
-    CLOTH_high_cloze = high_path+'_cloze.txt'
-    CLOTH_high_choi = high_path+'_choices.txt'
-    CLOTH_high_ans = high_path+'_ans.txt'
+        for my_model_kind in models:
 
-    CLOTH_middle_cloze = middle_path+'_cloze.txt'
-    CLOTH_middle_choi = middle_path+'_choices.txt'
-    CLOTH_middle_ans = middle_path+'_ans.txt'
+            start_date=datetime.datetime.today()
+            start_date_str=today1.strftime('%m_%d_%H%M')
+            save_path=file_path + start_date_str
 
-    is_out=False    #ファイル出力一括設定用
+            model = build_model(vocab.n_words, EMB_DIM, HIDDEN_DIM, weights_matrix, my_model_kind)
 
-    model_test(clothNg, vocab, model, center_cloze, center_choi, center_ans, data_name='center', file_output=is_out)
+            #モデルとか結果とかを格納するディレクトリの作成
+            save_path=save_path+'_MPNet_'+my_model_kind
+            if os.path.exists(save_path)==False:
+                os.mkdir(save_path)
+            save_path=save_path+'/'
+            plot_model(model, to_file=save_path+'model_'+args.model_kind+'.png', show_shapes=True)
+            #model.summary()
 
-    if args.mode != 'mini' and args.mode != 'mini_test':
-        model_test(clothNg, vocab, model, MS_cloze, MS_choi, MS_ans, data_name='MS', file_output=is_out)
+            # 3.学習
+            model = trainIters(clothNg, vocab, model, train_data, val_data, my_model_kind, n_iters=epoch, saveModel=True)
+            print('Train end')
 
-        model_test(clothNg, vocab, model, CLOTH_high_cloze, CLOTH_high_choi, CLOTH_high_ans, data_name='CLOTH_high', file_output=is_out)
+            # 4.評価
+            model_test(clothNg, vocab, model, center_cloze, center_choi, center_ans, my_model_kind, data_name='center', file_output=is_out)
 
-        model_test(clothNg, vocab, model, CLOTH_middle_cloze, CLOTH_middle_choi, CLOTH_middle_ans, data_name='CLOTH_middle', file_output=is_out)
+
+            model_test(clothNg, vocab, model, MS_cloze, MS_choi, MS_ans, data_name='MS', file_output=is_out)
+
+            model_test(clothNg, vocab, model, CLOTH_high_cloze, CLOTH_high_choi, CLOTH_high_ans, my_model_kind, data_name='CLOTH_high', file_output=is_out)
+
+            model_test(clothNg, vocab, model, CLOTH_middle_cloze, CLOTH_middle_choi, CLOTH_middle_ans, my_model_kindn, data_name='CLOTH_middle', file_output=is_out)
