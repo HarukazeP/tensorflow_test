@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 '''
-MPnet_cloze.py から変更
+MPNet_cloze.py から変更
 pytorchで実装してたけど解決できないエラーに直面したためkerasで書き直し
 
 
@@ -29,7 +29,6 @@ GRUのドロップアウト率は50%
 
 
 ----- 自分の実装 -----
-#TODO これ書いてるだけ
 
 !! はもとの論文と異なる点
 それ以外にも，次元数というか階数が元の論文あまり書いてなかったから割と違うかも
@@ -37,13 +36,14 @@ GRUのドロップアウト率は50%
 !! 語彙数は上位3万単語
 !! embeddingの初期値はGoogleの学習済みword2vecの300次元，全て学習で更新
 最適化関数はadam
-!! 学習率は最初10^(-3)，val_lossが減少しない場合は学習率小さくする
+!! 学習率は10^(-3)
+gradient clipingの設定は最大値√5
 GRUは各128ユニット
 入力は最大80単語
 CNNでは2ブロック，出力次元数128，kernel_size 3
 !! CNNのバッチ正規化とかReLUの利用場所も曖昧
 GRUのドロップアウト率は50%
-次元数というか階数が元の論文あまり書いてなかったから割と違うかも
+
 
 動かしていたバージョン
 python  : 3.5.2 / 3.6.5
@@ -62,7 +62,7 @@ import re
 import random
 import datetime
 import time
-
+import math
 import matplotlib.pyplot as plt
 plt.switch_backend('agg')
 import matplotlib.ticker as ticker
@@ -84,6 +84,7 @@ from keras.engine.topology import Layer
 from keras.utils.vis_utils import plot_model
 from keras.activations import softmax, sigmoid
 from keras.callbacks import ModelCheckpoint
+from keras import optimizers
 
 from glob import glob
 
@@ -279,7 +280,7 @@ def get_weight_matrix(lang):
     print('Loading word vector ...')
     #ここのgensimの書き方がバージョンによって異なる
     vec_model = gensim.models.KeyedVectors.load_word2vec_format(file_path+'GoogleNews-vectors-negative300.bin', binary=True)
-    # https://code.google.com/archive/p/word2vec/ ここからダウンロード&解凍
+    # ttps://code.google.com/archive/p/word2vec/ ここからダウンロード&解凍
 
     weights_matrix = np.zeros((lang.n_words, EMB_DIM))
 
@@ -307,7 +308,7 @@ def get_weight_matrix(lang):
 # Reshape処理とかの前にこれを挟まないとエラーでる
 '''
 Layer reshape_1 does not support masking, but was passed an input_mask
-https://github.com/keras-team/keras/issues/4978
+ttps://github.com/keras-team/keras/issues/4978
 '''
 class NonMasking(Layer):
     def __init__(self, **kwargs):
@@ -418,6 +419,72 @@ class ARLayer(Layer):
         return [(bs, h), (bs, h), (bs, h), (bs, h)]
 
 
+#自作レイヤー Attentive Reader用
+class CARLayer(Layer):
+    def __init__(self, output_dim, bsize, **kwargs):
+        self.output_dim = output_dim
+        self.bs = bsize
+        super(CARLayer, self).__init__(**kwargs)
+
+    def build(self, input_shape):
+        # Create a trainable weight variable for this layer.
+        self.kernel = self.add_weight(name='kernel',
+                                      shape=(self.output_dim, self.output_dim),
+                                      initializer='uniform',
+                                      trainable=True)
+        self.bias = self.add_weight(name='bias',
+                                    shape=(self.output_dim,1),
+                                    initializer='uniform',          trainable=True)
+        super(CARLayer, self).build(input_shape)  # Be sure to call this somewhere!
+
+    def call(self, inputs):
+
+        CAR_sent1_vec, CAR_sent2_vec, CAR_sent3_vec, CAR_sent4_vec, c1_vec, c2_vec, c3_vec, c4_vec=inputs
+
+        Wh1=K.dot(CAR_sent1_vec, self.kernel)  # (b, s, 2h)
+        Wh2=K.dot(CAR_sent2_vec, self.kernel)
+        Wh3=K.dot(CAR_sent3_vec, self.kernel)
+        Wh4=K.dot(CAR_sent4_vec, self.kernel)
+
+        bh1=K.dot(CAR_sent1_vec, self.bias) # (b, s, 1)
+        bh2=K.dot(CAR_sent2_vec, self.bias)
+        bh3=K.dot(CAR_sent3_vec, self.bias)
+        bh4=K.dot(CAR_sent4_vec, self.bias)
+
+        u1=K.expand_dims(c1_vec, axis=2) # (b, 2h) -> (b, 2h, 1)
+        u2=K.expand_dims(c2_vec, axis=2)
+        u3=K.expand_dims(c3_vec, axis=2)
+        u4=K.expand_dims(c4_vec, axis=2)
+
+        u1_Wh1=K.batch_dot(Wh1, u1, axes=[2,1]) # (b, s, 1)
+        u2_Wh2=K.batch_dot(Wh2, u2, axes=[2,1])
+        u3_Wh3=K.batch_dot(Wh3, u3, axes=[2,1])
+        u4_Wh4=K.batch_dot(Wh4, u4, axes=[2,1])
+
+        attn_1=softmax(u1_Wh1+bh1, axis=1) # (b, s, 1)
+        attn_2=softmax(u2_Wh2+bh2, axis=1)
+        attn_3=softmax(u3_Wh3+bh3, axis=1)
+        attn_4=softmax(u4_Wh4+bh4, axis=1)
+
+        attn1_h=CAR_sent1_vec*attn_1  # (b, s, 2h)
+        attn2_h=CAR_sent2_vec*attn_2
+        attn3_h=CAR_sent3_vec*attn_3
+        attn4_h=CAR_sent4_vec*attn_4
+
+        P1=K.sum(attn1_h, axis=1)    # (b, s, 2h) -> (b, 2h)
+        P2=K.sum(attn2_h, axis=1)
+        P3=K.sum(attn3_h, axis=1)
+        P4=K.sum(attn4_h, axis=1)
+
+
+        return [P1, P2, P3, P4]
+
+    def compute_output_shape(self, input_shape):
+        bs=self.bs
+        h=self.output_dim
+        return [(bs, h), (bs, h), (bs, h), (bs, h)]
+
+
 #自作レイヤー 出力層用
 class PointerNet(Layer):
     def __init__(self, output_dim, Pdim, Cdim, bsize, **kwargs):
@@ -487,9 +554,9 @@ class PointerNet(Layer):
         bC4=K.dot(C_dash4, self.OutBias)
 
         out1=C1WP+bC1   #(b,1)
-        out2=C1WP+bC1
-        out3=C1WP+bC1
-        out4=C1WP+bC1
+        out2=C2WP+bC2
+        out3=C3WP+bC3
+        out4=C4WP+bC4
 
         output=K.concatenate([out1, out2, out3, out4], axis=1)   #(b,4)
 
@@ -500,6 +567,7 @@ class PointerNet(Layer):
 
 
 def build_model(vocab_size, emb_size, hidden_size, emb_matrix):
+    use_Ng, use_AR, use_KenLM, use_CAR=use_config(args.model_kind)
     # --- 論文中のInput Layer ---
     sent_input=Input(shape=(MAX_LENGTH,))   #(b, s)
     c1=Input(shape=(C_MAXLEN,)) #(b, c)
@@ -507,17 +575,14 @@ def build_model(vocab_size, emb_size, hidden_size, emb_matrix):
     c3=Input(shape=(C_MAXLEN,))
     c4=Input(shape=(C_MAXLEN,))
 
-    '''
-    share_emb=Embedding(output_dim=emb_size, input_dim=vocab_size, input_length=MAX_LENGTH, mask_zero=True, weights=[emb_matrix], trainable=True)
-    sent_emb=share_emb(sent_input)  #(b, s, h)
-    '''
-    sent_emb=Embedding(output_dim=emb_size, input_dim=vocab_size, input_length=MAX_LENGTH, mask_zero=True, weights=[emb_matrix], trainable=True)(sent_input)
+    sent_E=Embedding(output_dim=emb_size, input_dim=vocab_size, input_length=MAX_LENGTH, mask_zero=True, weights=[emb_matrix], trainable=True)
+    sent_emb=sent_E(sent_input)
 
-    share_emb=Embedding(output_dim=emb_size, input_dim=vocab_size, input_length=C_MAXLEN, mask_zero=True, weights=[emb_matrix], trainable=True)
-    c1_emb=share_emb(c1)    #(b, c, h)
-    c2_emb=share_emb(c2)
-    c3_emb=share_emb(c3)
-    c4_emb=share_emb(c4)
+    choices_E=Embedding(output_dim=emb_size, input_dim=vocab_size, input_length=C_MAXLEN, mask_zero=True, weights=[emb_matrix], trainable=True)
+    c1_emb=choices_E(c1)    #(b, c, h)
+    c2_emb=choices_E(c2)
+    c3_emb=choices_E(c3)
+    c4_emb=choices_E(c4)
 
     sent_vec=Bidirectional(GRU(hidden_size, dropout=0.5, return_sequences=True))(sent_emb) #(b, s, 2h)
 
@@ -546,7 +611,6 @@ def build_model(vocab_size, emb_size, hidden_size, emb_matrix):
     P_sc = SCLayer(hidden_size*2, bsize)([NonMasking()(sent_vec), NonMasking()(cloze_input)])
 
     # --- MPALayerの一部: Iterative Dilated Convolution ---
-    # CNNのやつ一応完了
     sent_cnn = BatchNormalization(axis=2)(sent_vec)
     sent_cnn = Activation("relu")(sent_cnn)
     sent_cnn = NonMasking()(sent_cnn)
@@ -560,28 +624,90 @@ def build_model(vocab_size, emb_size, hidden_size, emb_matrix):
     P_idc = GlobalMaxPooling1D()(sent_cnn)
 
     # --- MPALayerの一部: Attentive Reader ---
-    # ARやつ一応完了
-    P1_ar, P2_ar, P3_ar, P4_ar=ARLayer(hidden_size*2, bsize)([NonMasking()(sent_vec), c1_vec, c2_vec, c3_vec, c4_vec])
+    if use_AR==1:
+        P1_ar, P2_ar, P3_ar, P4_ar=ARLayer(hidden_size*2, bsize)([NonMasking()(sent_vec), c1_vec, c2_vec, c3_vec, c4_vec])
 
     # --- MPALayerの一部: N-gram Statistics ---
+    if use_Ng==1:
+        Ngram_1=Input(shape=(5,))   #(b, 5)
+        Ngram_2=Input(shape=(5,))
+        Ngram_3=Input(shape=(5,))
+        Ngram_4=Input(shape=(5,))
 
-    Ngram_1=Input(shape=(5,))   #(b, 5)
-    Ngram_2=Input(shape=(5,))
-    Ngram_3=Input(shape=(5,))
-    Ngram_4=Input(shape=(5,))
+        P1_ng = NonMasking()(Ngram_1)
+        P2_ng = NonMasking()(Ngram_2)
+        P3_ng = NonMasking()(Ngram_3)
+        P4_ng = NonMasking()(Ngram_4)
 
-    P1_ng = NonMasking()(Ngram_1)
-    P2_ng = NonMasking()(Ngram_2)
-    P3_ng = NonMasking()(Ngram_3)
-    P4_ng = NonMasking()(Ngram_4)
+    # 自作拡張: 空所補充文Attentive Reader
+    if use_CAR==1:
+        CAR_sent1=Input(shape=(MAX_LENGTH,))
+        CAR_sent2=Input(shape=(MAX_LENGTH,))
+        CAR_sent3=Input(shape=(MAX_LENGTH,))
+        CAR_sent4=Input(shape=(MAX_LENGTH,))
 
+        CAR_sent1_emb=sent_E(CAR_sent1)
+        CAR_sent2_emb=sent_E(CAR_sent2)
+        CAR_sent3_emb=sent_E(CAR_sent3)
+        CAR_sent4_emb=sent_E(CAR_sent4)
+
+        CAR_sent_GRU=Bidirectional(GRU(hidden_size, dropout=0.5, return_sequences=True))
+
+        CAR_sent1_vec=NonMasking()(CAR_sent_GRU(CAR_sent1_emb)) #(b, s, 2h)
+        CAR_sent2_vec=NonMasking()(CAR_sent_GRU(CAR_sent2_emb))
+        CAR_sent3_vec=NonMasking()(CAR_sent_GRU(CAR_sent3_emb))
+        CAR_sent4_vec=NonMasking()(CAR_sent_GRU(CAR_sent4_emb))
+
+        P1_car, P2_car, P3_car, P4_car=CARLayer(hidden_size*2, bsize)([CAR_sent1_vec, CAR_sent2_vec, CAR_sent3_vec, CAR_sent4_vec, c1_vec, c2_vec, c3_vec, c4_vec])
+
+    # 自作拡張: KenLM Score
+    if use_KenLM==1:
+        KenLM_1=Input(shape=(5,))   #(b, 5)
+        KenLM_2=Input(shape=(5,))
+        KenLM_3=Input(shape=(5,))
+        KenLM_4=Input(shape=(5,))
+
+        P1_ks = NonMasking()(KenLM_1)
+        P2_ks = NonMasking()(KenLM_2)
+        P3_ks = NonMasking()(KenLM_3)
+        P4_ks = NonMasking()(KenLM_4)
 
     # --- MPALayerの一部: 最後にマージ ---
     P =  Concatenate(axis=1)([P_sc, P_idc])     #(b, 2h+2h)
-    C1 = Concatenate(axis=1)([c1_vec, P1_ar, P1_ng])   #(b, 2h+2h+5)
-    C2 = Concatenate(axis=1)([c2_vec, P2_ar, P2_ng])
-    C3 = Concatenate(axis=1)([c3_vec, P3_ar, P3_ng])
-    C4 = Concatenate(axis=1)([c4_vec, P4_ar, P4_ng])
+
+    C1_tmp=[c1_vec]
+    C2_tmp=[c2_vec]
+    C3_tmp=[c3_vec]
+    C4_tmp=[c4_vec]
+
+    if use_AR==1:
+        C1_tmp.append(P1_ar)
+        C2_tmp.append(P2_ar)
+        C3_tmp.append(P3_ar)
+        C4_tmp.append(P4_ar)
+
+    if use_Ng==1:
+        C1_tmp.append(P1_ng)
+        C2_tmp.append(P2_ng)
+        C3_tmp.append(P3_ng)
+        C4_tmp.append(P4_ng)
+
+    if use_CAR==1:
+        C1_tmp.append(P1_car)
+        C2_tmp.append(P2_car)
+        C3_tmp.append(P3_car)
+        C4_tmp.append(P4_car)
+
+    if use_KenLM==1:
+        C1_tmp.append(P1_ks)
+        C2_tmp.append(P2_ks)
+        C3_tmp.append(P3_ks)
+        C4_tmp.append(P4_ks)
+
+    C1 = Concatenate(axis=1)(C1_tmp)
+    C2 = Concatenate(axis=1)(C2_tmp)
+    C3 = Concatenate(axis=1)(C3_tmp)
+    C4 = Concatenate(axis=1)(C4_tmp)
 
     # --- 論文中のOutput Layer (PointerNet) ---
     # 出力層一応完了
@@ -593,12 +719,21 @@ def build_model(vocab_size, emb_size, hidden_size, emb_matrix):
     preds=Activation('softmax')(output)
 
     #--------------------------
-    my_model=Model([sent_input, c1, c2, c3, c4, cloze_input, Ngram_1, Ngram_2, Ngram_3, Ngram_4], preds)
-    my_model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
+    X=[sent_input, c1, c2, c3, c4, cloze_input]
+    if use_Ng==1:
+        X.extend([Ngram_1, Ngram_2, Ngram_3, Ngram_4])
+
+    if use_CAR==1:
+        X.extend([CAR_sent1, CAR_sent2, CAR_sent3, CAR_sent4])
+
+    if use_KenLM==1:
+        X.extend([KenLM_1, KenLM_2, KenLM_3, KenLM_4])
+
+    my_model=Model(X, preds)
+    opt=optimizers.Adam(lr=0.001, clipnorm=math.sqrt(5))    #デフォルト：lr=0.001
+    my_model.compile(loss='categorical_crossentropy', optimizer=opt, metrics=['accuracy'])
 
     return my_model
-
-
 
 ###########################
 # 3.モデルの学習
@@ -748,6 +883,7 @@ class Ngram():
 
 #学習をn_iters回，残り時間の算出をlossグラフの描画も
 def trainIters(ngram, lang, model, train_pairs, val_pairs, n_iters, print_every=10, learning_rate=0.001, saveModel=False):
+    use_Ng, use_AR, use_KenLM, use_CAR=use_config(args.model_kind)
 
     X_train_tmp=np.array([sent_to_ids_cloze(lang, s) for s in train_pairs[0]], dtype=np.int)
     C_train=np.array([choices_to_ids(lang, s) for s in train_pairs[1]], dtype=np.int)
@@ -757,6 +893,9 @@ def trainIters(ngram, lang, model, train_pairs, val_pairs, n_iters, print_every=
     C_val=np.array([choices_to_ids(lang, s) for s in val_pairs[1]], dtype=np.int)
     Y_val=np.array([ans_to_ids(lang, s, c) for s,c in zip(val_pairs[2], val_pairs[1])], dtype=np.bool)
 
+    print('train_ans_rate', np.sum(Y_train, axis=0))
+    print('val_ans_rate', np.sum(Y_val, axis=0))
+
     c1_train, c2_train, c3_train, c4_train = split_choices(C_train)
     c1_val, c2_val, c3_val, c4_val = split_choices(C_val)
 
@@ -764,37 +903,37 @@ def trainIters(ngram, lang, model, train_pairs, val_pairs, n_iters, print_every=
     cloze_train=make_cloze_onehot(X_train_tmp)
     cloze_val=make_cloze_onehot(X_val_tmp)
 
+    X_train=[X_train_tmp, c1_train, c2_train, c3_train, c4_train, cloze_train]
+    X_val=[X_val_tmp, c1_val, c2_val, c3_val, c4_val, cloze_val]
+
     # MPALayerの一部: N-gram Statistics 用の入力
-    N1_train, N2_train, N3_train, N4_train=ngram.get_ngram_count(train_pairs[0], train_pairs[1])
-    N1_val, N2_val, N3_val, N4_val=ngram.get_ngram_count(val_pairs[0], val_pairs[1])
+    if use_Ng==1:
+        N1_train, N2_train, N3_train, N4_train=ngram.get_ngram_count(train_pairs[0], train_pairs[1])
+        N1_val, N2_val, N3_val, N4_val=ngram.get_ngram_count(val_pairs[0], val_pairs[1])
+        X_train.extend([N1_train, N2_train, N3_train, N4_train])
+        X_val.extend([N1_val, N2_val, N3_val, N4_val])
 
     # 自作拡張: 空所補充文Attentive Reader 用の入力
-    # TODO:
+    if use_CAR==1:
+        pass
+        # TODO:
+        '''
+        sent_to_idsとかも使って
+
+        X_train.extend([CAR_sent1_train, CAR_sent2_train, CAR_sent3_train, CAR_sent4_train])
+        X_val.extend([CAR_sent1_val, CAR_sent2_val, CAR_sent3_val, CAR_sent4_val])
+        '''
 
     # 自作拡張: KenLM Score 用の入力
-    # TODO:
-
-    if args.model_kind=='origin':
+    if use_KenLM==1:
         pass
-    elif args.model_kind=='plus_CAR':
-        pass
-    elif args.model_kind=='plus_KenLM':
-        pass
-    elif args.model_kind=='plus_both':
-        pass
-    elif args.model_kind=='replace_CAR':
-        pass
-    elif args.model_kind=='replace_KenLM':
-        pass
-    elif args.model_kind=='replace_both':
-        pass
-
-
-    X_train=[X_train_tmp, c1_train, c2_train, c3_train, c4_train, cloze_train, N1_train, N2_train, N3_train, N4_train]
-    X_val=[X_val_tmp, c1_val, c2_val, c3_val, c4_val, cloze_val, N1_val, N2_val, N3_val, N4_val]
+        # TODO:
+        '''
+        X_train.extend([KenLM_1_train, KenLM_2_train, KenLM_3_train, KenLM_4_train])
+        X_val.extend([KenLM_1_val, KenLM_2_val, KenLM_3_val, KenLM_4_val])
+        '''
 
     cp_cb = ModelCheckpoint(filepath = save_path+'model_ep{epoch:02d}.hdf5', monitor='val_acc', verbose=1, save_best_only=True, mode='max')
-    hist=None
 
     start = time.time()
     st_time=datetime.datetime.today().strftime('%H:%M')
@@ -805,24 +944,21 @@ def trainIters(ngram, lang, model, train_pairs, val_pairs, n_iters, print_every=
     try:
         hist=model.fit(X_train, Y_train, batch_size=BATCH_SIZE, epochs=n_iters, verbose=1, validation_data=(X_val, Y_val), callbacks=[cp_cb], shuffle=True)
 
-        print('ans',Y_train[0])
+        #全学習終わり
+        #lossとaccのグラフ描画
+        showPlot3(hist.history['loss'], hist.history['val_loss'], 'loss.png', 'loss')
+        showPlot3(hist.history['acc'], hist.history['val_acc'], 'acc.png', 'acc')
 
-        pred=model.predict(X_train[0])
-        print('pred',pred)
+        print(hist.history['loss'])
 
     except KeyboardInterrupt:
+        print()
         print('-' * 89)
-        if hist != None:
+        files = [(f, os.path.getmtime(f)) for f in glob(save_path+'*hdf5')]
+        if len(files) > 0:
             print('Exiting from training early')
         else :
             exit()
-
-    #全学習終わり
-    #lossとaccのグラフ描画
-    showPlot3(hist.history['loss'], hist.history['val_loss'], 'loss.png', 'loss')
-    showPlot3(hist.history['acc'], hist.history['val_acc'], 'acc.png', 'acc')
-    print(hist.history['loss'])
-    #showPlot2(plot_accs, plot_val_accs, 'acc.png')
 
     #ベストモデルのロード
     model=getNewestModel(model)
@@ -853,64 +989,108 @@ def showPlot4(val_plot, file_name, label_name):
     fig.savefig(save_path + file_name)
 
 
+def use_config(model_kind):
+    use_Ng=0
+    use_AR=0
+    use_KenLM=0
+    use_CAR=0
+    if model_kind=='origin':
+        use_Ng=1
+        use_AR=1
+    elif model_kind=='plus_CAR':
+        use_Ng=1
+        use_AR=1
+        use_CAR=1
+    elif model_kind=='plus_KenLM':
+        use_Ng=1
+        use_AR=1
+        use_KenLM=1
+    elif model_kind=='plus_both':
+        use_Ng=1
+        use_AR=1
+        use_KenLM=1
+        use_CAR=1
+    elif model_kind=='replace_CAR':
+        use_Ng=1
+        use_CAR=1
+    elif model_kind=='replace_KenLM':
+        use_AR=1
+        use_KenLM=1
+    elif model_kind=='replace_both':
+        use_KenLM=1
+        use_CAR=1
+
+    return use_Ng, use_AR, use_KenLM, use_CAR
+
+
 
 ###########################
 # 4.モデルによる予測
 ###########################
 def model_test(ngram, lang, model, cloze_path, choices_path, ans_path, data_name, file_output=True):
-    '''
-    ファイル読み込み
-    save_pathの一時書き換えというか，新規パスに保存
-    model.evaluate使う
-    '''
     print(data_name)
+    use_Ng, use_AR, use_KenLM, use_CAR=use_config(args.model_kind)
 
     test_X=readCloze(cloze_path)
     test_C=readChoices(choices_path)
     test_Y=readAns(ans_path)
 
+    if args.mode=='mini_test':
+        test_X=test_X[:5]
+        test_C=test_C[:5]
+        test_Y=test_Y[:5]
+
     X_test_tmp=np.array([sent_to_ids_cloze(lang, s) for s in test_X], dtype=np.int)
     C_test=np.array([choices_to_ids(lang, s) for s in test_C], dtype=np.int)
     Y_test=np.array([ans_to_ids(lang, s, c) for s,c in zip(test_Y, test_C)], dtype=np.bool)
+
+    print('test_ans_rate', np.sum(Y_test, axis=0))
 
     c1_test, c2_test, c3_test, c4_test = split_choices(C_test)
 
     # MPALayerの一部: Selective Copying 用の入力
     cloze_test=make_cloze_onehot(X_test_tmp)
 
+    X_test=[X_test_tmp, c1_test, c2_test, c3_test, c4_test, cloze_test]
+
     # MPALayerの一部: N-gram Statistics 用の入力
-    N1_test, N2_test, N3_test, N4_test=ngram.get_ngram_count(test_X, C_test)
+    if use_Ng==1:
+        N1_test, N2_test, N3_test, N4_test=ngram.get_ngram_count(test_X, test_C)
+        X_test.extend([N1_test, N2_test, N3_test, N4_test])
 
     # 自作拡張: 空所補充文Attentive Reader 用の入力
-    # TODO:
+    if use_CAR==1:
+        pass
+        # TODO:
+        '''
+        sent_to_idsとかも使って
+
+        X_test.extend([CAR_sent1_test, CAR_sent2_test, CAR_sent3_test, CAR_sent4_test])
+        '''
 
     # 自作拡張: KenLM Score 用の入力
-    # TODO:
+    if use_KenLM==1:
+        pass
+        # TODO:
+        '''
+        X_test.extend([KenLM_1_test, KenLM_2_test, KenLM_3_test, KenLM_4_test])
 
-
-    if args.model_kind=='origin':
-        pass
-    elif args.model_kind=='plus_CAR':
-        pass
-    elif args.model_kind=='plus_KenLM':
-        pass
-    elif args.model_kind=='plus_both':
-        pass
-    elif args.model_kind=='replace_CAR':
-        pass
-    elif args.model_kind=='replace_KenLM':
-        pass
-    elif args.model_kind=='replace_both':
-        pass
-
-
-    X_test=[X_test_tmp, c1_test, c2_test, c3_test, c4_test, cloze_test, N1_test, N2_test, N3_test, N4_test]
+        '''
 
     loss, acc=model.evaluate(X_test, Y_test, batch_size=BATCH_SIZE, verbose=1)
     print('loss=%.4f, acc=%.2f' % (loss, acc))
 
+    '''
+    #モデルの中間層の出力確認用
+    if args.mode=='mini_test':
+        layers_names=['concatenate_1', 'concatenate_2', 'concatenate_3', 'concatenate_4', 'concatenate_5']
+        for name in layers_names:
+            out=Model(inputs=model.input,                               outputs=model.get_layer(name).output).predict(X_test)
+            print(name+'\n', out)
+    '''
+
     if file_output:
-        with open(save_path+data_name+'_result.txt'+, 'w') as f:
+        with open(save_path+data_name+'_result.txt', 'w') as f:
             f.write('loss=%.4f, acc=%.2f' % (loss, acc))
 
 
@@ -922,7 +1102,7 @@ def get_args():
     parser.add_argument('--model_dir', help='model directory path (when load model, mode=test)')
     parser.add_argument('--model', help='model file name (when load model, mode=test)')
     parser.add_argument('--epoch', type=int, default=30)
-    parser.add_argument('--model_kind',, choices=['origin', 'plus_CAR', 'plus_KenLM', 'plus_both', 'replace_CAR', 'replace_KenLM', 'replace_both'], default='origin', help='model file kind')
+    parser.add_argument('--model_kind', choices=['origin', 'plus_CAR', 'plus_KenLM', 'plus_both', 'replace_CAR', 'replace_KenLM', 'replace_both'], default='origin', help='model file kind')
 
     # ほかにも引数必要に応じて追加
     return parser.parse_args()
@@ -939,30 +1119,21 @@ if __name__ == '__main__':
     vocab_path=file_path+'enwiki_vocab30000.txt'
     vocab = readVocab(vocab_path)
 
+    #Ngram couhnt集計
+    train_ans=CLOTH_path+'CLOTH_train_ans.txt'
+    clothNg=Ngram()
+    clothNg.read_file_first(train_ans)
+
     # 2.モデル定義
     if args.mode == 'all':
         weights_matrix = get_weight_matrix(vocab)
     else:
         weights_matrix = np.zeros((vocab.n_words, EMB_DIM))
 
+    model = build_model(vocab.n_words, EMB_DIM, HIDDEN_DIM, weights_matrix)
+
     #学習時
     if args.mode == 'all' or args.mode == 'mini':
-        if args.model_kind=='origin':
-            pass
-        elif args.model_kind=='plus_CAR':
-            pass
-        elif args.model_kind=='plus_KenLM':
-            pass
-        elif args.model_kind=='plus_both':
-            pass
-        elif args.model_kind=='replace_CAR':
-            pass
-        elif args.model_kind=='replace_KenLM':
-            pass
-        elif args.model_kind=='replace_both':
-            pass
-        model = build_model(vocab.n_words, EMB_DIM, HIDDEN_DIM, weights_matrix)
-
         train_cloze=CLOTH_path+'CLOTH_train_cloze.txt'
         train_choices=CLOTH_path+'CLOTH_train_choices.txt'
         train_ans=CLOTH_path+'CLOTH_train_ans.txt'
@@ -981,7 +1152,7 @@ if __name__ == '__main__':
         valid_Y=readAns(valid_ans)
 
         if args.mode == 'mini':
-            epoch=5
+            epoch=min(5, args.epoch)
             train_X=train_X[:300]
             train_C=train_C[:300]
             train_Y=train_Y[:300]
@@ -998,12 +1169,12 @@ if __name__ == '__main__':
         clothNg.read_file_first(train_ans)
 
         #モデルとか結果とかを格納するディレクトリの作成
-        save_path=save_path+args.mode+'_MPnet'
+        save_path=save_path+args.mode+'_MPNet'
         if os.path.exists(save_path)==False:
             os.mkdir(save_path)
         save_path=save_path+'/'
-        plot_model(model, to_file=save_path+'model.png', show_shapes=True)
-        model.summary()
+        plot_model(model, to_file=save_path+'model_'+args.model_kind+'.png', show_shapes=True)
+        #model.summary()
 
         # 3.学習
         model = trainIters(clothNg, vocab, model, train_data, val_data, n_iters=epoch, saveModel=True)
@@ -1012,13 +1183,9 @@ if __name__ == '__main__':
     #すでにあるモデルでテスト時
     else:
         save_path=args.model_dir+'/'
-        '''
-        json_string = open(save_path+args.model+'.json').read()
-        model = model_from_json(json_string)
-        model.load_weights(save_path+args.model+'.h5')
-        model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
-        '''
-        model = load_model(save_path+args.model+'.hdf5')
+        model.load_weights(save_path+args.model+'.hdf5')
+        #model.summary()
+
         save_path=save_path+today_str
 
     # 4.評価
@@ -1043,11 +1210,11 @@ if __name__ == '__main__':
 
     is_out=False    #ファイル出力一括設定用
 
-    model_test(clothNg, vocab, center_cloze, center_choi, center_ans, data_name='center', file_output=is_out)
+    model_test(clothNg, vocab, model, center_cloze, center_choi, center_ans, data_name='center', file_output=is_out)
 
-    if args.mode != 'mini':
-        model_test(clothNg, vocab, MS_cloze, MS_choi, MS_ans, data_name='MS', file_output=is_out)
+    if args.mode != 'mini' and args.mode != 'mini_test':
+        model_test(clothNg, vocab, model, MS_cloze, MS_choi, MS_ans, data_name='MS', file_output=is_out)
 
-        model_test(clothNg, vocab, CLOTH_high_cloze, CLOTH_high_choi, CLOTH_high_ans, data_name='CLOTH_high', file_output=is_out)
+        model_test(clothNg, vocab, model, CLOTH_high_cloze, CLOTH_high_choi, CLOTH_high_ans, data_name='CLOTH_high', file_output=is_out)
 
-        model_test(clothNg, vocab, CLOTH_middle_cloze, CLOTH_middle_choi, CLOTH_middle_ans, data_name='CLOTH_middle', file_output=is_out)
+        model_test(clothNg, vocab, model, CLOTH_middle_cloze, CLOTH_middle_choi, CLOTH_middle_ans, data_name='CLOTH_middle', file_output=is_out)
