@@ -1146,7 +1146,7 @@ No { words ### poems ### expressions ### songs } can completely describe that to
 It { took ### wasted ### caused ### made } a boy to teach me, a man, about kindness and love.
 It's very kind { of ### for ### at ### with } you.
 I always like staying at your home in the countryside because it is so { empty ### quiet ### horrible ### serious } there.
-Planes often fly right over us, so it is very { noise ### noised ### noise ### noises } sometimes.
+Planes often fly right over us, so it is very { noise ### noised ### noisy ### noises } sometimes.
 And there is also a factory near our house, and that { make ### makes ### made ### making } a lot of noise, too.
 I am sure I will have a good time there. { What ### When ### Why ### How } is Uncle John?
 We were very sorry to hear about his { ill ### illness ### bad ### badness } , I have drawn a picture for him and I will bring it with me when I visit you.
@@ -1190,7 +1190,7 @@ He often says his class is too big and it is hard work for him to { say ### talk
 He likes playing basketball, but he { isn't ### aren't ### don't ### doesn't } play well.
 His son and I { be ### am ### is ### are } in the same class.
  { My ### Your ### His ### Her } name is James.
-We are { teachers ### doctors ### workers ### classmates } 
+We are { teachers ### doctors ### workers ### classmates }
 She liked nothing except dressing { him ### himself ### her ### herself } and dancing when she was at school.
 Of course she wasn't good at her { classes ### English ### maths ### language } .
 But the boys were ready to help her with her lessons { when ### while ### because ### after } they liked to dance with her.
@@ -1505,7 +1505,7 @@ At last he took off his { shoes ### shirt ### coat ### cap } and went away with 
 The young man ran out of the station as quickly as his { legs ### foot ### friend ### bike } could carry him, he reached a place, and there he thought the old man couldn't coat him, he stopped and quickly opened the bag .
 The young man ran out of the station as quickly as his under could carry him, he reached a place, and there he thought the old man couldn't { watch ### notice ### find ### meet } him, he stopped and quickly opened the bag .
 To his surprise, there was { anything ### everything ### nothing ### something } but old newspapers in it.
-But when he got there, he found the old man was { waiting ### gone ### crying ### leaving } 
+But when he got there, he found the old man was { waiting ### gone ### crying ### leaving }
 Mr. Green is our science teacher.One day he wanted to show some idea to us.He takes a large-mouth bottle and { touched ### placed ### pushed ### hit } several large stones in it.He then asked us, Is the bottle full now?
 We all replied, Yes! He then took some small rocks and put them into the { mouth ### cup ### bottle ### bowl } .
 The small rocks went into the { spaces ### rooms ### fields ### edges } between the big rocks .
@@ -1856,7 +1856,7 @@ It doesn't matter because all the { big ### dark ### happy ### sunny } day have 
 So smile at the world and it will { come ### smile ### turn ### give } back.
 Think about { reason ### season ### where ### why } you make friends with them.
 And they feel just the same { as ### to ### about ### for } you!
-If you try your best, you are still pretty { smart ### amazing ### clever ### well } 
+If you try your best, you are still pretty { smart ### amazing ### clever ### well }
 They say if { fewer ### less ### many ### more } people rode bikes to work, there would be fewer cars and less dirty air.
 They want to have special roads for bikes only because when bike riders must use the same roads { as ### like ### beside ### on } cars, there may be accidents.
 But { no ### only ### some ### many } bike roads have been ready yet.

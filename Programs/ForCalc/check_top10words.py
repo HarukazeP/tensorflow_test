@@ -70,9 +70,11 @@ def print_result(file_path):
 
 
 #----- いわゆるmain部みたいなの -----
-
+'''
 print_result('/home/tamaki/M2/Tensorflow/mine2018_4to7/Data/my_nmt/text8_nmt.ans')
 print_result('/home/tamaki/M2/Tensorflow/mine2018_4to7/Data/my_nmt/text8_nmt_dev.ans')
 print_result('output_dev.txt')
 print_result('/home/tamaki/M2/Tensorflow/mine2018_4to7/Data/my_nmt/center_nmt.ans')
 print_result('output_infer.txt')
+'''
+print_result('/home/tamaki/M2/pytorch_data/text8_ans.txt')

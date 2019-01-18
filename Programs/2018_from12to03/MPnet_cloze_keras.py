@@ -99,9 +99,7 @@ BATCH_SIZE = 128
 file_path='../../../pytorch_data/'
 git_data_path='../../Data/'
 CLOTH_path = file_path+'CLOTH_for_model/'
-
-#TODO
-KenLM_path=''
+KenLM_path='/media/tamaki/HDCL-UT/tamaki/M2/kenlm_models/all_words/'
 
 today1=datetime.datetime.today()
 today_str=today1.strftime('%m_%d_%H%M')
@@ -298,7 +296,7 @@ def get_weight_matrix(lang):
     from gensim.scripts.glove2word2vec import glove2word2vec
     glove2word2vec(glove_input_file="glove.6B.300d.txt", word2vec_output_file="gensim_glove_vectors.txt")
     '''
-    vec_model =gensim.models.KeyedVectors.load_word2vec_format('gensim_glove_vectors.txt', binary=False)
+    vec_model =gensim.models.KeyedVectors.load_word2vec_format(file_path+'gensim_glove_vectors.txt', binary=False)
 
     weights_matrix = np.zeros((lang.n_words, EMB_DIM))
 
@@ -796,14 +794,12 @@ class Ngram():
         self.count_4gram = {}
         self.count_5gram = {}
 
-        #TODO
-        model_head=''
-        self.KenLM_1gram=''
-        self.KenLM_2gram=''
-        self.KenLM_3gram=''
-        self.KenLM_4gram=''
-        self.KenLM_5gram=''
-
+        self.KenLM_1gram =''
+        #kenlm.LanguageModel(KenLM_path+'CLOTH_NUM_N1.arpa')
+        self.KenLM_2gram = kenlm.LanguageModel(KenLM_path+'CLOTH_NUM_N2.arpa')
+        self.KenLM_3gram = kenlm.LanguageModel(KenLM_path+'CLOTH_NUM_N3.arpa')
+        self.KenLM_4gram = kenlm.LanguageModel(KenLM_path+'CLOTH_NUM_N4.arpa')
+        self.KenLM_5gram = kenlm.LanguageModel(KenLM_path+'CLOTH_NUM_N5.arpa')
     #前処理
     def preprocess(self, s):
         sent_tokens=[]
@@ -845,8 +841,8 @@ class Ngram():
         sent=[]
         with open(ans_file, encoding='utf-8') as f:
             for s in f:
-                s=re.sub(r'{', '', s)
-                s=re.sub(r'}', '', s)
+                s=re.sub(r'{ ', '', s)
+                s=re.sub(r' }', '', s)
                 tokens=self.preprocess(s)
                 self.count_ngram_first(tokens)
 
@@ -883,12 +879,18 @@ class Ngram():
         kenlm_sent=' '.join(tokens)
         sent_len=len(tokens)
 
+        #KenLM 1-gramだと使えないっぽいので飛ばしてる
         KenLM_models=[self.KenLM_1gram, self.KenLM_2gram, self.KenLM_3gram, self.KenLM_4gram, self.KenLM_5gram]
-        for i in range(5):
-            model = kenlm.LanguageModel(KenLM_models[i])
-            KenLM_score[i]=1.0*model.score(kenlm_sent)/sent_len
-            #メモリ節約のために↓する？
-            #del model
+        for i in range(1,5):
+            KenLM_score[i]=1.0*KenLM_models[i].score(kenlm_sent)/sent_len
+
+        tmp_sum=0
+        Ngr = nltk.ngrams(tokens, 1)
+        for gram in Ngr:
+            if gram  in self.count_1gram:
+                tmp_sum+=self.count_1gram[gram]
+
+        KenLM_score[0]=math.log(tmp_sum)
 
         return KenLM_score
 
@@ -967,7 +969,7 @@ class Ngram():
 
 
 #学習をn_iters回，残り時間の算出をlossグラフの描画も
-def trainIters(ngram, lang, model, train_pairs, val_pairs, n_iters, my_model_kind, print_every=10, learning_rate=0.001, saveModel=False):
+def trainIters(ngram, lang, model, train_pairs, val_pairs, my_model_kind, n_iters=5, print_every=10, learning_rate=0.001, saveModel=False):
     use_Ng, use_AR, use_KenLM, use_CAR=use_config(my_model_kind)
 
     X_train_tmp=np.array([sent_to_ids_cloze(lang, s) for s in train_pairs[0]], dtype=np.int)
@@ -1156,7 +1158,7 @@ def model_test(ngram, lang, model, cloze_path, choices_path, ans_path, my_model_
 
 
     loss, acc=model.evaluate(X_test, Y_test, batch_size=BATCH_SIZE, verbose=1)
-    print('loss=%.4f, acc=%.2f' % (loss, acc))
+    print('loss=%.4f, acc=%.4f' % (loss, acc))
 
     '''
     #モデルの中間層の出力確認用
@@ -1169,7 +1171,7 @@ def model_test(ngram, lang, model, cloze_path, choices_path, ans_path, my_model_
 
     if file_output:
         with open(save_path+data_name+'_result.txt', 'w') as f:
-            f.write('loss=%.4f, acc=%.2f' % (loss, acc))
+            f.write('loss=%.4f, acc=%.4f' % (loss, acc))
 
 
 #コマンドライン引数の設定いろいろ
@@ -1288,14 +1290,14 @@ if __name__ == '__main__':
 
         is_out=False    #ファイル出力一括設定用
 
-        model_test(clothNg, vocab, model, center_cloze, center_choi, center_ans, my_model_kind, data_name='center', file_output=is_out)
+        #model_test(clothNg, vocab, model, center_cloze, center_choi, center_ans, my_model_kind, data_name='center', file_output=is_out)
 
         if args.mode != 'mini' and args.mode != 'mini_test':
-            model_test(clothNg, vocab, model, MS_cloze, MS_choi, MS_ans, data_name='MS', file_output=is_out)
+            #model_test(clothNg, vocab, model, MS_cloze, MS_choi, MS_ans, data_name='MS', file_output=is_out)
 
-            model_test(clothNg, vocab, model, CLOTH_high_cloze, CLOTH_high_choi, CLOTH_high_ans, my_model_kind, data_name='CLOTH_high', file_output=is_out)
+            #model_test(clothNg, vocab, model, CLOTH_high_cloze, CLOTH_high_choi, CLOTH_high_ans, my_model_kind, data_name='CLOTH_high', file_output=is_out)
 
-            model_test(clothNg, vocab, model, CLOTH_middle_cloze, CLOTH_middle_choi, CLOTH_middle_ans, my_model_kindn, data_name='CLOTH_middle', file_output=is_out)
+            model_test(clothNg, vocab, model, CLOTH_middle_cloze, CLOTH_middle_choi, CLOTH_middle_ans, my_model_kind, data_name='CLOTH_middle', file_output=is_out)
 
     #ループして複数モデル学習放置用
     else:
@@ -1338,17 +1340,10 @@ if __name__ == '__main__':
         CLOTH_middle_choi = middle_path+'_choices.txt'
         CLOTH_middle_ans = middle_path+'_ans.txt'
 
-        is_out=False    #ファイル出力一括設定用
+        is_out=True    #ファイル出力一括設定用
 
         # 2.モデル定義
-        models=['plus_CAR', 'replace_CAR']
-        '''
-        メモ
-        実験済み：'origin',
-
-        あとで：KenLm使うやつ
-        'plus_KenLM', 'plus_both' , 'replace_KenLM', 'replace_both'
-        '''
+        models=['origin', 'plus_CAR', 'replace_CAR', 'plus_KenLM', 'plus_both' , 'replace_KenLM', 'replace_both']
 
         for my_model_kind in models:
 
@@ -1378,4 +1373,7 @@ if __name__ == '__main__':
 
             model_test(clothNg, vocab, model, CLOTH_high_cloze, CLOTH_high_choi, CLOTH_high_ans, my_model_kind, data_name='CLOTH_high', file_output=is_out)
 
-            model_test(clothNg, vocab, model, CLOTH_middle_cloze, CLOTH_middle_choi, CLOTH_middle_ans, my_model_kindn, data_name='CLOTH_middle', file_output=is_out)
+            model_test(clothNg, vocab, model, CLOTH_middle_cloze, CLOTH_middle_choi, CLOTH_middle_ans, my_model_kind, data_name='CLOTH_middle', file_output=is_out)
+
+            del model
+            #一応メモリ解放

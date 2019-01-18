@@ -237,6 +237,19 @@ if __name__ == '__main__':
     MS_ans=git_data_path+'microsoft_ans.txt'
     MS_choi=git_data_path+'microsoft_choices.txt'
 
+    high_path=git_data_path+'CLOTH_test_high'
+    middle_path=git_data_path+'CLOTH_test_middle'
+
+    CLOTH_high_cloze = high_path+'_cloze.txt'
+    CLOTH_high_choi = high_path+'_choices.txt'
+    CLOTH_high_ans = high_path+'_ans.txt'
+
+    CLOTH_middle_cloze = middle_path+'_cloze.txt'
+    CLOTH_middle_choi = middle_path+'_choices.txt'
+    CLOTH_middle_ans = middle_path+'_ans.txt'
+
+
+
     print("Reading Testdata...")
     center_data=readData(center_cloze, center_ans)
     center_choices=get_choices(center_choi)
@@ -244,6 +257,11 @@ if __name__ == '__main__':
     MS_data=readData(MS_cloze, MS_ans)
     MS_choices=get_choices(MS_choi)
 
+    CLOTH_high_data=readData(CLOTH_high_cloze, CLOTH_high_ans)
+    CLOTH_high_choices=get_choices(CLOTH_high_choi)
+
+    CLOTH_middle_data=readData(CLOTH_middle_cloze, CLOTH_middle_ans)
+    CLOTH_middle_choices=get_choices(CLOTH_middle_choi)
 
     #kenLMモデル読み込み
     model1=model_path+'text8_twice_UNK30000.klm'
@@ -251,7 +269,10 @@ if __name__ == '__main__':
     model3=model_path+'text8_twice_N7.klm'
 
     model='/media/tamaki/HDCL-UT/tamaki/M2/kenlm_models/vocab30000/enwiki1GB_UNK30000_N7.klm'
-    models=[model]
+
+    text8_model='/media/tamaki/HDCL-UT/tamaki/M2/kenlm_models/all_words/text8_N7.klm'
+
+    models=[text8_model]
 
     for model_path in models:
         print(model_path)
@@ -261,10 +282,10 @@ if __name__ == '__main__':
 
         #テストデータに対する予測と精度の計算
         #選択肢を使ったテスト
-        print('Use choices')
-        print('center')
-        data=make_data(center_data, center_choices, one_word=False)
-        calc_acc(data, model)
+        #print('Use choices')
+        #print('center')
+        #data=make_data(center_data, center_choices, one_word=False)
+        #calc_acc(data, model)
 
         #data=make_data(center_data, center_choices, one_word=True)
         #calc_acc(data, model)
@@ -276,6 +297,13 @@ if __name__ == '__main__':
         #data=make_data(MS_data, MS_choices, one_word=True)
         #calc_acc(data, model)
 
+        print('CLOTH_high')
+        data=make_data(CLOTH_high_data, CLOTH_high_choices, one_word=True)
+        calc_acc(data, model)
+
+        print('CLOTH_middle')
+        data=make_data(CLOTH_middle_data, CLOTH_middle_choices, one_word=True)
+        calc_acc(data, model)
 
         #選択肢なしテスト
         #空所内の選択肢は全て1語のみ
