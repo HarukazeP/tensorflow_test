@@ -1078,7 +1078,7 @@ def model_test(ngram, lang, model, cloze_path, choices_path, ans_path, data_name
         '''
 
     loss, acc=model.evaluate(X_test, Y_test, batch_size=BATCH_SIZE, verbose=1)
-    print('loss=%.4f, acc=%.2f' % (loss, acc))
+    print('loss=%.4f, acc=%.4f' % (loss, acc))
 
     '''
     #モデルの中間層の出力確認用
@@ -1213,8 +1213,8 @@ if __name__ == '__main__':
     model_test(clothNg, vocab, model, center_cloze, center_choi, center_ans, data_name='center', file_output=is_out)
 
     if args.mode != 'mini' and args.mode != 'mini_test':
-        model_test(clothNg, vocab, model, MS_cloze, MS_choi, MS_ans, data_name='MS', file_output=is_out)
+        #model_test(clothNg, vocab, model, MS_cloze, MS_choi, MS_ans, data_name='MS', file_output=is_out)
 
         model_test(clothNg, vocab, model, CLOTH_high_cloze, CLOTH_high_choi, CLOTH_high_ans, data_name='CLOTH_high', file_output=is_out)
 
-        model_test(clothNg, vocab, model, CLOTH_middle_cloze, CLOTH_middle_choi, CLOTH_middle_ans, data_name='CLOTH_middle', file_output=is_out)
+        #model_test(clothNg, vocab, model, CLOTH_middle_cloze, CLOTH_middle_choi, CLOTH_middle_ans, data_name='CLOTH_middle', file_output=is_out)
