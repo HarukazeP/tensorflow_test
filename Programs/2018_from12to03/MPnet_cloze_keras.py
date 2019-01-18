@@ -34,7 +34,7 @@ GRUのドロップアウト率は50%
 それ以外にも，次元数というか階数が元の論文あまり書いてなかったから割と違うかも
 
 !! 語彙数は上位3万単語
-!! embeddingの初期値はGoogleの学習済みword2vecの300次元，全て学習で更新
+!! embeddingの初期値はGloveの300次元(glove.6B.300d.txt)，全て学習で更新
 最適化関数はadam
 !! 学習率は10^(-3)
 gradient clipingの設定は最大値√5
@@ -283,15 +283,29 @@ def ans_to_ids(lang, ans, choices):
 #Googleのword2vec読み取り
 def get_weight_matrix(lang):
     print('Loading word vector ...')
+    '''
     #ここのgensimの書き方がバージョンによって異なる
     vec_model = gensim.models.KeyedVectors.load_word2vec_format(file_path+'GoogleNews-vectors-negative300.bin', binary=True)
     # ttps://code.google.com/archive/p/word2vec/ ここからダウンロード&解凍
+    '''
+
+
+    '''
+    Gloveのベクトル使用
+    ttps://nlp.stanford.edu/projects/glove/
+
+    事前に↓これしておく
+    from gensim.scripts.glove2word2vec import glove2word2vec
+    glove2word2vec(glove_input_file="glove.6B.300d.txt", word2vec_output_file="gensim_glove_vectors.txt")
+    '''
+    vec_model =gensim.models.KeyedVectors.load_word2vec_format('gensim_glove_vectors.txt', binary=False)
 
     weights_matrix = np.zeros((lang.n_words, EMB_DIM))
 
     for i, word in lang.index2word.items():
         try:
-            weights_matrix[i] = vec_model.wv[word]
+            weights_matrix[i] = vec_model.wv[word] #gensimのword2vec
+
         except KeyError:
             weights_matrix[i] = np.random.normal(size=(EMB_DIM, ))
 
@@ -1360,7 +1374,7 @@ if __name__ == '__main__':
             model_test(clothNg, vocab, model, center_cloze, center_choi, center_ans, my_model_kind, data_name='center', file_output=is_out)
 
 
-            model_test(clothNg, vocab, model, MS_cloze, MS_choi, MS_ans, data_name='MS', file_output=is_out)
+            #model_test(clothNg, vocab, model, MS_cloze, MS_choi, MS_ans, data_name='MS', file_output=is_out)
 
             model_test(clothNg, vocab, model, CLOTH_high_cloze, CLOTH_high_choi, CLOTH_high_ans, my_model_kind, data_name='CLOTH_high', file_output=is_out)
 

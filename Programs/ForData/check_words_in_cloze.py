@@ -4,12 +4,7 @@
 '''
 
 
-len1=0
-len2=0
-len3=0
-len4=0
-len5=0
-len6=0
+
 
 import glob
 import nltk
@@ -19,6 +14,12 @@ tmp_path='../../../pytorch_data/CLOTH_for_model/CLOTH_'
 
 file1 = sorted(glob.glob(tmp_path + '*ans.txt'))
 for file_name in file1:
+    len1=0
+    len2=0
+    len3=0
+    len4=0
+    len5=0
+    len6=0
     #with open('../../Data/my_nmt/center_choices.txt') as f:
     with open(file_name) as f:
         print(file_name)
