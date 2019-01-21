@@ -572,12 +572,12 @@ def trainIters(lang, encoder, decoder, train_pairs, val_pairs, n_iters, print_ev
     X_train=[pad_indexes(lang, s) for s in train_pairs[0]]
     y_train=[pad_indexes(lang, s) for s in train_pairs[1]]
 
-    print("pad_index train end", time.time())
+    print("pad_index train end", datetime.datetime.today())
 
     X_val=[pad_indexes(lang, s) for s in val_pairs[0]]
     y_val=[pad_indexes(lang, s) for s in val_pairs[1]]
 
-    print("pad_index val end", time.time())
+    print("pad_index val end", datetime.datetime.today())
 
     train_data_num=len(X_train)
     val_data_num=len(X_val)
@@ -585,12 +585,12 @@ def trainIters(lang, encoder, decoder, train_pairs, val_pairs, n_iters, print_ev
     X_train=torch.tensor(X_train, dtype=torch.long, device=my_device)
     y_train=torch.tensor(y_train, dtype=torch.long, device=my_device)
 
-    print("tensor train end", time.time())
+    print("tensor train end", datetime.datetime.today())
 
     X_val=torch.tensor(X_val, dtype=torch.long, device=my_device)
     y_val=torch.tensor(y_val, dtype=torch.long, device=my_device)
 
-    print("tensor val end", time.time())
+    print("tensor val end", datetime.datetime.today())
 
     '''
     X_train=torch.tensor(X_train, dtype=torch.long, device=my_CPU)
