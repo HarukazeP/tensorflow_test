@@ -75,13 +75,13 @@ start_time=print_time('all start')
 
 #データ
 tmp_path='../../../pytorch_data/CLOTH_for_model/'
-train_ans=tmp_path+'CLOTH_train_ans.txt'
+train_ans=tmp_path+'CLOTH_valid_ans.txt'
 i=0
 with open(train_ans, encoding='utf-8') as f:
-    with open(tmp_path+'for_KenLM_CLOTH.txt', 'w') as f_out:
+    with open(tmp_path+'for_KenLM_CLOTH_val.txt', 'w') as f_out:
         for line in f:
             i+=1
-            if(1%1000==0):
+            if(i%1000==0):
                 print('line:',i)
             out=make_sents(line)
             f_out.write(out+'\n')
