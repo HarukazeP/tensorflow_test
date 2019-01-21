@@ -1326,7 +1326,7 @@ if __name__ == '__main__':
         center_ans=git_data_path+'center_ans.txt'
 
         MS_cloze=git_data_path+'microsoft_cloze.txt'
-        MS_choi=git_data_path+'microsoft_choices.txt'
+        MS_choi=git_data_path+'microsoft_choices_for_CLOTH.txt' #これ4択のテストデータ
         MS_ans=git_data_path+'microsoft_ans.txt'
 
         high_path=git_data_path+'CLOTH_test_high'
@@ -1372,7 +1372,7 @@ if __name__ == '__main__':
             model_test(clothNg, vocab, model, center_cloze, center_choi, center_ans, my_model_kind, data_name='center', file_output=is_out)
 
 
-            #model_test(clothNg, vocab, model, MS_cloze, MS_choi, MS_ans, data_name='MS', file_output=is_out)
+            model_test(clothNg, vocab, model, MS_cloze, MS_choi, MS_ans, data_name='MS', file_output=is_out)
 
             model_test(clothNg, vocab, model, CLOTH_high_cloze, CLOTH_high_choi, CLOTH_high_ans, my_model_kind, data_name='CLOTH_high', file_output=is_out)
 
