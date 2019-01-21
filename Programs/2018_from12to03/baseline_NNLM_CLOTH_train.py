@@ -194,11 +194,6 @@ def model_test(model_path, cloze_path, choices_path, ans_path, data_name=''):
     print('acc:', 1.0*OK/line)
 
 
-
-
-
-
-
 #----- main部 -----
 if __name__ == '__main__':
 
@@ -220,9 +215,6 @@ if __name__ == '__main__':
     CLOTH_middle_cloze = middle_path+'_cloze.txt'
     CLOTH_middle_choi = middle_path+'_choices.txt'
     CLOTH_middle_ans = middle_path+'_ans.txt'
-
-    model='/media/tamaki/HDCL-UT/tamaki/M2/kenlm_models/all_words/CLOTH_NUM_N7.arpa'
-
 
     model_test(model, center_cloze, center_choi, center_ans, data_name='center')
 

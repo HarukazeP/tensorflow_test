@@ -1,15 +1,9 @@
 # -*- coding: utf-8 -*-
 
 '''
-seq2seqモデル
-CLOTHデータセットで学習
-seq2seq2seq_attention_pretrain_vec.py から改変
-前処理部分の変更
-MAX_LENGTHを80に
-
-CLOTH用の前処理
-
-pytorch
+pytorchのseq2seqチュートリアルを改変
+seq2seq_attention_batch_new_model.py から変更
+Embedding層に学習済みベクトルを利用
 
 
 動かしていたバージョン
@@ -51,10 +45,8 @@ from torch.utils.data import TensorDataset, DataLoader
 
 import gensim
 
-import nltk
-
 #----- グローバル変数一覧 -----
-MAX_LENGTH = 80
+MAX_LENGTH = 40
 HIDDEN_DIM = 128
 ATTN_DIM = 128
 EMB_DIM = 300
@@ -80,7 +72,7 @@ if torch.cuda.is_available():
     print('Use GPU')
 else:
     my_device= torch.device("cpu")
-my_CPU=torch.device("cpu")
+
 #----- 関数群 -----
 
 
@@ -129,8 +121,23 @@ def unicodeToAscii(s):
 
 #データの前処理
 #strip()は文頭文末の改行や空白を取り除いてくれる
-def normalizeString2(s, choices=False):
-    s = unicodeToAscii(s.strip())
+def normalizeString(s, choices=False):
+    s = unicodeToAscii(s.lower().strip())
+    #text8コーパスと同等の前処理
+    s=s.replace('0', ' zero ')
+    s=s.replace('1', ' one ')
+    s=s.replace('2', ' two ')
+    s=s.replace('3', ' three ')
+    s=s.replace('4', ' four ')
+    s=s.replace('5', ' five ')
+    s=s.replace('6', ' six ')
+    s=s.replace('7', ' seven ')
+    s=s.replace('8', ' eight ')
+    s=s.replace('9', ' nine ')
+    if choices:
+        s = re.sub(r'[^a-z{}#]', ' ', s)
+    else:
+        s = re.sub(r'[^a-z{}]', ' ', s)
     s = re.sub(r'[ ]+', ' ', s)
 
     return s.strip()
@@ -142,7 +149,7 @@ def readVocab(file):
     print("Reading vocab...")
     with open(file, encoding='utf-8') as f:
         for line in f:
-            lang.addSentence(normalizeString2(line))
+            lang.addSentence(normalizeString(line))
     #print("Vocab: %s" % lang.n_words)
 
     return lang
@@ -157,7 +164,7 @@ def readData(input_file, target_file):
         with open(target_file, encoding='utf-8') as target:
             for line1, line2 in zip(input, target):
                 i+=1
-                pairs.append([normalizeString2(line1), normalizeString2(line2)])
+                pairs.append([normalizeString(line1), normalizeString(line2)])
     print("data: %s" % i)
 
     return pairs
@@ -169,7 +176,7 @@ def readData2(file):
     data=[]
     with open(file, encoding='utf-8') as f:
         for line in f:
-            data.append(normalizeString2(line))
+            data.append(normalizeString(line))
 
     return data
 
@@ -365,32 +372,10 @@ class AttnDecoderRNN2(nn.Module):
 ###########################
 # 3.入力データ変換
 ###########################
-def preprocess(s):
-    sent_tokens=[]
-    s = unicodeToAscii(s)
-    s = re.sub(r'[ ]+', ' ', s)
-    s = s.strip()
-    tokens=nltk.word_tokenize(s)
-    symbol_tag=("$", "''", "(", ")", ",", "--", ".", ":", "``", "SYM")
-    num_tag=("LS", "CD")
-    tagged = nltk.pos_tag(tokens)
-    for word, tag in tagged:
-        if tag in symbol_tag:
-            pass
-            #記号は無視
-        elif tag in num_tag:
-            sent_tokens.append('NUM')
-        else:
-            sent_tokens.append(word.lower())
-
-    return sent_tokens
-
-
 
 #単語列をID列に
 def indexesFromSentence(lang, sentence):
-    tokens=preprocess(sentence)
-    return [lang.check_word2index(word) for word in tokens]
+    return [lang.check_word2index(word) for word in sentence.split(' ')]
 
 
 #単語列からモデルの入力へのテンソルに
@@ -576,16 +561,11 @@ def trainIters(lang, encoder, decoder, train_pairs, val_pairs, n_iters, print_ev
 
     train_data_num=len(X_train)
     val_data_num=len(X_val)
-    '''
+
     X_train=torch.tensor(X_train, dtype=torch.long, device=my_device)
     y_train=torch.tensor(y_train, dtype=torch.long, device=my_device)
     X_val=torch.tensor(X_val, dtype=torch.long, device=my_device)
     y_val=torch.tensor(y_val, dtype=torch.long, device=my_device)
-    '''
-    X_train=torch.tensor(X_train, dtype=torch.long, device=my_CPU)
-    y_train=torch.tensor(y_train, dtype=torch.long, device=my_CPU)
-    X_val=torch.tensor(X_val, dtype=torch.long, device=my_CPU)
-    y_val=torch.tensor(y_val, dtype=torch.long, device=my_CPU)
 
     ds_train = TensorDataset(X_train, y_train)
     ds_val = TensorDataset(X_val, y_val)
@@ -596,7 +576,6 @@ def trainIters(lang, encoder, decoder, train_pairs, val_pairs, n_iters, print_ev
 
 
     criterion = nn.NLLLoss(ignore_index=PAD_token)
-    print("Training start...")
 
     for iter in range(1, n_iters + 1):
         for x, y in loader_train:
@@ -605,8 +584,8 @@ def trainIters(lang, encoder, decoder, train_pairs, val_pairs, n_iters, print_ev
             y:(バッチサイズ, 文長)
             からembedding層の入力に合うようにtransposeで入れ替え
             '''
-            x=x.transpose(0,1).to(my_device)
-            y=y.transpose(0,1).to(my_device)
+            x=x.transpose(0,1)
+            y=y.transpose(0,1)
             loss = batch_train(x, y, encoder, decoder, encoder_optimizer, decoder_optimizer, criterion)
 
             loss=loss*x.size(1)
@@ -616,8 +595,8 @@ def trainIters(lang, encoder, decoder, train_pairs, val_pairs, n_iters, print_ev
         #ここで学習1回分終わり
 
         for x, y in loader_val:
-            x=x.transpose(0,1).to(my_device)
-            y=y.transpose(0,1).to(my_device)
+            x=x.transpose(0,1)
+            y=y.transpose(0,1)
             val_loss = batch_valid(x, y, encoder, decoder, criterion, lang)
 
             val_loss=val_loss*x.size(1)
@@ -760,7 +739,7 @@ def evaluate_cloze(lang, encoder, decoder, sentence, max_length=MAX_LENGTH):
         decoded_words = []
         decoder_attentions = []
 
-        tmp_list=normalizeString2(sentence).split(' ')
+        tmp_list=normalizeString(sentence).split(' ')
         tmp_list.append('<EOS>')
         cloze_start=tmp_list.index('{')
         cloze_end=tmp_list.index('}')
@@ -885,7 +864,7 @@ def evaluate_choice(lang, encoder, decoder, sentence, choices, max_length=MAX_LE
         decoded_words = []
         decoder_attentions = []
 
-        tmp_list=normalizeString2(sentence).split(' ')
+        tmp_list=normalizeString(sentence).split(' ')
         tmp_list.append('<EOS>')
         cloze_start=tmp_list.index('{')
         cloze_end=tmp_list.index('}')
@@ -1095,13 +1074,13 @@ def output_preds(file_name, preds):
 
 def print_score(line, allOK, clozeOK, partOK, BLEU, miss):
     print('  acc(all): ', '{0:.2f}'.format(1.0*allOK/line*100),' %')
-    #print('acc(cloze): ', '{0:.2f}'.format(1.0*clozeOK/line*100),' %')
-    #print(' acc(part): ', '{0:.2f}'.format(1.0*partOK/line*100),' %')
+    print('acc(cloze): ', '{0:.2f}'.format(1.0*clozeOK/line*100),' %')
+    print(' acc(part): ', '{0:.2f}'.format(1.0*partOK/line*100),' %')
 
-    #print(' BLEU: ','{0:.2f}'.format(BLEU*100.0))
+    print(' BLEU: ','{0:.2f}'.format(BLEU*100.0))
     print('  all: ', allOK)
-    #print('cloze: ',clozeOK)
-    #print(' part: ',partOK)
+    print('cloze: ',clozeOK)
+    print(' part: ',partOK)
     print(' line: ',line)
     print(' miss: ',miss)
 
@@ -1127,7 +1106,7 @@ def get_choices(file_name):
     choices=[]
     with open(file_name, encoding='utf-8') as f:
         for line in f:
-            line=get_cloze(normalizeString2(line, choices=True))
+            line=get_cloze(normalizeString(line, choices=True))
             choices.append(line.split(' ### '))     #選択肢を区切る文字列
 
     return choices
@@ -1280,41 +1259,12 @@ if __name__ == '__main__':
     my_encoder = EncoderRNN(vocab.n_words, EMB_DIM, HIDDEN_DIM, weights_matrix).to(my_device)
     my_decoder = AttnDecoderRNN2(EMB_DIM, HIDDEN_DIM, ATTN_DIM, vocab.n_words, weights_matrix).to(my_device)
 
-    #学習時
-    if args.mode == 'all' or args.mode == 'mini':
-        train_cloze=CLOTH_path+'CLOTH_train_cloze.txt'
-        train_ans=CLOTH_path+'CLOTH_train_ans.txt'
+    save_path=args.model_dir+'/'
 
-        val_cloze=CLOTH_path+'CLOTH_valid_cloze.txt'
-        val_ans=CLOTH_path+'CLOTH_valid_ans.txt'
+    my_encoder.load_state_dict(torch.load(save_path+args.encoder))
+    my_decoder.load_state_dict(torch.load(save_path+args.decoder))
 
-        #all_data=readData(train_cloze, train_ans)
-        print("Reading data...")
-        train_X=readData2(train_cloze)
-        train_Y=readData2(train_ans)
-        val_X=readData2(val_cloze)
-        val_Y=readData2(val_ans)
-
-        train_data = (train_X, train_Y)
-        val_data = (val_X, val_Y)
-
-        #モデルとか結果とかを格納するディレクトリの作成
-        save_path=save_path+args.mode+'_seq2seqCLOTH'
-        if os.path.exists(save_path)==False:
-            os.mkdir(save_path)
-        save_path=save_path+'/'
-
-        # 3.学習
-        my_encoder, my_decoder = trainIters(vocab, my_encoder, my_decoder, train_data, val_data, n_iters=args.epoch, saveModel=True)
-
-    #すでにあるモデルでテスト時
-    else:
-        save_path=args.model_dir+'/'
-
-        my_encoder.load_state_dict(torch.load(save_path+args.encoder))
-        my_decoder.load_state_dict(torch.load(save_path+args.decoder))
-
-        save_path=save_path+today_str
+    save_path=save_path+today_str
 
     # 4.評価
     center_cloze=git_data_path+'center_cloze.txt'
