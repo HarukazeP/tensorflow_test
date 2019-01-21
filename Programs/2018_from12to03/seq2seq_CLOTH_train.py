@@ -71,6 +71,7 @@ PAD_token = 0
 SOS_token = 1
 EOS_token = 2
 UNK_token = 3
+NUM_token = 4
 
 #事前処理いろいろ
 print('Start: '+today_str)
