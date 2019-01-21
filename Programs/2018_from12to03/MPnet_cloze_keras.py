@@ -1346,7 +1346,7 @@ if __name__ == '__main__':
         models=['plus_CAR', 'replace_CAR', 'plus_KenLM', 'plus_both' , 'replace_KenLM', 'replace_both']
 
         #済
-        #'origin', 
+        #'origin',
 
         for my_model_kind in models:
 
@@ -1369,6 +1369,7 @@ if __name__ == '__main__':
             print('Train end')
 
             # 4.評価
+            print(my_model_kind)
             model_test(clothNg, vocab, model, center_cloze, center_choi, center_ans, my_model_kind, data_name='center', file_output=is_out)
 
 
