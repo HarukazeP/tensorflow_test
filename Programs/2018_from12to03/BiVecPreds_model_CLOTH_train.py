@@ -218,91 +218,6 @@ sudo apt-get autoremove --purge linux-headers-4.4.0-21-generic
         return new_path
 
 
-    #fasttextのベクトルファイルから単語辞書とベクトル辞書の作成
-    def vec_to_dict(vec_path):
-        print('Loading fasttext vec ...')
-        s=set()
-        word_indices=dict()
-        indices_word=dict()
-        vec_dict=dict()
-        i=0
-        text=''
-        with open(vec_path,'r') as f:
-            for line in f:
-                if i!=0:
-                    #先頭行には単語数と次元数が書かれているので無視
-                    line=line.replace('\n', '').replace('\r','')
-                    if line[-1]==' ':
-                        line=line[:-1]
-                    tmp_list=line.split(' ')
-                    word=tmp_list[0]
-                    str_list=tmp_list[1:]
-                    #辞書の作成
-                    #0番目はパディング用の数字なので使わないことに注意
-                    word_indices[word]=i
-                    indices_word[i]=word
-                    vec_dict[word]=np.array(str_list, dtype=np.float32)
-                i+=1
-
-        word_indices['#OTHER']=i
-        indices_word[i]='#OTHER'
-        len_words=i
-        return len_words, word_indices, indices_word, vec_dict
-
-
-    #fasttextのベクトルを得る
-    #未知語の場合にはfasttextのモデル呼び出して実行
-    #未知語は集合に格納し，あとでファイル出力
-    def get_ft_vec(word, vec_dict, ft_path, bin_path):
-        if word in vec_dict:
-            return vec_dict[word]
-        elif word in tmp_vec_dict:
-            return tmp_vec_dict[word]
-        else:
-            KeyError_set.add(word)    #要素を追加
-            cmd='echo "'+word+'" | '+ft_path+' print-word-vectors '+bin_path
-            ret  =  subprocess.check_output(cmd, shell=True)
-            line=ret.replace('\n', '').replace('\r','')
-            if line[0]==' ':
-                line=line[1:]
-            if line[-1]==' ':
-                line=line[:-1]
-            tmp_list=line.split(' ')
-            word=tmp_list[0]
-            vec=tmp_list[1:]
-            vec_array=np.array(vec,dtype=np.float32)
-            tmp_vec_dict[word]=vec_array
-
-            return vec_array
-
-
-    # モデルの構築
-    def build_model(len_words, embedding_matrix):
-        f_input=Input(shape=(maxlen_words,))
-        f_emb=Embedding(output_dim=vec_size, input_dim=len_words+1, input_length=maxlen_words, mask_zero=True, weights=[embedding_matrix], trainable=False)(f_input)
-
-        f_full=Dense(vec_size,activation='relu')(f_emb)
-        f_layer=LSTM(128)(f_full)
-
-        r_input=Input(shape=(maxlen_words,))
-        r_emb=Embedding(output_dim=vec_size, input_dim=len_words+1, input_length=maxlen_words, mask_zero=True, weights=[embedding_matrix], trainable=False)(r_input)
-
-        r_full=Dense(vec_size,activation='relu')(r_emb)
-        r_layer=LSTM(128)(r_full)
-
-
-        merged_layer=add([f_layer, r_layer])
-
-        out_layer=Dense(vec_size,activation='relu')(merged_layer)
-
-
-        my_model=Model([f_input, r_input], out_layer)
-
-        optimizer = RMSprop()
-        my_model.compile(loss='mean_squared_error', optimizer=optimizer)
-
-        return my_model
-
 
     #単語から辞書IDを返す
     def search_word_indices(word, word_to_id):
@@ -640,20 +555,6 @@ sudo apt-get autoremove --purge linux-headers-4.4.0-21-generic
     #----- main部 -----
     if __name__ == '__main__':
 
-        # 0.いろいろ前準備
-        #開始時刻のプリント
-        start_time=print_time('all start')
-        start_time_str = start_time.strftime('%Y_%m_%d_%H%M')
-
-        #モデルとか結果とかを格納するディレクトリの作成
-        today_str=start_time_str+'epoch'+str(my_epoch)
-        program_name=os.path.basename(__file__)
-        settings=program_name[program_name.find('_e'):-3]
-        today_str=today_str+settings
-        if os.path.exists(today_str)==False:
-            os.mkdir(today_str)
-        today_str='./'+today_str+'/'
-
         #学習データの候補
 
 
@@ -662,33 +563,6 @@ sudo apt-get autoremove --purge linux-headers-4.4.0-21-generic
         print('Loading  '+tmp_path)
         #train_path=preprocess(tmp_path)
         train_path='../corpus/text8_preprpcessed50000_small.txt'
-
-
-        # 2.fasttextのロードと辞書の作成
-        '''
-        https://github.com/facebookresearch/fastText
-        このfastextを事前に実行しておき，その結果を利用
-        '''
-        ft_path='../../FastText/fastText-0.1.0/fasttext'
-
-        #ベクトルファイルの候補
-        vec_enwiki='../../FastText/Model/enwiki_dim'+str(vec_size)+'_minC0.vec'
-        bin_enwiki='../../FastText/Model/enwiki_dim'+str(vec_size)+'_minC0.bin'
-        vec_text8='../../FastText/Model/text8_dim'+str(vec_size)+'_minC0.vec'
-        bin_text8='../../FastText/Model/text8_dim'+str(vec_size)+'_minC0.bin'
-
-        #実際に使うもの
-        vec_path=vec_text8
-        bin_path=bin_text8
-
-        len_words, word_to_id, id_to_word, vec_dict=vec_to_dict(vec_path)
-
-        #embeddingで用いる，単語から行列への変換行列
-        embedding_matrix = np.zeros((len_words+1, vec_size))
-        for i in range(len_words):
-            if i!=0:
-                #IDが0の単語が存在しないので0は飛ばす
-                embedding_matrix[i] = get_ft_vec(id_to_word[i], vec_dict, ft_path, bin_path)
 
 
         end_data=print_time('prepare data and fasttext end')
@@ -1028,136 +902,65 @@ def ans_to_ids(lang, ans, choices):
     return ids
 
 
-#Googleのword2vec読み取り
-def get_weight_matrix(lang):
-    print('Loading word vector ...')
-    '''
-    #ここのgensimの書き方がバージョンによって異なる
-    vec_model = gensim.models.KeyedVectors.load_word2vec_format(file_path+'GoogleNews-vectors-negative300.bin', binary=True)
-    # ttps://code.google.com/archive/p/word2vec/ ここからダウンロード&解凍
-    '''
+#fasttextのベクトルファイルから単語辞書とベクトル辞書の作成
+def vec_to_dict(vec_path):
+    print('Loading fasttext vec ...')
+    s=set()
+    word_indices=dict()
+    indices_word=dict()
+    vec_dict=dict()
+    i=0
+    text=''
+    with open(vec_path,'r') as f:
+        for line in f:
+            if i!=0:
+                #先頭行には単語数と次元数が書かれているので無視
+                line=line.strip()
+                tmp_list=line.split(' ')
+                word=tmp_list[0]
+                str_list=tmp_list[1:]
+                #辞書の作成
+                #0番目はパディング用の数字なので使わないことに注意
+                word_indices[word]=i
+                indices_word[i]=word
+                vec_dict[word]=np.array(str_list, dtype=np.float)
+            i+=1
+
+    word_indices['#OTHER']=i
+    indices_word[i]='#OTHER'
+    len_words=i
+    return len_words, word_indices, indices_word, vec_dict
 
 
-    '''
-    Gloveのベクトル使用
-    ttps://nlp.stanford.edu/projects/glove/
+#fasttextのベクトルを得る
+#未知語の場合にはfasttextのモデル呼び出して実行
+#未知語は集合に格納し，あとでファイル出力
+def get_ft_vec(word, vec_dict, ft_path, bin_path):
+    if word in vec_dict:
+        return vec_dict[word]
+    elif word in tmp_vec_dict:
+        return tmp_vec_dict[word]
+    else:
+        KeyError_set.add(word)    #要素を追加
+        cmd='echo "'+word+'" | '+ft_path+' print-word-vectors '+bin_path
+        ret  =  subprocess.check_output(cmd, shell=True)
+        line=ret.replace('\n', '').replace('\r','')
+        if line[0]==' ':
+            line=line[1:]
+        if line[-1]==' ':
+            line=line[:-1]
+        tmp_list=line.split(' ')
+        word=tmp_list[0]
+        vec=tmp_list[1:]
+        vec_array=np.array(vec,dtype=np.float32)
+        tmp_vec_dict[word]=vec_array
 
-    事前に↓これしておく
-    from gensim.scripts.glove2word2vec import glove2word2vec
-    glove2word2vec(glove_input_file="glove.6B.300d.txt", word2vec_output_file="gensim_glove_vectors.txt")
-    '''
-    vec_model =gensim.models.KeyedVectors.load_word2vec_format(file_path+'gensim_glove_vectors.txt', binary=False)
-
-    weights_matrix = np.zeros((lang.n_words, EMB_DIM))
-
-    for i, word in lang.index2word.items():
-        try:
-            weights_matrix[i] = vec_model.wv[word] #gensimのword2vec
-
-        except KeyError:
-            weights_matrix[i] = np.random.normal(size=(EMB_DIM, ))
-
-    del vec_model
-    #これメモリ解放的なことらしい、なくてもいいかも
-
-    #パディングのところを初期化
-    #Emneddingで引数のpad_index指定は、そこだけ更新(微分)しないらしい？
-    weights_matrix[PAD_token]=np.zeros(EMB_DIM)
-
-    return weights_matrix
-
-
-
-    #fasttextのベクトルファイルから単語辞書とベクトル辞書の作成
-    def vec_to_dict(vec_path):
-        print('Loading fasttext vec ...')
-        s=set()
-        word_indices=dict()
-        indices_word=dict()
-        vec_dict=dict()
-        i=0
-        text=''
-        with open(vec_path,'r') as f:
-            for line in f:
-                if i!=0:
-                    #先頭行には単語数と次元数が書かれているので無視
-                    line=line.replace('\n', '').replace('\r','')
-                    if line[-1]==' ':
-                        line=line[:-1]
-                    tmp_list=line.split(' ')
-                    word=tmp_list[0]
-                    str_list=tmp_list[1:]
-                    #辞書の作成
-                    #0番目はパディング用の数字なので使わないことに注意
-                    word_indices[word]=i
-                    indices_word[i]=word
-                    vec_dict[word]=np.array(str_list, dtype=np.float32)
-                i+=1
-
-        word_indices['#OTHER']=i
-        indices_word[i]='#OTHER'
-        len_words=i
-        return len_words, word_indices, indices_word, vec_dict
-
-
-    #fasttextのベクトルを得る
-    #未知語の場合にはfasttextのモデル呼び出して実行
-    #未知語は集合に格納し，あとでファイル出力
-    def get_ft_vec(word, vec_dict, ft_path, bin_path):
-        if word in vec_dict:
-            return vec_dict[word]
-        elif word in tmp_vec_dict:
-            return tmp_vec_dict[word]
-        else:
-            KeyError_set.add(word)    #要素を追加
-            cmd='echo "'+word+'" | '+ft_path+' print-word-vectors '+bin_path
-            ret  =  subprocess.check_output(cmd, shell=True)
-            line=ret.replace('\n', '').replace('\r','')
-            if line[0]==' ':
-                line=line[1:]
-            if line[-1]==' ':
-                line=line[:-1]
-            tmp_list=line.split(' ')
-            word=tmp_list[0]
-            vec=tmp_list[1:]
-            vec_array=np.array(vec,dtype=np.float32)
-            tmp_vec_dict[word]=vec_array
-
-            return vec_array
-
-
-
-
-
-
+        return vec_array
 
 
 ###########################
 # 2.モデル定義
 ###########################
-
-# Reshape処理とかの前にこれを挟まないとエラーでる
-'''
-Layer reshape_1 does not support masking, but was passed an input_mask
-ttps://github.com/keras-team/keras/issues/4978
-'''
-class NonMasking(Layer):
-    def __init__(self, **kwargs):
-        self.supports_masking = True
-        super(NonMasking, self).__init__(**kwargs)
-
-    def build(self, input_shape):
-        input_shape = input_shape
-
-    def compute_mask(self, input, input_mask=None):
-        # do not pass the mask to the next layers
-        return None
-
-    def call(self, x, mask=None):
-        return x
-
-    def get_output_shape_for(self, input_shape):
-        return input_shape
 
 # モデルの構築
 def build_model(len_words, embedding_matrix):
@@ -1190,8 +993,22 @@ def build_model(len_words, embedding_matrix):
 # 3.モデルの学習
 ###########################
 
+#空所等を含まない英文のデータから，モデルの入出力を作成
 def make_data(file_path):
+    f_X=[]
+    r_X=[]
+    Y=[]
 
+    #TODO
+    #まだ途中
+
+
+
+    f=np.array(f_X, dtype=np.int)
+    r=np.array(r_X, dtype=np.int)
+    y=np.array(Y, dtype=np.float)
+
+    return f, r, y
 
 
 #checkpoint で保存された最新のモデル(ベストモデルをロード)
@@ -1355,25 +1172,31 @@ if __name__ == '__main__':
     args = get_args()
     print(args.mode)
     epoch=args.epoch
-    my_model_kind=args.model_kind
 
-    # 1.語彙データ読み込み
-    vocab_path=file_path+'enwiki_vocab30000.txt'
-    vocab = readVocab(vocab_path)
 
-    #Ngram couhnt集計
-    train_ans=CLOTH_path+'CLOTH_train_ans.txt'
-    clothNg=Ngram()
-    clothNg.read_file_first(train_ans)
+    # 2.fasttextのロードと辞書の作成
+    '''
+    https://github.com/facebookresearch/fastText
+    このfastextを事前に実行しておき，その結果を利用
+    '''
+    ft_path='../../FastText/fastText-0.1.0/fasttext'
 
-    if args.mode == 'all' or args.mode == 'train_loop':
-        weights_matrix = get_weight_matrix(vocab)
-    else:
-        weights_matrix = np.zeros((vocab.n_words, EMB_DIM))
+    #ベクトルファイル
+    vec_path='../../FastText/Model/text8_dim'+str(vec_size)+'_minC0.vec'
+    bin_path='../../FastText/Model/text8_dim'+str(vec_size)+'_minC0.bin'
+
+    len_words, word_to_id, id_to_word, vec_dict=vec_to_dict(vec_path)
+
+    weights_matrix = np.zeros((len_words+1, vec_size))
+    if args.mode == 'all':
+        for i in range(len_words):
+            if i!=0:
+                #IDが0の単語が存在しないので0は飛ばす
+                weights_matrix[i] = get_ft_vec(id_to_word[i], vec_dict, ft_path, bin_path)
 
     #通常時
     # 2.モデル定義
-    model = build_model(vocab.n_words, EMB_DIM, HIDDEN_DIM, weights_matrix)
+    model = build_model(len_words, weights_matrix)
 
     #学習時
     if args.mode == 'all' or args.mode == 'mini':

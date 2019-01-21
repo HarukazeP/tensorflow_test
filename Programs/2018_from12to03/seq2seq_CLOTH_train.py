@@ -550,8 +550,8 @@ def timeSince(since, percent):
 
 #学習をn_iters回，残り時間の算出をlossグラフの描画も
 def trainIters(lang, encoder, decoder, train_pairs, val_pairs, n_iters, print_every=10, learning_rate=0.01, saveModel=False):
-    print("Training...")
     start = time.time()
+    print("Training...", start)
     plot_losses = []
     print_loss_total = 0  # Reset every print_every
     plot_loss_total = 0
@@ -571,16 +571,27 @@ def trainIters(lang, encoder, decoder, train_pairs, val_pairs, n_iters, print_ev
 
     X_train=[pad_indexes(lang, s) for s in train_pairs[0]]
     y_train=[pad_indexes(lang, s) for s in train_pairs[1]]
+
+    print("pad_index train end", time.time())
+
     X_val=[pad_indexes(lang, s) for s in val_pairs[0]]
     y_val=[pad_indexes(lang, s) for s in val_pairs[1]]
+
+    print("pad_index val end", time.time())
 
     train_data_num=len(X_train)
     val_data_num=len(X_val)
 
     X_train=torch.tensor(X_train, dtype=torch.long, device=my_device)
     y_train=torch.tensor(y_train, dtype=torch.long, device=my_device)
+
+    print("tensor train end", time.time())
+
     X_val=torch.tensor(X_val, dtype=torch.long, device=my_device)
     y_val=torch.tensor(y_val, dtype=torch.long, device=my_device)
+
+    print("tensor val end", time.time())
+
     '''
     X_train=torch.tensor(X_train, dtype=torch.long, device=my_CPU)
     y_train=torch.tensor(y_train, dtype=torch.long, device=my_CPU)
@@ -593,10 +604,8 @@ def trainIters(lang, encoder, decoder, train_pairs, val_pairs, n_iters, print_ev
     loader_train = DataLoader(ds_train, batch_size=BATCH_SIZE, shuffle=True)
     loader_val = DataLoader(ds_val, batch_size=BATCH_SIZE, shuffle=False)
 
-
-
     criterion = nn.NLLLoss(ignore_index=PAD_token)
-    print("Training start...")
+    print("Training start...", time.time())
 
     for iter in range(1, n_iters + 1):
         for x, y in loader_train:
