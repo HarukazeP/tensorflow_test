@@ -551,7 +551,7 @@ def timeSince(since, percent):
 #学習をn_iters回，残り時間の算出をlossグラフの描画も
 def trainIters(lang, encoder, decoder, train_pairs, val_pairs, n_iters, print_every=10, learning_rate=0.01, saveModel=False):
     start = time.time()
-    print("Training...", start)
+    print("Training...", datetime.datetime.today())
     plot_losses = []
     print_loss_total = 0  # Reset every print_every
     plot_loss_total = 0

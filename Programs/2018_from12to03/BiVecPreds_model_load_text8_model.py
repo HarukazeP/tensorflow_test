@@ -435,6 +435,8 @@ if __name__ == '__main__':
     https://github.com/facebookresearch/fastText
     このfastextを事前に実行しておき，その結果を利用
     '''
+
+    #TODO fastText系のパス
     ft_path='../../FastText/fastText-0.1.0/fasttext'
 
     #ベクトルファイルの候補
