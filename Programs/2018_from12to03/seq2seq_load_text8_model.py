@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
 
 '''
-pytorchのseq2seqチュートリアルを改変
-seq2seq_attention_batch_new_model.py から変更
-Embedding層に学習済みベクトルを利用
 
+seq2seq_attention_pretrain_vec.py から変更
+入力が40字以上だったときに打ち切るやつ追加
+#TODO ↑まだ未実装
 
 動かしていたバージョン
 python  : 3.5.2 / 3.6.5
@@ -1255,7 +1255,7 @@ if __name__ == '__main__':
     vocab = readVocab(vocab_path)
 
     # 2.モデル定義
-    weights_matrix=get_weight_matrix(vocab)
+    weights_matrix = np.zeros((vocab.n_words, EMB_DIM)) #ロードだから読みこまなくてOK
     my_encoder = EncoderRNN(vocab.n_words, EMB_DIM, HIDDEN_DIM, weights_matrix).to(my_device)
     my_decoder = AttnDecoderRNN2(EMB_DIM, HIDDEN_DIM, ATTN_DIM, vocab.n_words, weights_matrix).to(my_device)
 

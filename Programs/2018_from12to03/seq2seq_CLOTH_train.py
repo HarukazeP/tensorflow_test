@@ -80,7 +80,7 @@ if torch.cuda.is_available():
     print('Use GPU')
 else:
     my_device= torch.device("cpu")
-my_CPU=torch.device("cpu")
+#my_CPU=torch.device("cpu")
 #----- 関数群 -----
 
 
@@ -576,7 +576,7 @@ def trainIters(lang, encoder, decoder, train_pairs, val_pairs, n_iters, print_ev
 
     train_data_num=len(X_train)
     val_data_num=len(X_val)
-    '''
+
     X_train=torch.tensor(X_train, dtype=torch.long, device=my_device)
     y_train=torch.tensor(y_train, dtype=torch.long, device=my_device)
     X_val=torch.tensor(X_val, dtype=torch.long, device=my_device)
@@ -586,7 +586,7 @@ def trainIters(lang, encoder, decoder, train_pairs, val_pairs, n_iters, print_ev
     y_train=torch.tensor(y_train, dtype=torch.long, device=my_CPU)
     X_val=torch.tensor(X_val, dtype=torch.long, device=my_CPU)
     y_val=torch.tensor(y_val, dtype=torch.long, device=my_CPU)
-
+    '''
     ds_train = TensorDataset(X_train, y_train)
     ds_val = TensorDataset(X_val, y_val)
 
@@ -605,8 +605,8 @@ def trainIters(lang, encoder, decoder, train_pairs, val_pairs, n_iters, print_ev
             y:(バッチサイズ, 文長)
             からembedding層の入力に合うようにtransposeで入れ替え
             '''
-            x=x.transpose(0,1).to(my_device)
-            y=y.transpose(0,1).to(my_device)
+            x=x.transpose(0,1) #.to(my_device)
+            y=y.transpose(0,1) #.to(my_device)
             loss = batch_train(x, y, encoder, decoder, encoder_optimizer, decoder_optimizer, criterion)
 
             loss=loss*x.size(1)
@@ -616,8 +616,8 @@ def trainIters(lang, encoder, decoder, train_pairs, val_pairs, n_iters, print_ev
         #ここで学習1回分終わり
 
         for x, y in loader_val:
-            x=x.transpose(0,1).to(my_device)
-            y=y.transpose(0,1).to(my_device)
+            x=x.transpose(0,1) #.to(my_device)
+            y=y.transpose(0,1) #.to(my_device)
             val_loss = batch_valid(x, y, encoder, decoder, criterion, lang)
 
             val_loss=val_loss*x.size(1)
