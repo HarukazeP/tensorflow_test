@@ -1284,8 +1284,8 @@ if __name__ == '__main__':
         train_cloze=CLOTH_path+'CLOTH_train_cloze.txt'
         train_ans=CLOTH_path+'CLOTH_train_ans.txt'
 
-        valid_cloze=CLOTH_path+'CLOTH_valid_cloze.txt'
-        valid_ans=CLOTH_path+'CLOTH_valid_ans.txt'
+        val_cloze=CLOTH_path+'CLOTH_valid_cloze.txt'
+        val_ans=CLOTH_path+'CLOTH_valid_ans.txt'
 
         #all_data=readData(train_cloze, train_ans)
         print("Reading data...")
