@@ -4,13 +4,13 @@
 seq2seqモデル
 CLOTHデータセットで学習
 seq2seq2seq_attention_pretrain_vec.py から改変
+前処理部分の変更
+MAX_LENGTHを80に
 
 CLOTH用の前処理
 
 pytorch
 
-#TODO まだ未作成、まだ何も手つけてない
-とりあえずseq2seq_pretrain_vecのやつコピペした状態
 
 動かしていたバージョン
 python  : 3.5.2 / 3.6.5
@@ -54,7 +54,7 @@ import gensim
 import nltk
 
 #----- グローバル変数一覧 -----
-MAX_LENGTH = 40
+MAX_LENGTH = 80
 HIDDEN_DIM = 128
 ATTN_DIM = 128
 EMB_DIM = 300
@@ -63,6 +63,7 @@ BATCH_SIZE = 128
 #自分で定義したグローバル関数とか
 file_path='../../../pytorch_data/'
 git_data_path='../../Data/'
+CLOTH_path = file_path+'CLOTH_for_model/'
 today1=datetime.datetime.today()
 today_str=today1.strftime('%m_%d_%H%M')
 save_path=file_path + today_str
@@ -1087,13 +1088,13 @@ def output_preds(file_name, preds):
 
 def print_score(line, allOK, clozeOK, partOK, BLEU, miss):
     print('  acc(all): ', '{0:.2f}'.format(1.0*allOK/line*100),' %')
-    print('acc(cloze): ', '{0:.2f}'.format(1.0*clozeOK/line*100),' %')
-    print(' acc(part): ', '{0:.2f}'.format(1.0*partOK/line*100),' %')
+    #print('acc(cloze): ', '{0:.2f}'.format(1.0*clozeOK/line*100),' %')
+    #print(' acc(part): ', '{0:.2f}'.format(1.0*partOK/line*100),' %')
 
-    print(' BLEU: ','{0:.2f}'.format(BLEU*100.0))
+    #print(' BLEU: ','{0:.2f}'.format(BLEU*100.0))
     print('  all: ', allOK)
-    print('cloze: ',clozeOK)
-    print(' part: ',partOK)
+    #print('cloze: ',clozeOK)
+    #print(' part: ',partOK)
     print(' line: ',line)
     print(' miss: ',miss)
 
@@ -1274,42 +1275,24 @@ if __name__ == '__main__':
 
     #学習時
     if args.mode == 'all' or args.mode == 'mini':
-        #train_cloze=file_path+'tmp_cloze.txt'
-        #train_ans=file_path+'tmp_ans.txt'
+        train_cloze=CLOTH_path+'CLOTH_train_cloze.txt'
+        train_ans=CLOTH_path+'CLOTH_train_ans.txt'
 
-        #text8全体
-        train_cloze=file_path+'text8_cloze.txt'
-        train_ans=file_path+'text8_ans.txt'
-        '''
-        #enwiki1GB
-        train_cloze='/media/tamaki/HDCL-UT/tamaki/M2/data_for_seq2seq/enwiki1GB_seq2seq_c.txt'
-        train_ans='/media/tamaki/HDCL-UT/tamaki/M2/data_for_seq2seq/enwiki1GB_seq2seq_ans.txt'
-        '''
-        if args.mode == 'mini':
-            #合同ゼミ
-            train_cloze=file_path+'text8_cloze50000.txt'
-            train_ans=file_path+'text8_ans50000.txt'
+        valid_cloze=CLOTH_path+'CLOTH_valid_cloze.txt'
+        valid_ans=CLOTH_path+'CLOTH_valid_ans.txt'
 
         #all_data=readData(train_cloze, train_ans)
         print("Reading data...")
-        all_X=readData2(train_cloze)
-        all_Y=readData2(train_ans)
-
-
-        if args.mode == 'mini':
-            #all_data=all_data[:20]
-            all_X=all_X[:20]
-            all_Y=all_Y[:20]
-
-        #train_data, val_data = train_test_split(all_data, test_size=0.1)
-        train_X, val_X = train_test_split(all_X, test_size=0.1)
-        train_Y, val_Y = train_test_split(all_Y, test_size=0.1)
+        train_X=readData2(train_cloze)
+        train_Y=readData2(train_ans)
+        val_X=readData2(val_cloze)
+        val_Y=readData2(val_ans)
 
         train_data = (train_X, train_Y)
         val_data = (val_X, val_Y)
 
         #モデルとか結果とかを格納するディレクトリの作成
-        save_path=save_path+args.mode+'_seq2seq'
+        save_path=save_path+args.mode+'_seq2seqCLOTH'
         if os.path.exists(save_path)==False:
             os.mkdir(save_path)
         save_path=save_path+'/'
@@ -1359,13 +1342,6 @@ if __name__ == '__main__':
     CLOTH_middle_data=readData(CLOTH_middle_cloze, CLOTH_middle_ans)
     CLOTH_middle_choices=get_choices(CLOTH_middle_choi)
 
-    if args.mode == 'mini' or args.mode == 'mini_test':
-        center_data=center_data[:5]
-        center_choices=center_choices[:5]
-        MS_data=MS_data[:5]
-        MS_choices=MS_choices[:5]
-
-
     #テストデータに対する予測と精度の計算
     #選択肢を使ったテスト
     #これは前からの予測
@@ -1386,6 +1362,5 @@ if __name__ == '__main__':
 
     print('CLOTH_middle')
     test_choices(vocab, my_encoder, my_decoder, CLOTH_middle_data, CLOTH_middle_choices, saveAttention=False, file_output=True)
-
     #これは文スコア
     test_choices_by_sent_score(vocab, my_encoder, my_decoder, CLOTH_middle_data, CLOTH_middle_choices, saveAttention=False, file_output=False)
