@@ -925,7 +925,7 @@ class Ngram():
         return n1, n2, n3, n4
 
 
-    def make_CAR_X(self, cloze_list, choices_list):
+    def make_CAR_X(self, lang, cloze_list, choices_list):
         CAR_sent1=[]
         CAR_sent2=[]
         CAR_sent3=[]
@@ -933,10 +933,10 @@ class Ngram():
 
         for cloze_sent, choices in zip(cloze_list, choices_list):
             s1, s2, s3, s4=self.make_sents(cloze_sent, choices)
-            CAR_sent1.append(sent_to_ids_cloze(s1))
-            CAR_sent2.append(sent_to_ids_cloze(s2))
-            CAR_sent3.append(sent_to_ids_cloze(s3))
-            CAR_sent4.append(sent_to_ids_cloze(s4))
+            CAR_sent1.append(sent_to_ids_cloze(lang, s1))
+            CAR_sent2.append(sent_to_ids_cloze(lang, s2))
+            CAR_sent3.append(sent_to_ids_cloze(lang, s3))
+            CAR_sent4.append(sent_to_ids_cloze(lang, s4))
 
         CAR1=np.array(CAR_sent1, dtype=np.int)
         CAR2=np.array(CAR_sent2, dtype=np.int)
@@ -1002,8 +1002,8 @@ def trainIters(ngram, lang, model, train_pairs, val_pairs, my_model_kind, n_iter
 
     # 自作拡張: 空所補充文Attentive Reader 用の入力
     if use_CAR==1:
-        CAR_sent1_train, CAR_sent2_train, CAR_sent3_train, CAR_sent4_train=ngram.make_CAR_X(train_pairs[0], train_pairs[1])
-        CAR_sent1_val, CAR_sent2_val, CAR_sent3_val, CAR_sent4_val=ngram.make_CAR_X(val_pairs[0], val_pairs[1])
+        CAR_sent1_train, CAR_sent2_train, CAR_sent3_train, CAR_sent4_train=ngram.make_CAR_X(lang, train_pairs[0], train_pairs[1])
+        CAR_sent1_val, CAR_sent2_val, CAR_sent3_val, CAR_sent4_val=ngram.make_CAR_X(lang, val_pairs[0], val_pairs[1])
 
         X_train.extend([CAR_sent1_train, CAR_sent2_train, CAR_sent3_train, CAR_sent4_train])
         X_val.extend([CAR_sent1_val, CAR_sent2_val, CAR_sent3_val, CAR_sent4_val])
@@ -1145,7 +1145,7 @@ def model_test(ngram, lang, model, cloze_path, choices_path, ans_path, my_model_
 
     # 自作拡張: 空所補充文Attentive Reader 用の入力
     if use_CAR==1:
-        CAR_sent1_test, CAR_sent2_test, CAR_sent3_test, CAR_sent4_test=ngram.make_CAR_X(test_X, test_C)
+        CAR_sent1_test, CAR_sent2_test, CAR_sent3_test, CAR_sent4_test=ngram.make_CAR_X(lang, test_X, test_C)
 
         X_test.extend([CAR_sent1_test, CAR_sent2_test, CAR_sent3_test, CAR_sent4_test])
 
@@ -1343,7 +1343,10 @@ if __name__ == '__main__':
         is_out=True    #ファイル出力一括設定用
 
         # 2.モデル定義
-        models=['origin', 'plus_CAR', 'replace_CAR', 'plus_KenLM', 'plus_both' , 'replace_KenLM', 'replace_both']
+        models=['plus_CAR', 'replace_CAR', 'plus_KenLM', 'plus_both' , 'replace_KenLM', 'replace_both']
+
+        #済
+        #'origin', 
 
         for my_model_kind in models:
 
