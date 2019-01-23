@@ -662,7 +662,7 @@ if __name__ == '__main__':
     https://github.com/facebookresearch/fastText
     このfastextを事前に実行しておき，その結果を利用
     '''
-    #TODO fastText系のパス
+    #todo fastText系のパス
     ft_path='../../FastText/fastText-0.1.0/fasttext'
 
     #ベクトルファイル
@@ -692,13 +692,13 @@ if __name__ == '__main__':
         if os.path.exists(save_path)==False:
             os.mkdir(save_path)
         save_path=save_path+'/'
-        plot_model(model, to_file=save_path+'model_'+args.model_kind+'.png', show_shapes=True)
+        plot_model(model, to_file=save_path+'BiVecPresModel.png', show_shapes=True)
         #model.summary()
 
         # 3.学習
         model = trainIters(model, train_data, val_data, len_words, word_to_id, vec_dict, ft_path, bin_path, n_iters=epoch, saveModel=True)
         print('Train end')
-
+        exit()
     #すでにあるモデルでテスト時
     else:
         save_path=args.model_dir+'/'
