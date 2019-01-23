@@ -369,7 +369,7 @@ def make_data(file_path, len_words, word_to_id, id_to_word, vec_dict, ft_path, b
             f, r, y=tokens_to_data(tokens, len_words, word_to_id, id_to_word, vec_dict, ft_path, bin_path)
             f_X_list.append(f)
             r_X_list.append(r)
-            Y_X_list.append(y)
+            Y_list.append(y)
 
     f_X=np.array(f_X_list, dtype=np.int)
     r_X=np.array(r_X_list, dtype=np.int)
