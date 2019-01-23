@@ -663,11 +663,11 @@ if __name__ == '__main__':
     このfastextを事前に実行しておき，その結果を利用
     '''
     #todo fastText系のパス
-    ft_path='../../FastText/fastText-0.1.0/fasttext'
+    ft_path='/home/ohtalab/tamaki/FastText/fastText-0.1.0/fasttext'
 
     #ベクトルファイル
-    vec_path='../../FastText/Model/text8_dim'+str(vec_size)+'_minC0.vec'
-    bin_path='../../FastText/Model/text8_dim'+str(vec_size)+'_minC0.bin'
+    vec_path='/home/ohtalab/tamaki/FastText/Model/text8_dim'+str(vec_size)+'_minC0.vec'
+    bin_path='/home/ohtalab/tamaki/FastText/Model/text8_dim'+str(vec_size)+'_minC0.bin'
 
     len_words, word_to_id, id_to_word, vec_dict=vec_to_dict(vec_path)
 
