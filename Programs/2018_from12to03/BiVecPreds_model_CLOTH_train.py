@@ -47,7 +47,7 @@ from keras.models import Model, model_from_json, load_model
 from keras.layers import Dense, Activation, Input, Embedding
 from keras.layers import LSTM
 from keras.layers import add, concatenate, multiply
-from keras.utils.vis_utils import plot_model
+#from keras.utils.vis_utils import plot_model
 from keras.callbacks import ModelCheckpoint
 from keras import optimizers
 
@@ -61,12 +61,12 @@ import subprocess
 
 #----- グローバル変数一覧 -----
 
-my_epoch=100
 vec_size=100
 maxlen_words = 5
 KeyError_set=set()
 today_str=''
 tmp_vec_dict=dict()
+BATCH_SIZE=256
 
 file_path='../../../pytorch_data/'
 git_data_path='../../Data/'
@@ -333,6 +333,7 @@ def tokens_to_data(tokens, len_words, word_to_id, id_to_word, vec_dict, ft_path,
     r_X = []
     Y = []
     len_text=len(tokens)
+    leng=0
 
     ids=[]
     for word in tokens:
@@ -365,10 +366,9 @@ def make_data(file_path, len_words, word_to_id, id_to_word, vec_dict, ft_path, b
         for line in f:
             tokens=preprocess(line)
             f, r, y=tokens_to_data(tokens, len_words, word_to_id, id_to_word, vec_dict, ft_path, bin_path)
-            f_X_list.append(f)
-            r_X_list.append(r)
-            Y_list.append(y)
-
+            f_X_list.extend(f)
+            r_X_list.extend(r)
+            Y_list.extend(y)
     f_X=np.array(f_X_list, dtype=np.int)
     r_X=np.array(r_X_list, dtype=np.int)
     Y=np.array(Y_list, dtype=np.float)
@@ -390,6 +390,7 @@ def getNewestModel(model):
 #学習をn_iters回，残り時間の算出をlossグラフの描画も
 def trainIters(model, train_path, val_path, len_words, word_to_id, id_to_word, vec_dict, ft_path, bin_path, n_iters=5, print_every=10, saveModel=False):
 
+    print('Make data for model...')
     f_X_train, r_X_train, Y_train=make_data(train_path, len_words, word_to_id, id_to_word, vec_dict, ft_path, bin_path)
     f_X_val, r_X_val, Y_val=make_data(val_path, len_words, word_to_id, id_to_word, vec_dict, ft_path, bin_path)
 
@@ -640,7 +641,7 @@ def get_args():
     parser.add_argument('--mode', choices=['all', 'mini', 'test', 'mini_test', 'train_loop'], default='all')
     parser.add_argument('--model_dir', help='model directory path (when load model, mode=test)')
     parser.add_argument('--model', help='model file name (when load model, mode=test)')
-    parser.add_argument('--epoch', type=int, default=30)
+    parser.add_argument('--epoch', type=int, default=100)
     parser.add_argument('--model_kind', choices=['origin', 'plus_CAR', 'plus_KenLM', 'plus_both', 'replace_CAR', 'replace_KenLM', 'replace_both'], default='origin', help='model file kind')
 
     # ほかにも引数必要に応じて追加
@@ -690,7 +691,7 @@ if __name__ == '__main__':
         if os.path.exists(save_path)==False:
             os.mkdir(save_path)
         save_path=save_path+'/'
-        plot_model(model, to_file=save_path+'BiVecPresModel.png', show_shapes=True)
+        #plot_model(model, to_file=save_path+'BiVecPresModel.png', show_shapes=True)
         #model.summary()
 
         # 3.学習
