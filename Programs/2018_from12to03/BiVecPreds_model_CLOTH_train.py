@@ -606,7 +606,7 @@ class ModelTest():
         choices_list=readChoices(choices_path)
         ans_list=readAns(ans_path)
 
-        for cloze_sent, choices, ans_word in zip(cloze_list, choices_list, ans_list)
+        for cloze_sent, choices, ans_word in zip(cloze_list, choices_list, ans_list):
             #直近予測スコア(1語のみ)
             line, OK=check_one_sent_by_near_score(cloze_sent, choices, ans_word)
             near_line+=line
