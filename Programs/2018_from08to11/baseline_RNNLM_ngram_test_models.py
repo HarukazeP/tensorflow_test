@@ -718,22 +718,37 @@ if __name__ == '__main__':
     MS_data=readData(MS_cloze, MS_ans)
     MS_choices=get_choices(MS_choi)
 
+    high_path=git_data_path+'CLOTH_test_high'
+    middle_path=git_data_path+'CLOTH_test_middle'
+
+    CLOTH_high_cloze = high_path+'_cloze.txt'
+    CLOTH_high_choi = high_path+'_choices.txt'
+    CLOTH_high_ans = high_path+'_ans.txt'
+
+    CLOTH_middle_cloze = middle_path+'_cloze.txt'
+    CLOTH_middle_choi = middle_path+'_choices.txt'
+    CLOTH_middle_ans = middle_path+'_ans.txt'
+
+    CLOTH_high_data=readData(CLOTH_high_cloze, CLOTH_high_ans)
+    CLOTH_high_choices=get_choices(CLOTH_high_choi)
+
+    CLOTH_middle_data=readData(CLOTH_middle_cloze, CLOTH_middle_ans)
+    CLOTH_middle_choices=get_choices(CLOTH_middle_choi)
+
     #テスト時なのでembedding初期値読み込まなくていい
     weights_matrix=np.zeros((ntokens, args.emsize))
 
-    dir0='RNNLM11_10_2200_biLSTM_N3'
+    dir0='RNNLM11_10_2200_biLSTM_N4'
     model0='model_7.pth'
 
-    dir1='RNNLM11_07_2314_biLSTM_N4'
+    dir1='RNNLM11_07_2314_biLSTM_N5'
     model1='model_8.pth'
 
-    dir2='RNNLM11_07_2304_biLSTM_N5'
+    dir2='RNNLM11_07_2304_biLSTM_N6'
     model2='model_7.pth'
 
-    dir3='RNNLM11_11_1919_biLSTM_N7'
+    dir3='RNNLM11_11_1919_biLSTM_N8'
     model3='model_5.pth'
-
-
 
 
     files=[(dir0, model0), (dir1, model1), (dir2, model2), (dir3, model3)]
@@ -755,22 +770,33 @@ if __name__ == '__main__':
         #空所内1単語のみ（選択肢ありなし両方）
         print('\npreds by forward score')
         print('Use choices(one_words)')
-        print('center')
-        data_fw=make_data_for_fw_score(center_data, center_choices, N)
+        #print('center')
+        #data_fw=make_data_for_fw_score(center_data, center_choices, N)
+        # data_fwは [input_ngram_list, choices_list, ans_word(str)] のリスト
+        #calc_acc_for_fw_score(vocab, data_fw, model, N)
+
+        #print('MS')
+        #data_fw=make_data_for_fw_score(MS_data, MS_choices, N)
+        # data_fwは [input_ngram_list, choices_list, ans_word(str)] のリスト
+        #calc_acc_for_fw_score(vocab, data_fw, model, N)
+
+        print('CLOTH_middle')
+        data_fw=make_data_for_fw_score(CLOTH_middle_data, CLOTH_middle_choices, N)
         # data_fwは [input_ngram_list, choices_list, ans_word(str)] のリスト
         calc_acc_for_fw_score(vocab, data_fw, model, N)
 
-        print('MS')
-        data_fw=make_data_for_fw_score(MS_data, MS_choices, N)
+        print('CLOTH_high')
+        data_fw=make_data_for_fw_score(CLOTH_high_data, CLOTH_high_choices, N)
         # data_fwは [input_ngram_list, choices_list, ans_word(str)] のリスト
         calc_acc_for_fw_score(vocab, data_fw, model, N)
-        '''
+
         #文スコア（方法B）
         #空所内1単語以上（選択肢あり）
         #空所内1単語のみ（選択肢ありなし両方）
         print('\npreds by sent score')
 
         print('Use choices(one_words)')
+        '''
         print('center')
         data=make_data_for_sent_score(center_data, center_choices, one_word=True)
         calc_acc_for_sent_score(vocab, data, model, N)
@@ -778,9 +804,19 @@ if __name__ == '__main__':
         print('MS')
         data=make_data_for_sent_score(MS_data, MS_choices, one_word=True)
         calc_acc_for_sent_score(vocab, data, model, N)
+        '''
+        print('CLOTH_middle')
+        data=make_data_for_sent_score(CLOTH_middle_data, CLOTH_middle_choices, one_word=True)
+        calc_acc_for_sent_score(vocab, data, model, N)
+
+        print('CLOTH_high')
+        data=make_data_for_sent_score(CLOTH_high_data, CLOTH_high_choices, one_word=True)
+        calc_acc_for_sent_score(vocab, data, model, N)
+
 
 
         print('Use choices(over one_words)')
+        '''
         print('center')
         data=make_data_for_sent_score(center_data, center_choices, one_word=False)
         calc_acc_for_sent_score(vocab, data, model, N)
@@ -789,7 +825,13 @@ if __name__ == '__main__':
         data=make_data_for_sent_score(MS_data, MS_choices, one_word=False)
         calc_acc_for_sent_score(vocab, data, model, N)
         '''
+        print('CLOTH_middle')
+        data=make_data_for_sent_score(CLOTH_middle_data, CLOTH_middle_choices, one_word=False)
+        calc_acc_for_sent_score(vocab, data, model, N)
 
+        print('CLOTH_high')
+        data=make_data_for_sent_score(CLOTH_high_data, CLOTH_high_choices, one_word=False)
+        calc_acc_for_sent_score(vocab, data, model, N)
 
         '''
         print('\nNot use choices, from all words(one_words)')
