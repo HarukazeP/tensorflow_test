@@ -202,7 +202,7 @@ if __name__ == '__main__':
     center_ans=git_data_path+'center_ans.txt'
 
     MS_cloze=git_data_path+'microsoft_cloze.txt'
-    MS_choi=git_data_path+'microsoft_choices.txt'
+    MS_choi=git_data_path+'microsoft_choices_for_CLOTH.txt'
     MS_ans=git_data_path+'microsoft_ans.txt'
 
     high_path=git_data_path+'CLOTH_test_high'
@@ -219,8 +219,10 @@ if __name__ == '__main__':
     model='/media/tamaki/HDCL-UT/tamaki/M2/kenlm_models/all_words/CLOTH_NUM_N7.arpa'
 
 
-    model_test(model, center_cloze, center_choi, center_ans, data_name='center')
+    #model_test(model, center_cloze, center_choi, center_ans, data_name='center')
 
-    model_test(model, CLOTH_high_cloze, CLOTH_high_choi, CLOTH_high_ans, data_name='CLOTH_high')
+    model_test(model, MS_cloze, MS_choi, MS_ans, data_name='MS')
 
-    model_test(model, CLOTH_middle_cloze, CLOTH_middle_choi, CLOTH_middle_ans, data_name='CLOTH_middle')
+    #model_test(model, CLOTH_high_cloze, CLOTH_high_choi, CLOTH_high_ans, data_name='CLOTH_high')
+
+    #model_test(model, CLOTH_middle_cloze, CLOTH_middle_choi, CLOTH_middle_ans, data_name='CLOTH_middle')

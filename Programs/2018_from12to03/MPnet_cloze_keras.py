@@ -1129,7 +1129,7 @@ def model_test(ngram, lang, model, cloze_path, choices_path, ans_path, my_model_
     C_test=np.array([choices_to_ids(lang, s) for s in test_C], dtype=np.int)
     Y_test=np.array([ans_to_ids(lang, s, c) for s,c in zip(test_Y, test_C)], dtype=np.bool)
 
-    print('test_ans_rate', np.sum(Y_test, axis=0))
+    #print('test_ans_rate', np.sum(Y_test, axis=0))
 
     c1_test, c2_test, c3_test, c4_test = split_choices(C_test)
 
@@ -1274,7 +1274,7 @@ if __name__ == '__main__':
         center_ans=git_data_path+'center_ans.txt'
 
         MS_cloze=git_data_path+'microsoft_cloze.txt'
-        MS_choi=git_data_path+'microsoft_choices.txt'
+        MS_choi=git_data_path+'microsoft_choices_for_CLOTH.txt'
         MS_ans=git_data_path+'microsoft_ans.txt'
 
         high_path=git_data_path+'CLOTH_test_high'
@@ -1288,14 +1288,14 @@ if __name__ == '__main__':
         CLOTH_middle_choi = middle_path+'_choices.txt'
         CLOTH_middle_ans = middle_path+'_ans.txt'
 
-        is_out=False    #ファイル出力一括設定用
+        is_out=True    #ファイル出力一括設定用
 
-        #model_test(clothNg, vocab, model, center_cloze, center_choi, center_ans, my_model_kind, data_name='center', file_output=is_out)
+        model_test(clothNg, vocab, model, center_cloze, center_choi, center_ans, my_model_kind, data_name='center', file_output=is_out)
 
         if args.mode != 'mini' and args.mode != 'mini_test':
-            #model_test(clothNg, vocab, model, MS_cloze, MS_choi, MS_ans, data_name='MS', file_output=is_out)
+            model_test(clothNg, vocab, model, MS_cloze, MS_choi, MS_ans, my_model_kind, data_name='MS', file_output=is_out)
 
-            #model_test(clothNg, vocab, model, CLOTH_high_cloze, CLOTH_high_choi, CLOTH_high_ans, my_model_kind, data_name='CLOTH_high', file_output=is_out)
+            model_test(clothNg, vocab, model, CLOTH_high_cloze, CLOTH_high_choi, CLOTH_high_ans, my_model_kind, data_name='CLOTH_high', file_output=is_out)
 
             model_test(clothNg, vocab, model, CLOTH_middle_cloze, CLOTH_middle_choi, CLOTH_middle_ans, my_model_kind, data_name='CLOTH_middle', file_output=is_out)
 
@@ -1343,10 +1343,10 @@ if __name__ == '__main__':
         is_out=True    #ファイル出力一括設定用
 
         # 2.モデル定義
-        models=['plus_CAR', 'replace_CAR', 'plus_KenLM', 'plus_both' , 'replace_KenLM', 'replace_both']
+        models=['replace_CAR', 'plus_KenLM', 'plus_both' , 'replace_KenLM', 'replace_both']
 
         #済
-        #'origin',
+        #'origin', 'plus_CAR',
 
         for my_model_kind in models:
 
@@ -1373,11 +1373,8 @@ if __name__ == '__main__':
             model_test(clothNg, vocab, model, center_cloze, center_choi, center_ans, my_model_kind, data_name='center', file_output=is_out)
 
 
-            model_test(clothNg, vocab, model, MS_cloze, MS_choi, MS_ans, data_name='MS', file_output=is_out)
+            model_test(clothNg, vocab, model, MS_cloze, MS_choi, MS_ans, my_model_kind, data_name='MS', file_output=is_out)
 
             model_test(clothNg, vocab, model, CLOTH_high_cloze, CLOTH_high_choi, CLOTH_high_ans, my_model_kind, data_name='CLOTH_high', file_output=is_out)
 
             model_test(clothNg, vocab, model, CLOTH_middle_cloze, CLOTH_middle_choi, CLOTH_middle_ans, my_model_kind, data_name='CLOTH_middle', file_output=is_out)
-
-            del model
-            #一応メモリ解放
