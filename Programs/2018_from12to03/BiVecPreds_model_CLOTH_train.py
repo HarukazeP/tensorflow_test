@@ -16,7 +16,6 @@ CLOTH用の前処理
 
 python    : 2.7.12
 keras     : 2.0.4
-gensim    : 3.0.1
 tensorflow: 1.1.0
 
 '''
@@ -39,7 +38,6 @@ import os
 import argparse
 import collections
 
-import gensim
 import nltk
 
 from keras import regularizers
@@ -663,11 +661,11 @@ if __name__ == '__main__':
     このfastextを事前に実行しておき，その結果を利用
     '''
     #todo fastText系のパス
-    ft_path='/home/ohtalab/tamaki/FastText/fastText-0.1.0/fasttext'
+    ft_path='../../../../M1/FastText/fastText-0.1.0/fasttext'
 
     #ベクトルファイル
-    vec_path='/home/ohtalab/tamaki/FastText/Model/text8_dim'+str(vec_size)+'_minC0.vec'
-    bin_path='/home/ohtalab/tamaki/FastText/Model/text8_dim'+str(vec_size)+'_minC0.bin'
+    vec_path='../../../../M1/FastText/Model/text8_dim'+str(vec_size)+'_minC0.vec'
+    bin_path='../../../../M1/FastText/Model/text8_dim'+str(vec_size)+'_minC0.bin'
 
     len_words, word_to_id, id_to_word, vec_dict=vec_to_dict(vec_path)
 
