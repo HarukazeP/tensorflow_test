@@ -688,7 +688,7 @@ if __name__ == '__main__':
         val_path=CLOTH_path+'for_KenLM_CLOTH_val.txt'
 
         #モデルとか結果とかを格納するディレクトリの作成
-        save_path=save_path+args.mode+'_BiVecPresModel'
+        save_path=save_path+'_BiVecPresModel'
         if os.path.exists(save_path)==False:
             os.mkdir(save_path)
         save_path=save_path+'/'
@@ -696,7 +696,7 @@ if __name__ == '__main__':
         #model.summary()
 
         # 3.学習
-        model = trainIters(model, train_data, val_data, len_words, word_to_id, vec_dict, ft_path, bin_path, n_iters=epoch, saveModel=True)
+        model = trainIters(model, train_path, val_path, len_words, word_to_id, vec_dict, ft_path, bin_path, n_iters=epoch, saveModel=True)
         print('Train end')
         exit()
     #すでにあるモデルでテスト時
