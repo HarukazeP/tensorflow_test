@@ -330,7 +330,7 @@ def preprocess(s):
 
 
 #1行の文字列を学習データの形式に変換
-def tokens_to_data(tokens, len_words, word_to_id, vec_dict, ft_path, bin_path):
+def tokens_to_data(tokens, len_words, word_to_id, id_to_word, vec_dict, ft_path, bin_path):
     f_X = []
     r_X = []
     Y = []
@@ -352,13 +352,13 @@ def tokens_to_data(tokens, len_words, word_to_id, vec_dict, ft_path, bin_path):
         n=ids[i + maxlen_words]
         f_X.append(f)
         r_X.append(r[::-1]) #逆順のリスト
-        Y.append(get_ft_vec(n, vec_dict, ft_path, bin_path))
+        Y.append(get_ft_vec(id_to_word[n], vec_dict, ft_path, bin_path))
 
     return f_X, r_X, Y
 
 
 #空所等を含まない英文のデータから，モデルの入出力を作成
-def make_data(file_path, len_words, word_to_id, vec_dict, ft_path, bin_path):
+def make_data(file_path, len_words, word_to_id, id_to_word, vec_dict, ft_path, bin_path):
     f_X_list=[]
     r_X_list=[]
     Y_list=[]
@@ -366,7 +366,7 @@ def make_data(file_path, len_words, word_to_id, vec_dict, ft_path, bin_path):
     with open(file_path, encoding='utf-8') as f:
         for line in f:
             tokens=preprocess(line)
-            f, r, y=tokens_to_data(tokens, len_words, word_to_id, vec_dict, ft_path, bin_path)
+            f, r, y=tokens_to_data(tokens, len_words, word_to_id, id_to_word, vec_dict, ft_path, bin_path)
             f_X_list.append(f)
             r_X_list.append(r)
             Y_X_list.append(y)
@@ -390,10 +390,10 @@ def getNewestModel(model):
 
 
 #学習をn_iters回，残り時間の算出をlossグラフの描画も
-def trainIters(model, train_path, val_path, len_words, word_to_id, vec_dict, ft_path, bin_path, n_iters=5, print_every=10, saveModel=False):
+def trainIters(model, train_path, val_path, len_words, word_to_id, id_to_word, vec_dict, ft_path, bin_path, n_iters=5, print_every=10, saveModel=False):
 
-    f_X_train, r_X_train, Y_train=make_data(train_path, len_words, word_to_id, vec_dict, ft_path, bin_path)
-    f_X_val, r_X_val, Y_val=make_data(val_path, len_words, word_to_id, vec_dict, ft_path, bin_path)
+    f_X_train, r_X_train, Y_train=make_data(train_path, len_words, word_to_id, id_to_word, vec_dict, ft_path, bin_path)
+    f_X_val, r_X_val, Y_val=make_data(val_path, len_words, word_to_id, id_to_word, vec_dict, ft_path, bin_path)
 
 
     X_train=[f_X_train, r_X_train]
@@ -696,7 +696,7 @@ if __name__ == '__main__':
         #model.summary()
 
         # 3.学習
-        model = trainIters(model, train_path, val_path, len_words, word_to_id, vec_dict, ft_path, bin_path, n_iters=epoch, saveModel=True)
+        model = trainIters(model, train_path, val_path, len_words, word_to_id, id_to_word, vec_dict, ft_path, bin_path, n_iters=epoch, saveModel=True)
         print('Train end')
         exit()
     #すでにあるモデルでテスト時
