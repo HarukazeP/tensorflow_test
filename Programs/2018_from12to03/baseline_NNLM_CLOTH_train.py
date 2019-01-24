@@ -13,45 +13,80 @@ CLOTHで学習、CLOTHと同じ前処理
 python  : 3.5.2
 
 '''
-
-
 from __future__ import unicode_literals, print_function, division
 from io import open
 import unicodedata
 import string
 import re
+import random
 import datetime
-
 import time
 import math
-
+import matplotlib.pyplot as plt
+plt.switch_backend('agg')
+import matplotlib.ticker as ticker
 import numpy as np
 import os
 import argparse
 import collections
-import kenlm
 
 import nltk
 
+from keras import regularizers
+from keras import backend as K
+from keras.models import Model, model_from_json, load_model
+
+from keras.layers import Dense, Activation, Input, Embedding
+from keras.layers import LSTM
+from keras.layers import add, concatenate, multiply
+#from keras.utils.vis_utils import plot_model
+from keras.callbacks import ModelCheckpoint
+from keras import optimizers
+
+from keras.optimizers import RMSprop
+from keras.utils.data_utils import get_file
+
+from glob import glob
+
+import sys
+import subprocess
+
 #----- グローバル変数一覧 -----
 
-#自分で定義したグローバル関数とか
-file_path='../../../pytorch_data/'
 
+maxlen_words = 5
+BATCH_SIZE=256
+
+file_path='../../../pytorch_data/'
 git_data_path='../../Data/'
+CLOTH_path = file_path+'CLOTH_for_model/'
+
 today1=datetime.datetime.today()
 today_str=today1.strftime('%m_%d_%H%M')
+save_path=file_path + today_str
+
+
+#事前処理いろいろ
+print('Start: '+today_str)
+CLZ_word='XXXX'
 
 #----- 関数群 -----
 
+###########################
+# 1.データの準備，データ変換
+###########################
 
 
 #空所つき英文読み取り
-def readCloze(file):
+#空所はCLZ_wordに置換
+def readCloze2(file):
     #print("Reading data...")
     data=[]
     with open(file, encoding='utf-8') as f:
         for line in f:
+            line=preprocess_line(line)
+            line=re.sub(r'{.*}', CLZ_word, line)
+            line = re.sub(r'[ ]+', ' ', line)
             data.append(line.strip())
 
     return data
@@ -81,8 +116,86 @@ def readAns(file_name):
 
     return data
 
+
+#与えた語彙読み込み
+def readVocab(file):
+    lang = Lang()
+    print("Reading vocab...")
+    with open(file, encoding='utf-8') as f:
+        for line in f:
+            lang.addSentence(line.strip())
+    #print("Vocab: %s" % lang.n_words)
+
+    return lang
+
+#nltkのtoken列をidsへ
+def token_to_ids(lang, tokens, maxlen):
+    ids=[]
+    #NLTKの記号を表すタグ
+    symbol_tag=("$", "''", "(", ")", ",", "--", ".", ":", "``", "SYM")
+    #NLTKの数詞を表すタグ
+    num_tag=("LS", "CD")
+    #他のNLTKタグについては nltk.help.upenn_tagset()
+    tagged = nltk.pos_tag(tokens)
+    for word, tag in tagged:
+        if word==CLZ_word:
+            ids.append(CLZ_token)
+        elif tag in symbol_tag:
+            pass
+            #記号は無視
+        elif tag in num_tag:
+            ids.append(NUM_token)
+        else:
+            ids.append(lang.check_word2index(word.lower()))
+
+    return ids + [PAD_token] * (maxlen - len(ids))
+
+
+#半角カナとか特殊記号とかを正規化
+# Ａ→A，Ⅲ→III，①→1とかそういうの
+def unicodeToAscii(s):
+    return ''.join(
+        c for c in unicodedata.normalize('NFD', s)
+        if unicodedata.category(c) != 'Mn'
+    )
+
+
+#空所つき1文をidsへ
+def sent_to_ids_cloze(lang, s):
+    # s は文字列
+    s = unicodeToAscii(s)
+    s = re.sub(r'[ ]+', ' ', s)
+    s = s.strip()
+    s = re.sub(r'{.+}', CLZ_word, s)
+    token=nltk.word_tokenize(s)
+    ids=token_to_ids(lang, token, MAX_LENGTH)
+
+    return ids
+
+
+#選択肢4つをidsへ
+def choices_to_ids(lang, choices):
+    # choices は文字列のリスト
+    ids=[]
+    for choi in choices:
+        choi = unicodeToAscii(choi)
+        choi = re.sub(r'[ ]+', ' ', choi)
+        choi = choi.strip()
+        token=nltk.word_tokenize(choi)
+        id=token_to_ids(lang, token, C_MAXLEN)
+        ids.append(id)
+
+    #デバッグ時確認用
+    if len(ids)!=4:
+        print('### choices_to_ids ERROR')
+        print(choices)
+        exit()
+
+    return ids
+
+
 #正答一つをidsへ
-def ans_to_ids2(ans, choices):
+def ans_to_ids(lang, ans, choices):
     # ans は文字列
     # choices は文字列のリスト
     ids = [1 if choi==ans else 0 for choi in choices]
@@ -98,105 +211,458 @@ def ans_to_ids2(ans, choices):
     return ids
 
 
-class Ngram2():
-    def __init__(self, model):
+#Googleのword2vec読み取り
+def get_weight_matrix(lang):
+    print('Loading word vector ...')
+    #ここのgensimの書き方がバージョンによって異なる
+    vec_model = gensim.models.KeyedVectors.load_word2vec_format(file_path+'GoogleNews-vectors-negative300.bin', binary=True)
+    # https://code.google.com/archive/p/word2vec/ ここからダウンロード&解凍
+
+    weights_matrix = np.zeros((lang.n_words, EMB_DIM))
+
+    for i, word in lang.index2word.items():
+        try:
+            weights_matrix[i] = vec_model.wv[word]
+        except KeyError:
+            weights_matrix[i] = np.random.normal(size=(EMB_DIM, ))
+
+    del vec_model
+    #これメモリ解放的なことらしい、なくてもいいかも
+
+    #パディングのところを初期化
+    #Emneddingで引数のpad_index指定は、そこだけ更新(微分)しないらしい？
+    weights_matrix[PAD_token]=np.zeros(EMB_DIM)
+
+    return weights_matrix
+
+
+
+###########################
+# 2.モデル定義
+###########################
+
+# モデルの構築
+def build_model(lang, embedding_matrix):
+    input=Input(shape=(maxlen_words,))
+    emb=Embedding(output_dim=300, input_dim=lang.n_words, input_length=maxlen_words, mask_zero=True, weights=[embedding_matrix], trainable=Ture)(input)
+
+    emb=Dropout(0.5)(emb)
+
+
+
+    out_layer=Dense(128)(merged_layer)
+    preds=Activation('softmax')(output)
+
+    my_model=Model([f_input, r_input], out_layer)
+
+
+
+        output, hidden = self.rnn(emb, hidden)
+        output = self.drop(output) #(文長、バッチサイズ、隠れ層の次元数)
+        output = output.transpose(0,1).contiguous() #(バッチサイズ、文長、隠れ層の次元数)
+        output = output.view(output.size(0), -1)
+
+        decoded = self.decoder(output)
+
+
+    optimizer = RMSprop()
+    my_model.compile(loss='mean_squared_error', optimizer=optimizer)
+
+    return my_model
+
+###########################
+# 3.モデルの学習
+###########################
+
+def preprocess(s):
+    sent_tokens=[]
+    s = unicodeToAscii(s)
+    s = re.sub(r'[ ]+', ' ', s)
+    s = s.strip()
+    tokens=nltk.word_tokenize(s)
+    symbol_tag=("$", "''", "(", ")", ",", "--", ".", ":", "``", "SYM")
+    num_tag=("LS", "CD")
+    tagged = nltk.pos_tag(tokens)
+    for word, tag in tagged:
+        if tag in symbol_tag:
+            pass
+            #記号は無視
+        elif tag in num_tag:
+            sent_tokens.append('NUM')
+        else:
+            sent_tokens.append(word.lower())
+
+    return sent_tokens
+
+
+#1行の文字列を学習データの形式に変換
+def tokens_to_data(tokens, len_words, word_to_id, id_to_word, vec_dict, ft_path, bin_path):
+    f_X = []
+    r_X = []
+    Y = []
+    len_text=len(tokens)
+    leng=0
+
+    ids=[]
+    for word in tokens:
+        ids.append(search_word_indices(word, word_to_id))
+
+    len_text=len(ids)
+
+    while(len_text < maxlen_words*2+1):
+        ids=[0]+ids+[0]
+        len_text+=2
+
+    for i in range(len_text - maxlen_words*2 -1):
+        f=ids[i: i + maxlen_words]
+        r=ids[i + maxlen_words+1: i + maxlen_words+1+maxlen_words]
+        n=ids[i + maxlen_words]
+        f_X.append(f)
+        r_X.append(r[::-1]) #逆順のリスト
+        Y.append(get_ft_vec(id_to_word[n], vec_dict, ft_path, bin_path))
+
+    return f_X, r_X, Y
+
+
+#空所等を含まない英文のデータから，モデルの入出力を作成
+def make_data(file_path, len_words, word_to_id, id_to_word, vec_dict, ft_path, bin_path):
+    f_X_list=[]
+    r_X_list=[]
+    Y_list=[]
+
+    with open(file_path, encoding='utf-8') as f:
+        for line in f:
+            tokens=preprocess(line)
+            f, r, y=tokens_to_data(tokens, len_words, word_to_id, id_to_word, vec_dict, ft_path, bin_path)
+            f_X_list.extend(f)
+            r_X_list.extend(r)
+            Y_list.extend(y)
+    f_X=np.array(f_X_list, dtype=np.int)
+    r_X=np.array(r_X_list, dtype=np.int)
+    Y=np.array(Y_list, dtype=np.float)
+
+    return f_X, r_X, Y
+
+
+#checkpoint で保存された最新のモデル(ベストモデルをロード)
+def getNewestModel(model):
+    files = [(f, os.path.getmtime(f)) for f in glob(save_path+'*hdf5')]
+    if len(files) == 0:
+        return model
+    else:
+        newestModel = sorted(files, key=lambda files: files[1])[-1]
+        model.load_weights(newestModel[0])
+        return model
+
+
+#学習をn_iters回，残り時間の算出をlossグラフの描画も
+def trainIters(model, train_path, val_path, len_words, word_to_id, id_to_word, vec_dict, ft_path, bin_path, n_iters=5, print_every=10, saveModel=False):
+
+    print('Make data for model...')
+    f_X_train, r_X_train, Y_train=make_data(train_path, len_words, word_to_id, id_to_word, vec_dict, ft_path, bin_path)
+    f_X_val, r_X_val, Y_val=make_data(val_path, len_words, word_to_id, id_to_word, vec_dict, ft_path, bin_path)
+
+
+    X_train=[f_X_train, r_X_train]
+    X_val=[f_X_val, r_X_val]
+
+    cp_cb = ModelCheckpoint(filepath = save_path+'model_ep{epoch:02d}.hdf5', monitor='val_loss', verbose=1, save_best_only=True, mode='min')
+
+    start = time.time()
+    st_time=datetime.datetime.today().strftime('%H:%M')
+    print("Training... ", st_time)
+
+
+    # Ctrl+c で強制終了してもそこまでのモデルで残りの処理継続
+    try:
+        hist=model.fit(X_train, Y_train, batch_size=BATCH_SIZE, epochs=n_iters, verbose=1, validation_data=(X_val, Y_val), callbacks=[cp_cb], shuffle=True)
+
+        #全学習終わり
+        #lossとaccのグラフ描画
+        showPlot3(hist.history['loss'], hist.history['val_loss'], 'loss.png', 'loss')
+
+        print(hist.history['loss'])
+
+    except KeyboardInterrupt:
+        print()
+        print('-' * 89)
+        files = [(f, os.path.getmtime(f)) for f in glob(save_path+'*hdf5')]
+        if len(files) > 0:
+            print('Exiting from training early')
+        else :
+            exit()
+
+    #ベストモデルのロード
+    model=getNewestModel(model)
+
+    return model
+
+
+#グラフの描画（画像ファイル保存）
+def showPlot3(train_plot, val_plot, file_name, label_name):
+    fig = plt.figure()
+    plt.plot(train_plot, color='blue', marker='o', label='train_'+label_name)
+    plt.plot(val_plot, color='green', marker='o', label='val_'+label_name)
+    plt.title('model '+label_name)
+    plt.xlabel('epoch')
+    plt.ylabel(label_name)
+    plt.legend()
+    plt.savefig(save_path + file_name)
+
+
+#グラフの描画（画像ファイル保存）
+def showPlot4(val_plot, file_name, label_name):
+    fig = plt.figure()
+    plt.plot(val_plot, color='green', marker='o', label='val_'+label_name)
+    plt.title('model '+label_name)
+    plt.xlabel('epoch')
+    plt.ylabel(label_name)
+    plt.legend()
+    fig.savefig(save_path + file_name)
+
+
+###########################
+# 4.モデルによる予測
+###########################
+
+class ModelTest():
+    def __init__(self, model, maxlen_words, word_to_id, vec_dict, ft_path, bin_path, id_to_word):
         self.model=model
+        self.N=maxlen_words
+        self.word_to_id=word_to_id
+        self.vec_dict=vec_dict
+        self.ft_path=ft_path
+        self.bin_path=bin_path
+        self.id_to_word=id_to_word
 
-    #前処理
-    def preprocess(self, s):
-        sent_tokens=[]
-        s = unicodeToAscii(s)
-        s = re.sub(r'[ ]+', ' ', s)
-        s = s.strip()
-        tokens=nltk.word_tokenize(s)
-        symbol_tag=("$", "''", "(", ")", ",", "--", ".", ":", "``", "SYM")
-        num_tag=("LS", "CD")
-        tagged = nltk.pos_tag(tokens)
-        for word, tag in tagged:
-            if tag in symbol_tag:
-                pass
-                #記号は無視
-            elif tag in num_tag:
-                sent_tokens.append('NUM')
-            else:
-                sent_tokens.append(word.lower())
+    #選択肢が全て1語かどうかのチェック
+    def is_one_word(self, choices):
+        for c in choices:
+            if c.count(' ')>0:
+                return False
 
-        return sent_tokens
+        return True
 
-    #空所に選択肢を補充した4文を生成
-    def make_sents(self, cloze_sent, choices):
-        sents=[]
-        before=re.sub(r'{.*', '', cloze_sent)
-        after=re.sub(r'.*}', '', cloze_sent)
-        for choice in choices:
-            tmp=before + choice + after
-            tmp=tmp.strip()
-            sents.append(tmp)
-        return sents
+    #直近予測スコアの算出
+    #モデルの出力と各選択肢との類似度
+    def calc_near_scores(self, cloze_sent, choices):
+        scores=[]
+        cloze_list=cloze_sent.split()
+        clz_index=cloze_list.index(CLZ_word)
 
+        f_X=cloze_list[clz_index-self.N:clz_index-1]
+        r_X=cloze_list[clz_index+1:clz_index+self.N]
+        #TODO　padding
+        #TODO indexにもしてない
+        #TODO r_Xの方は逆順にする？
 
-    def sent_to_KenLM_score2(self, sent):
-        tokens=self.preprocess(sent)
-        kenlm_sent=' '.join(tokens)
-        sent_len=len(tokens)
+        preds_vec = self.model.predict([f_X, r_X], verbose=0)
 
-        KenLM_score=1.0*self.model.score(kenlm_sent)/sent_len
+        #choices は必ず1語
+        for word in choices:
+            word_vec=get_ft_vec(word, self.vec_dict, self.ft_path, self.bin_path)
+            score=calc_similarity(preds_vec, word_vec)
+            scores.append(score)
 
-        return KenLM_score
+        return scores
 
 
-    def get_KenLM_score2(self, cloze_list, choices_list):
-        KenLM_score=[]
-        for cloze_sent, choices in zip(cloze_list, choices_list):
-            s1, s2, s3, s4=self.make_sents(cloze_sent, choices)
-            s1_score = self.sent_to_KenLM_score2(s1)
-            s2_score = self.sent_to_KenLM_score2(s2)
-            s3_score = self.sent_to_KenLM_score2(s3)
-            s4_score = self.sent_to_KenLM_score2(s4)
-            KenLM_score.append([s1_score, s2_score, s3_score, s4_score])
+    def make_sent_list_for_sent_score(self, cloze_sent, choice_words):
+        #paddingもやる
 
-        #対数頻度，log1p(x)はlog_{e}(x+1)を返す
-        #頻度が0だとまずいので念のため+1してる
-        KenLM_array=np.array(KenLM_score, dtype=np.float)
-
-        return KenLM_array
+        #choices_wordsは1語だけとは限らない
 
 
+        pass
 
-#半角カナとか特殊記号とかを正規化
-# Ａ→A，Ⅲ→III，①→1とかそういうの
-def unicodeToAscii(s):
-    return ''.join(
-        c for c in unicodedata.normalize('NFD', s)
-        if unicodedata.category(c) != 'Mn'
-    )
+        return sent_list
+
+    #補充文スコアの算出
+    #モデルの出力と、補充文でのそこの単語との類似度の積？
+    #式確認、logとって和とか？
+    def calc_sent_scores(self, cloze_sent, choices):
+        scores=[]
+
+        for words in choices:
+            score=0
+            sent_list=self.make_sent_list_for_sent_score(cloze_sent, words)
+            sent_len=len(sent_list)
+
+            #Nとかの数rangeのとこも要確認
+            for i in range(sent_len-2*self.N-1):
+                #長さ計って、iとかでforループ？
+                f_X=sent_list[i : i+self.N-1]
+                r_X=sent_list[i+self.N+1 : i+2*self.N]
+                tmp_word=sent_list[i+self.N]
+
+                word_vec=get_ft_vec(tmp_word, self.vec_dict, self.ft_path, self.bin_path)
+                #TODO ここの数の計算あってる？ Nとか +1とか
+                preds_vec = self.model.predict([f_X, r_X], verbose=0)
+                score=calc_similarity(preds_vec, word_vec)
+
+                score+=score
+                #scoreの対数化とか
+                #長さで割るのも
+
+            scores.append(score)
 
 
-def model_test(model_path, cloze_path, choices_path, ans_path, data_name=''):
-    print(data_name)
+        return scores
 
-    test_X=readCloze(cloze_path)
-    test_C=readChoices(choices_path)
-    test_Y=readAns(ans_path)
 
-    Y_test=np.array([ans_to_ids2(s, c) for s,c in zip(test_Y, test_C)], dtype=np.bool)
-    model = kenlm.LanguageModel(model_path)
+    #直近予測スコア
+    def check_one_sent_by_near_score(self, cloze_sent, choices, ans_word):
+        line=0
+        OK=0
+        if self.is_one_word(choices):
+            ans_index=choices.index(ans_word)
+            line=1
+            scores=self.calc_near_scores(cloze_sent, choices)
+            if ans_index==scores.index(max(scores)):
+                OK=1
 
-    Y_pred=Ngram2(model).get_KenLM_score2(test_X, test_C)
-    OK=0
-    line=0
+        return line, OK
 
-    for p,y in zip(Y_pred, Y_test):
-        line+=1
-        if p.argmax()==y.argmax():
-            OK+=1
 
-    print('acc:', 1.0*OK/line)
+    #補充文スコア
+    def check_one_sent_by_sent_score(self, cloze_sent, choices, ans_word, one_word=True):
+        line=0
+        OK=0
+        ans_index=choices.index(ans_word)
+        #1語のとき
+        if self.is_one_word(choices):
+            line=1
+            scores=self.calc_sent_scores(cloze_sent, choices)
+            if ans_index==scores.index(max(scores)):
+                OK=1
+
+        #1語以上もテストするとき
+        elif one_word==False:
+            line=1
+            scores=self.calc_sent_scores(cloze_sent, choices)
+            if ans_index==scores.index(max(scores)):
+                OK=1
+
+        return line, OK
+
+
+    #テスト
+    def model_test_both_score(self, data_name, cloze_path, choices_path, ans_path):
+        '''
+        ファイル読み込み
+        モデル入力作成、1単語限定かどうかとか
+        スコア計算とか
+
+        選択肢のみ使用
+
+        '''
+        print(data_name)
+        near_line=0
+        near_OK=0
+
+        sent_line_one_word=0
+        sent_OK_one_word=0
+
+        sent_line=0
+        sent_OK=0
+
+        #ファイル読み込み、どのスコアでも共通
+
+        #空所はCLZ_wordに置換したやつ
+        cloze_list=readCloze2(cloze_path)
+        choices_list=readChoices(choices_path)
+        ans_list=readAns(ans_path)
+
+        for cloze_sent, choices, ans_word in zip(cloze_list, choices_list, ans_list):
+            #直近予測スコア(1語のみ)
+            line, OK=check_one_sent_by_near_score(cloze_sent, choices, ans_word)
+            near_line+=line
+            near_OK+=OK
+
+            #補充文スコア(1語のみ)
+            line, OK=check_one_sent_by_sent_score(cloze_sent, choices, ans_word, one_word=True)
+            sent_line_one_word+=line
+            sent_OK_one_word+=OK
+
+            #補充文スコア(1語以上)
+            line, OK=check_one_sent_by_sent_score(cloze_sent, choices, ans_word, one_word=False)
+            sent_line+=line
+            sent_OK+=OK
+
+        print('near score')
+        print('line:%d, acc:%.4f'% (near_line, 1.0*near_OK/near_line))
+
+        print('sent score (one word)')
+        print('line:%d, acc:%.4f'% (sent_line_one_word, 1.0*sent_OK_one_word/sent_line_one_word))
+
+        print('sent score')
+        print('line:%d, acc:%.4f'% (sent_line, 1.0*sent_OK/sent_line))
+
+
+        return result_str
+
+
+#コマンドライン引数の設定いろいろ
+def get_args():
+    parser = argparse.ArgumentParser()
+    #miniはプログラムエラーないか確認用的な
+    parser.add_argument('--mode', choices=['all', 'mini', 'test', 'mini_test', 'train_loop'], default='all')
+    parser.add_argument('--model_dir', help='model directory path (when load model, mode=test)')
+    parser.add_argument('--model', help='model file name (when load model, mode=test)')
+    parser.add_argument('--epoch', type=int, default=100)
+    parser.add_argument('--model_kind', choices=['origin', 'plus_CAR', 'plus_KenLM', 'plus_both', 'replace_CAR', 'replace_KenLM', 'replace_both'], default='origin', help='model file kind')
+
+    # ほかにも引数必要に応じて追加
+    return parser.parse_args()
 
 
 #----- main部 -----
 if __name__ == '__main__':
+    #コマンドライン引数読み取り
+    args = get_args()
+    print(args.mode)
+    epoch=args.epoch
 
+    # 1.語彙データ読み込み
+    vocab_path=file_path+'enwiki_vocab30000.txt'
+    vocab = readVocab(vocab_path)
+
+    if args.mode == 'all' or args.mode == 'train_loop':
+        weights_matrix = get_weight_matrix(vocab)
+    else:
+        weights_matrix = np.zeros((vocab.n_words, EMB_DIM))
+
+
+    #通常時
+    # 2.モデル定義
+    model = build_model(weights_matrix)
+
+    #学習時
+    if args.mode == 'all' or args.mode == 'mini':
+        train_path=CLOTH_path+'for_KenLM_CLOTH.txt'
+        val_path=CLOTH_path+'for_KenLM_CLOTH_val.txt'
+
+        #モデルとか結果とかを格納するディレクトリの作成
+        save_path=save_path+'_NNLM'
+        if os.path.exists(save_path)==False:
+            os.mkdir(save_path)
+        save_path=save_path+'/'
+        #plot_model(model, to_file=save_path+'BiVecPresModel.png', show_shapes=True)
+        #model.summary()
+
+        # 3.学習
+        model = trainIters(model, train_path, val_path, len_words, word_to_id, id_to_word, vec_dict, ft_path, bin_path, n_iters=epoch, saveModel=True)
+        print('Train end')
+        exit()
+    #すでにあるモデルでテスト時
+    else:
+        save_path=args.model_dir+'/'
+        model.load_weights(save_path+args.model+'.hdf5')
+        #model.summary()
+
+        save_path=save_path+today_str
+
+    # テストの実行
     center_cloze=git_data_path+'center_cloze.txt'
     center_choi=git_data_path+'center_choices.txt'
     center_ans=git_data_path+'center_ans.txt'
@@ -216,8 +682,22 @@ if __name__ == '__main__':
     CLOTH_middle_choi = middle_path+'_choices.txt'
     CLOTH_middle_ans = middle_path+'_ans.txt'
 
-    model_test(model, center_cloze, center_choi, center_ans, data_name='center')
 
-    model_test(model, CLOTH_high_cloze, CLOTH_high_choi, CLOTH_high_ans, data_name='CLOTH_high')
+    center_data=['center', center_cloze, center_choi, center_ans]
+    MS_data=['MS', MS_cloze, MS_choi, MS_ans]
+    CLOTH_high_data=['CLOTH_high', CLOTH_high_cloze, CLOTH_high_choi, CLOTH_high_ans]
+    CLOTH_middle_data=['CLOTH_middle', CLOTH_middle_cloze, CLOTH_middle_choi, CLOTH_middle_ans]
 
-    model_test(model, CLOTH_middle_cloze, CLOTH_middle_choi, CLOTH_middle_ans, data_name='CLOTH_middle')
+    datas=[center_data, MS_data, CLOTH_high_data, CLOTH_middle_ans]
+
+    test=ModelTest(model, maxlen_words, word_to_id, vec_dict, ft_path, bin_path, id_to_word)
+
+    for data in datas:
+        data_name=data[0]
+        cloze_path=data[1]
+        choices_path=data[2]
+        ans_path=data[3]
+
+        test.model_test_both_score(data_name, cloze_path, choices_path, ans_path)
+
+    end_test=print_time('test end')
