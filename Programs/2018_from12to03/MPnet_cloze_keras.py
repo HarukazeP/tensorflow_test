@@ -81,7 +81,7 @@ from keras.layers import Dense, Embedding, GRU, Bidirectional, Conv1D, GlobalMax
 from keras.layers import Add, Multiply, Input, Activation, Reshape, Concatenate
 from keras.layers.normalization import BatchNormalization
 from keras.engine.topology import Layer
-from keras.utils.vis_utils import plot_model
+#from keras.utils.vis_utils import plot_model
 from keras.activations import softmax, sigmoid
 from keras.callbacks import ModelCheckpoint
 from keras import optimizers
@@ -1263,7 +1263,7 @@ if __name__ == '__main__':
             if os.path.exists(save_path)==False:
                 os.mkdir(save_path)
             save_path=save_path+'/'
-            plot_model(model, to_file=save_path+'model_'+args.model_kind+'.png', show_shapes=True)
+            #plot_model(model, to_file=save_path+'model_'+args.model_kind+'.png', show_shapes=True)
             #model.summary()
 
             # 3.学習
@@ -1371,7 +1371,7 @@ if __name__ == '__main__':
             if os.path.exists(save_path)==False:
                 os.mkdir(save_path)
             save_path=save_path+'/'
-            plot_model(model, to_file=save_path+'model_'+my_model_kind+'.png', show_shapes=True)
+            #plot_model(model, to_file=save_path+'model_'+my_model_kind+'.png', show_shapes=True)
             #model.summary()
 
             # 3.学習
