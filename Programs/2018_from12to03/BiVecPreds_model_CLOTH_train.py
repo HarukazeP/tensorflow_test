@@ -95,7 +95,6 @@ def readCloze2(file):
     data=[]
     with open(file, encoding='utf-8') as f:
         for line in f:
-            line=preprocess_line(line)
             line=re.sub(r'{.*}', CLZ_word, line)
             line = re.sub(r'[ ]+', ' ', line)
             data.append(line.strip())
@@ -128,29 +127,6 @@ def readAns(file_name):
     return data
 
 
-#nltkのtoken列をidsへ
-def token_to_ids(lang, tokens, maxlen):
-    ids=[]
-    #NLTKの記号を表すタグ
-    symbol_tag=("$", "''", "(", ")", ",", "--", ".", ":", "``", "SYM")
-    #NLTKの数詞を表すタグ
-    num_tag=("LS", "CD")
-    #他のNLTKタグについては nltk.help.upenn_tagset()
-    tagged = nltk.pos_tag(tokens)
-    for word, tag in tagged:
-        if word==CLZ_word:
-            ids.append(CLZ_token)
-        elif tag in symbol_tag:
-            pass
-            #記号は無視
-        elif tag in num_tag:
-            ids.append(NUM_token)
-        else:
-            ids.append(lang.check_word2index(word.lower()))
-
-    return ids + [PAD_token] * (maxlen - len(ids))
-
-
 #半角カナとか特殊記号とかを正規化
 # Ａ→A，Ⅲ→III，①→1とかそういうの
 def unicodeToAscii(s):
@@ -158,57 +134,6 @@ def unicodeToAscii(s):
         c for c in unicodedata.normalize('NFD', s)
         if unicodedata.category(c) != 'Mn'
     )
-
-
-#空所つき1文をidsへ
-def sent_to_ids_cloze(lang, s):
-    # s は文字列
-    s = unicodeToAscii(s)
-    s = re.sub(r'[ ]+', ' ', s)
-    s = s.strip()
-    s = re.sub(r'{.+}', CLZ_word, s)
-    token=nltk.word_tokenize(s)
-    ids=token_to_ids(lang, token, MAX_LENGTH)
-
-    return ids
-
-
-#選択肢4つをidsへ
-def choices_to_ids(lang, choices):
-    # choices は文字列のリスト
-    ids=[]
-    for choi in choices:
-        choi = unicodeToAscii(choi)
-        choi = re.sub(r'[ ]+', ' ', choi)
-        choi = choi.strip()
-        token=nltk.word_tokenize(choi)
-        id=token_to_ids(lang, token, C_MAXLEN)
-        ids.append(id)
-
-    #デバッグ時確認用
-    if len(ids)!=4:
-        print('### choices_to_ids ERROR')
-        print(choices)
-        exit()
-
-    return ids
-
-
-#正答一つをidsへ
-def ans_to_ids(lang, ans, choices):
-    # ans は文字列
-    # choices は文字列のリスト
-    ids = [1 if choi==ans else 0 for choi in choices]
-
-    #デバッグ時確認用
-    if sum(ids)!=1:
-        print('### ans_to_ids ERROR')
-        print(ids)
-        print(ans)
-        print(choices)
-        exit()
-
-    return ids
 
 
 #fasttextのベクトルファイルから単語辞書とベクトル辞書の作成
@@ -457,7 +382,7 @@ def showPlot4(val_plot, file_name, label_name):
 # 4.モデルによる予測
 ###########################
 
-class ModelTest():
+class ModelTest_CLOTH():
     def __init__(self, model, maxlen_words, word_to_id, vec_dict, ft_path, bin_path, id_to_word):
         self.model=model
         self.N=maxlen_words
@@ -467,6 +392,40 @@ class ModelTest():
         self.bin_path=bin_path
         self.id_to_word=id_to_word
 
+
+    def preprocess_for_test(self, s):
+        sent_tokens=[]
+        s = unicodeToAscii(s)
+        s = re.sub(r'[ ]+', ' ', s)
+        s = s.strip()
+        tokens=nltk.word_tokenize(s)
+        symbol_tag=("$", "''", "(", ")", ",", "--", ".", ":", "``", "SYM")
+        num_tag=("LS", "CD")
+        tagged = nltk.pos_tag(tokens)
+        for word, tag in tagged:
+            if word==CLZ_word:
+                sent_tokens.append(CLZ_word)
+            if tag in symbol_tag:
+                pass
+                #記号は無視
+            elif tag in num_tag:
+                sent_tokens.append('NUM')
+            else:
+                sent_tokens.append(word.lower())
+
+        return sent_tokens
+
+
+    #nltkのtoken列をidsへ
+    def token_to_ids_for_test(self, tokens):
+        ids=[]
+
+        for word in tokens:
+            ids.append(search_word_indices(word, self.word_to_id))
+
+        return [0] * (self.N - len(ids)) +ids
+
+
     #選択肢が全て1語かどうかのチェック
     def is_one_word(self, choices):
         for c in choices:
@@ -475,69 +434,90 @@ class ModelTest():
 
         return True
 
+
+    #2つのベクトルのコサイン類似度を返す
+    def calc_similarity(self, pred_vec, ans_vec):
+        len_p=np.linalg.norm(pred_vec)
+        len_a=np.linalg.norm(ans_vec)
+        if len_p==0 or len_a==0:
+            return 0.0
+        return np.dot(pred_vec/len_p, ans_vec/len_a)
+
+
     #直近予測スコアの算出
     #モデルの出力と各選択肢との類似度
     def calc_near_scores(self, cloze_sent, choices):
         scores=[]
-        cloze_list=cloze_sent.split()
-        clz_index=cloze_list.index(CLZ_word)
+        tokens=self.preprocess_for_test(cloze_sent)
+        clz_index=tokens.index(CLZ_word)
 
-        f_X=cloze_list[clz_index-self.N:clz_index-1]
-        r_X=cloze_list[clz_index+1:clz_index+self.N]
-        #TODO　padding
-        #TODO indexにもしてない
-        #TODO r_Xの方は逆順にする？
+        before=tokens[:clz_index]
+        after=tokens[clz_index+1:]
+
+        f_X=self.token_to_ids_for_test(before)
+        r_X=self.token_to_ids_for_test(after[::-1])
 
         preds_vec = self.model.predict([f_X, r_X], verbose=0)
 
         #choices は必ず1語
         for word in choices:
             word_vec=get_ft_vec(word, self.vec_dict, self.ft_path, self.bin_path)
-            score=calc_similarity(preds_vec, word_vec)
+            score=self.calc_similarity(preds_vec, word_vec)
             scores.append(score)
 
         return scores
 
 
-    def make_sent_list_for_sent_score(self, cloze_sent, choice_words):
-        #paddingもやる
+    def make_inputs_for_sent_score(self, cloze_sent, choice_words):
+        sent=cloze_sent.replace(CLZ_word, choice_words)
+        tokens=self.preprocess_for_test(sent)
 
-        #choices_wordsは1語だけとは限らない
+        ids=[]
+        vecs=[]
 
+        len_text=len(tokens)
 
-        pass
+        for word in tokens:
+            ids.append(search_word_indices(word, self.word_to_id))
+            vecs.append(get_ft_vec(word, self.vec_dict, self.ft_path, self.bin_path))
 
-        return sent_list
+        while(len_text < self.N*2+1):
+            ids=[0]+ids+[0]
+            vecs.insert(0, np.zeros(vec_size))
+            vecs.append(np.zeros(vec_size))
+            len_text+=2
+
+        return ids, vecs
+
 
     #補充文スコアの算出
     #モデルの出力と、補充文でのそこの単語との類似度の積？
     #式確認、logとって和とか？
+    #TODO 未完成
     def calc_sent_scores(self, cloze_sent, choices):
         scores=[]
 
         for words in choices:
             score=0
-            sent_list=self.make_sent_list_for_sent_score(cloze_sent, words)
-            sent_len=len(sent_list)
+            ids, vecs=self.make_inputs_for_sent_score(cloze_sent, words)
+
+            sent_len=len(ids)
 
             #Nとかの数rangeのとこも要確認
             for i in range(sent_len-2*self.N-1):
                 #長さ計って、iとかでforループ？
-                f_X=sent_list[i : i+self.N-1]
-                r_X=sent_list[i+self.N+1 : i+2*self.N]
-                tmp_word=sent_list[i+self.N]
+                f_X=ids[i : i+self.N]
+                r_X=ids[i+self.N+1 : i+2*self.N+1]
 
-                word_vec=get_ft_vec(tmp_word, self.vec_dict, self.ft_path, self.bin_path)
-                #TODO ここの数の計算あってる？ Nとか +1とか
+                word_vec=vecs[i+self.N]
                 preds_vec = self.model.predict([f_X, r_X], verbose=0)
-                score=calc_similarity(preds_vec, word_vec)
+                score=self.calc_similarity(preds_vec, word_vec)
 
-                score+=score
-                #scoreの対数化とか
-                #長さで割るのも
+                if score==0:
+                    score=0.00000001  #仮
+                score+=math.log(score)
 
-            scores.append(score)
-
+            scores.append(score/(sent_len-2*self.N-1))
 
         return scores
 
@@ -631,8 +611,6 @@ class ModelTest():
         print('line:%d, acc:%.4f'% (sent_line, 1.0*sent_OK/sent_line))
 
 
-        return result_str
-
 
 #コマンドライン引数の設定いろいろ
 def get_args():
@@ -697,7 +675,7 @@ if __name__ == '__main__':
         # 3.学習
         model = trainIters(model, train_path, val_path, len_words, word_to_id, id_to_word, vec_dict, ft_path, bin_path, n_iters=epoch, saveModel=True)
         print('Train end')
-        exit()
+
     #すでにあるモデルでテスト時
     else:
         save_path=args.model_dir+'/'
@@ -734,7 +712,7 @@ if __name__ == '__main__':
 
     datas=[center_data, MS_data, CLOTH_high_data, CLOTH_middle_ans]
 
-    test=ModelTest(model, maxlen_words, word_to_id, vec_dict, ft_path, bin_path, id_to_word)
+    test=ModelTest_CLOTH(model, maxlen_words, word_to_id, vec_dict, ft_path, bin_path, id_to_word)
 
     for data in datas:
         data_name=data[0]
