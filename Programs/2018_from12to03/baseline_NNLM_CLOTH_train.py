@@ -57,6 +57,10 @@ import subprocess
 maxlen_words = 5
 BATCH_SIZE=256
 
+PAD_token = 0
+UNK_token = 1
+NUM_token = 2
+
 file_path='../../../pytorch_data/'
 git_data_path='../../Data/'
 CLOTH_path = file_path+'CLOTH_for_model/'
@@ -68,13 +72,41 @@ save_path=file_path + today_str
 
 #事前処理いろいろ
 print('Start: '+today_str)
-CLZ_word='XXXX'
 
 #----- 関数群 -----
 
 ###########################
 # 1.データの準備，データ変換
 ###########################
+
+#seq2seqモデルで用いる語彙に関するクラス
+class Lang:
+    def __init__(self):
+        self.word2index = {"<UNK>": UNK_token}
+        self.word2count = {"<UNK>": 0}
+        self.index2word = {PAD_token: "PAD", UNK_token: "<UNK>", NUM_token: "NUM"}
+        self.n_words = 3  # PAD と SOS と EOS と UNK　とNUM
+
+    #文から単語を語彙へ
+    def addSentence(self, sentence):
+        for word in sentence.split(' '):
+            self.addWord(word)
+
+    #語彙のカウント
+    def addWord(self, word):
+        if word not in self.word2index:
+            self.word2index[word] = self.n_words
+            self.word2count[word] = 1
+            self.index2word[self.n_words] = word
+            self.n_words += 1
+        else:
+            self.word2count[word] += 1
+
+    def check_word2index(self, word):
+        if word in self.word2index:
+            return self.word2index[word]
+        else:
+            return self.word2index["<UNK>"]
 
 
 #空所つき英文読み取り
@@ -248,25 +280,16 @@ def build_model(lang, embedding_matrix):
 
     emb=Dropout(0.5)(emb)
 
+    lstm1=Bidirectional(LSTM(128, dropout=0.5, return_sequences=True))(emb)
+    lstm_out=Bidirectional(LSTM(128, dropout=0.5, return_sequences=False))(lstm1)
 
+    output=Dense(lang.n_words)(lstm_out)
+    output=Activation('softmax')(output)
 
-    out_layer=Dense(128)(merged_layer)
-    preds=Activation('softmax')(output)
-
-    my_model=Model([f_input, r_input], out_layer)
-
-
-
-        output, hidden = self.rnn(emb, hidden)
-        output = self.drop(output) #(文長、バッチサイズ、隠れ層の次元数)
-        output = output.transpose(0,1).contiguous() #(バッチサイズ、文長、隠れ層の次元数)
-        output = output.view(output.size(0), -1)
-
-        decoded = self.decoder(output)
-
+    my_model=Model(input, output)
 
     optimizer = RMSprop()
-    my_model.compile(loss='mean_squared_error', optimizer=optimizer)
+    my_model.compile(loss='categorical_crossentropy', optimizer=optimizer)
 
     return my_model
 
@@ -296,52 +319,49 @@ def preprocess(s):
 
 
 #1行の文字列を学習データの形式に変換
-def tokens_to_data(tokens, len_words, word_to_id, id_to_word, vec_dict, ft_path, bin_path):
-    f_X = []
-    r_X = []
+def tokens_to_data(tokens, lang):
+    X = []
     Y = []
     len_text=len(tokens)
     leng=0
 
     ids=[]
     for word in tokens:
-        ids.append(search_word_indices(word, word_to_id))
+        ids.append(lang.check_word2index(word))
+
 
     len_text=len(ids)
 
-    while(len_text < maxlen_words*2+1):
+    while(len_text < maxlen_words+1):
         ids=[0]+ids+[0]
         len_text+=2
 
-    for i in range(len_text - maxlen_words*2 -1):
-        f=ids[i: i + maxlen_words]
-        r=ids[i + maxlen_words+1: i + maxlen_words+1+maxlen_words]
+    for i in range(len_text - maxlen_words -1):
+        x=ids[i: i + maxlen_words]
         n=ids[i + maxlen_words]
-        f_X.append(f)
-        r_X.append(r[::-1]) #逆順のリスト
-        Y.append(get_ft_vec(id_to_word[n], vec_dict, ft_path, bin_path))
+        y=np.zeros(lang.n_words)
+        y[n]=1
+        X.append(x)
+        Y.append(y)
 
-    return f_X, r_X, Y
+    return X, Y
 
 
 #空所等を含まない英文のデータから，モデルの入出力を作成
-def make_data(file_path, len_words, word_to_id, id_to_word, vec_dict, ft_path, bin_path):
-    f_X_list=[]
-    r_X_list=[]
+def make_data(file_path, lang):
+    X_list=[]
     Y_list=[]
 
     with open(file_path, encoding='utf-8') as f:
         for line in f:
             tokens=preprocess(line)
-            f, r, y=tokens_to_data(tokens, len_words, word_to_id, id_to_word, vec_dict, ft_path, bin_path)
-            f_X_list.extend(f)
-            r_X_list.extend(r)
+            x, y=tokens_to_data(tokens, lang)
+            X_list.extend(x)
             Y_list.extend(y)
-    f_X=np.array(f_X_list, dtype=np.int)
-    r_X=np.array(r_X_list, dtype=np.int)
-    Y=np.array(Y_list, dtype=np.float)
+    X=np.array(X_list, dtype=np.int)
+    Y=np.array(Y_list, dtype=np.int)
 
-    return f_X, r_X, Y
+    return X, Y
 
 
 #checkpoint で保存された最新のモデル(ベストモデルをロード)
@@ -356,15 +376,15 @@ def getNewestModel(model):
 
 
 #学習をn_iters回，残り時間の算出をlossグラフの描画も
-def trainIters(model, train_path, val_path, len_words, word_to_id, id_to_word, vec_dict, ft_path, bin_path, n_iters=5, print_every=10, saveModel=False):
+def trainIters(model, train_path, val_path, lang, n_iters=5, print_every=10, saveModel=False):
 
     print('Make data for model...')
-    f_X_train, r_X_train, Y_train=make_data(train_path, len_words, word_to_id, id_to_word, vec_dict, ft_path, bin_path)
-    f_X_val, r_X_val, Y_val=make_data(val_path, len_words, word_to_id, id_to_word, vec_dict, ft_path, bin_path)
+    X_train, Y_train=make_data(train_path, lang)
+    X_val, Y_val=make_data(val_path, lang)
 
 
-    X_train=[f_X_train, r_X_train]
-    X_val=[f_X_val, r_X_val]
+    X_train=X_train
+    X_val=X_val
 
     cp_cb = ModelCheckpoint(filepath = save_path+'model_ep{epoch:02d}.hdf5', monitor='val_loss', verbose=1, save_best_only=True, mode='min')
 
@@ -624,7 +644,7 @@ if __name__ == '__main__':
     epoch=args.epoch
 
     # 1.語彙データ読み込み
-    vocab_path=file_path+'enwiki_vocab30000.txt'
+    vocab_path=file_path+'enwiki_vocab30000_wordonly.txt'
     vocab = readVocab(vocab_path)
 
     if args.mode == 'all' or args.mode == 'train_loop':
@@ -635,7 +655,7 @@ if __name__ == '__main__':
 
     #通常時
     # 2.モデル定義
-    model = build_model(weights_matrix)
+    model = build_model(vocab, weights_matrix)
 
     #学習時
     if args.mode == 'all' or args.mode == 'mini':
@@ -651,7 +671,7 @@ if __name__ == '__main__':
         #model.summary()
 
         # 3.学習
-        model = trainIters(model, train_path, val_path, len_words, word_to_id, id_to_word, vec_dict, ft_path, bin_path, n_iters=epoch, saveModel=True)
+        model = trainIters(model, train_path, val_path, vocab, n_iters=epoch, saveModel=True)
         print('Train end')
         exit()
     #すでにあるモデルでテスト時
