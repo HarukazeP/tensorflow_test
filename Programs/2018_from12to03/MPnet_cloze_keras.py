@@ -890,6 +890,9 @@ class Ngram():
             if gram  in self.count_1gram:
                 tmp_sum+=self.count_1gram[gram]
 
+        if not tmp_sum>0:
+            tmp_sum=0.01
+
         KenLM_score[0]=math.log(tmp_sum)
 
         return KenLM_score
@@ -1343,15 +1346,15 @@ if __name__ == '__main__':
         is_out=True    #ファイル出力一括設定用
 
         # 2.モデル定義
-        models=['replace_CAR', 'plus_KenLM', 'plus_both' , 'replace_KenLM', 'replace_both']
+        models=['plus_KenLM', 'plus_both' , 'replace_KenLM', 'replace_both']
 
         #済
-        #'origin', 'plus_CAR',
+        #'origin', 'plus_CAR', 'replace_CAR'
 
         for my_model_kind in models:
 
             start_date=datetime.datetime.today()
-            start_date_str=today1.strftime('%m_%d_%H%M')
+            start_date_str=start_date.strftime('%m_%d_%H%M')
             save_path=file_path + start_date_str
 
             model = build_model(vocab.n_words, EMB_DIM, HIDDEN_DIM, weights_matrix, my_model_kind)
@@ -1361,7 +1364,7 @@ if __name__ == '__main__':
             if os.path.exists(save_path)==False:
                 os.mkdir(save_path)
             save_path=save_path+'/'
-            plot_model(model, to_file=save_path+'model_'+args.model_kind+'.png', show_shapes=True)
+            plot_model(model, to_file=save_path+'model_'+my_model_kind+'.png', show_shapes=True)
             #model.summary()
 
             # 3.学習
