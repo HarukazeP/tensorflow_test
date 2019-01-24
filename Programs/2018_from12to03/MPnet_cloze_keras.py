@@ -101,6 +101,7 @@ git_data_path='../../Data/'
 CLOTH_path = file_path+'CLOTH_for_model/'
 KenLM_path='/media/tamaki/HDCL-UT/tamaki/M2/kenlm_models/all_words/'
 
+
 today1=datetime.datetime.today()
 today_str=today1.strftime('%m_%d_%H%M')
 save_path=file_path + today_str
@@ -1186,6 +1187,7 @@ def get_args():
     parser.add_argument('--model', help='model file name (when load model, mode=test)')
     parser.add_argument('--epoch', type=int, default=30)
     parser.add_argument('--model_kind', choices=['origin', 'plus_CAR', 'plus_KenLM', 'plus_both', 'replace_CAR', 'replace_KenLM', 'replace_both'], default='origin', help='model file kind')
+    parser.add_argument('--machine', choices=['whitePC', 'note', '19', '25', 'kasouka'], default='whitePC')
 
     # ほかにも引数必要に応じて追加
     return parser.parse_args()
@@ -1198,6 +1200,9 @@ if __name__ == '__main__':
     print(args.mode)
     epoch=args.epoch
     my_model_kind=args.model_kind
+
+    if args.machine=='note':
+        KenLM_path=file_path+'kenlm_models/'
 
     # 1.語彙データ読み込み
     vocab_path=file_path+'enwiki_vocab30000.txt'
@@ -1212,6 +1217,8 @@ if __name__ == '__main__':
         weights_matrix = get_weight_matrix(vocab)
     else:
         weights_matrix = np.zeros((vocab.n_words, EMB_DIM))
+
+
 
     #通常時
     if args.mode != 'train_loop':
