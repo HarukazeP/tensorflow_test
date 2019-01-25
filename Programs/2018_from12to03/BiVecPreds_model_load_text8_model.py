@@ -245,7 +245,12 @@ class ModelTest_text8():
         for word in tokens:
             ids.append(search_word_indices(word, self.word_to_id))
 
-        return [0] * (self.N - len(ids)) +ids
+        len_ids=len(ids)
+
+        if len_ids<self.N:
+            return [0] * (self.N - len_ids) +ids
+        else:
+            return ids[:self.N]
 
 
     #選択肢が全て1語かどうかのチェック
