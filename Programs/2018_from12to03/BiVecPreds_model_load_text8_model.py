@@ -49,6 +49,10 @@ tmp_vec_dict=dict()
 
 CLZ_word= 'XXXX'
 
+file_path='../../../pytorch_data/'
+git_data_path='../../Data/'
+CLOTH_path = file_path+'CLOTH_for_model/'
+
 #----- 関数群 -----
 
 #時間表示
