@@ -209,13 +209,16 @@ def get_ft_vec(word, vec_dict, ft_path, bin_path):
     else:
         KeyError_set.add(word)    #要素を追加
         cmd='echo "'+word+'" | '+ft_path+' print-word-vectors '+bin_path
-        ret  =  subprocess.check_output(cmd, shell=True)
-        #python3からここの出力がバイナリ列に変化
-        line=ret.decode('utf-8').strip()
-        tmp_list=line.split(' ')
-        word=tmp_list[0]
-        vec=tmp_list[1:]
-        vec_array=np.array(vec,dtype=np.float32)
+        try:
+            ret  =  subprocess.check_output(cmd, shell=True)
+            #python3からここの出力がバイナリ列に変化
+            line=ret.decode('utf-8').strip()
+            tmp_list=line.split(' ')
+            word=tmp_list[0]
+            vec=tmp_list[1:]
+            vec_array=np.array(vec,dtype=np.float32)
+        except subprocess.CalledProcessError:
+            vec_array=np.zeros(vec_size,dtype=np.float32)
         tmp_vec_dict[word]=vec_array
 
         return vec_array

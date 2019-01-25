@@ -11,3 +11,22 @@ time python3.6 baseline_RNNLM_ngram.py --mode test --model_dir RNNLM10_23_1240_N
 
 -----------------------
 OSError: Cannot read model 'enwikiALL_splited_N7.arpa' (util/mmap.cc:234 in void util::HugeMalloc(std::size_t, bool, util::scoped_memory&) threw ErrnoException because `!to.get()'. Cannot allocate memory Failed to allocate 221752468232 bytes Byte: 136)
+
+
+BiVec_CLOTH
+
+center
+near score
+line:161, acc:0.2547
+sent score (one word)
+line:161, acc:0.2857
+sent score
+line:324, acc:0.2685
+MS
+near score
+line:1040, acc:0.3010
+sent score (one word)
+line:1040, acc:0.2894
+sent score
+line:1040, acc:0.2894
+
