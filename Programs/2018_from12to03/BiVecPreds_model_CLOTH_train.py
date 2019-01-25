@@ -167,9 +167,6 @@ def vec_to_dict(vec_path):
 #fasttextのベクトルを得る
 #未知語の場合にはfasttextのモデル呼び出して実行
 #未知語は集合に格納し，あとでファイル出力
-#fasttextのベクトルを得る
-#未知語の場合にはfasttextのモデル呼び出して実行
-#未知語は集合に格納し，あとでファイル出力
 def get_ft_vec(word, vec_dict, ft_path, bin_path):
     if word in vec_dict:
         return vec_dict[word]
@@ -187,6 +184,10 @@ def get_ft_vec(word, vec_dict, ft_path, bin_path):
             vec=tmp_list[1:]
             vec_array=np.array(vec,dtype=np.float32)
         except subprocess.CalledProcessError:
+            print('error word:', word)
+            vec_array=np.zeros(vec_size,dtype=np.float32)
+        except Exception:    #/bin/sh: 1: Syntax error: Unterminated quoted string
+            print('error word:', word)
             vec_array=np.zeros(vec_size,dtype=np.float32)
         tmp_vec_dict[word]=vec_array
 
@@ -584,14 +585,18 @@ class ModelTest_CLOTH():
         sent_line=0
         sent_OK=0
 
-        #ファイル読み込み、どのスコアでも共通
 
         #空所はCLZ_wordに置換したやつ
         cloze_list=readCloze2(cloze_path)
         choices_list=readChoices(choices_path)
         ans_list=readAns(ans_path)
 
+        i=0
+
         for cloze_sent, choices, ans_word in zip(cloze_list, choices_list, ans_list):
+            i+=1
+            if i%500==0:
+                print('line;',i)
             #直近予測スコア(1語のみ)
             line, OK=self.check_one_sent_by_near_score(cloze_sent, choices, ans_word)
             near_line+=line
