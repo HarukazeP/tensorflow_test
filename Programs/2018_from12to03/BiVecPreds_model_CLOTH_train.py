@@ -516,8 +516,7 @@ class ModelTest_CLOTH():
                 preds_vec = self.model.predict([[f_X], [r_X]], verbose=0)
                 tmp_score=self.calc_similarity(preds_vec, word_vec)
 
-                if not tmp_score>0:
-                    tmp_score=0.00000001  #仮
+                tmp_score+=1.000001
                 score+=math.log(tmp_score)
 
             scores.append(score/(sent_len-2*self.N))
