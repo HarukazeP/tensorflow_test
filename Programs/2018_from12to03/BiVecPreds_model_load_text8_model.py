@@ -405,17 +405,17 @@ class ModelTest_text8():
 
         for cloze_sent, choices, ans_word in zip(cloze_list, choices_list, ans_list):
             #直近予測スコア(1語のみ)
-            line, OK=check_one_sent_by_near_score(cloze_sent, choices, ans_word)
+            line, OK=self.check_one_sent_by_near_score(cloze_sent, choices, ans_word)
             near_line+=line
             near_OK+=OK
 
             #補充文スコア(1語のみ)
-            line, OK=check_one_sent_by_sent_score(cloze_sent, choices, ans_word, one_word=True)
+            line, OK=self.check_one_sent_by_sent_score(cloze_sent, choices, ans_word, one_word=True)
             sent_line_one_word+=line
             sent_OK_one_word+=OK
 
             #補充文スコア(1語以上)
-            line, OK=check_one_sent_by_sent_score(cloze_sent, choices, ans_word, one_word=False)
+            line, OK=self.check_one_sent_by_sent_score(cloze_sent, choices, ans_word, one_word=False)
             sent_line+=line
             sent_OK+=OK
 
@@ -502,7 +502,7 @@ if __name__ == '__main__':
     center_ans=git_data_path+'center_ans.txt'
 
     MS_cloze=git_data_path+'microsoft_cloze.txt'
-    MS_choi=git_data_path+'microsoft_choices_for_CLOTH.txt'
+    MS_choi=git_data_path+'microsoft_choices.txt'
     MS_ans=git_data_path+'microsoft_ans.txt'
 
     high_path=git_data_path+'CLOTH_test_high'
