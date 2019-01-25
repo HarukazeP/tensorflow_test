@@ -274,7 +274,7 @@ class ModelTest_text8():
         f_X=self.token_to_ids_for_test(before)
         r_X=self.token_to_ids_for_test(after[::-1])
 
-        preds_vec = self.model.predict([f_X, r_X], verbose=0)
+        preds_vec = self.model.predict([[f_X], [r_X]], verbose=0)
 
         #choices は必ず1語
         for word in choices:
@@ -324,14 +324,14 @@ class ModelTest_text8():
                 r_X=ids[i+self.N+1 : i+2*self.N+1]
 
                 word_vec=vecs[i+self.N]
-                preds_vec = self.model.predict([f_X, r_X], verbose=0)
-                score=self.calc_similarity(preds_vec, word_vec)
+                preds_vec = self.model.predict([[f_X], [r_X]], verbose=0)
+                tmp_score=self.calc_similarity(preds_vec, word_vec)
 
-                if score==0:
-                    score=0.00000001  #仮
-                score+=math.log(score)
+                if tmp_score==0:
+                    tmp_score=0.00000001  #仮
+                score+=math.log(tmp_score)
 
-            scores.append(score/(sent_len-2*self.N-1))
+            scores.append(score/(sent_len-2*self.N))
 
         return scores
 

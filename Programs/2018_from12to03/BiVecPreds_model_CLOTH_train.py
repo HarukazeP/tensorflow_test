@@ -178,7 +178,8 @@ def get_ft_vec(word, vec_dict, ft_path, bin_path):
         KeyError_set.add(word)    #要素を追加
         cmd='echo "'+word+'" | '+ft_path+' print-word-vectors '+bin_path
         ret  =  subprocess.check_output(cmd, shell=True)
-        line=ret.strip()
+        #python3からここの出力がバイナリ列に変化
+        line=ret.decode('utf-8').strip()
         tmp_list=line.split(' ')
         word=tmp_list[0]
         vec=tmp_list[1:]
@@ -423,7 +424,12 @@ class ModelTest_CLOTH():
         for word in tokens:
             ids.append(search_word_indices(word, self.word_to_id))
 
-        return [0] * (self.N - len(ids)) +ids
+        len_ids=len(ids)
+
+        if len_ids<self.N:
+            return [0] * (self.N - len_ids) +ids
+        else:
+            return ids[:self.N]
 
 
     #選択肢が全て1語かどうかのチェック
@@ -457,7 +463,7 @@ class ModelTest_CLOTH():
         f_X=self.token_to_ids_for_test(before)
         r_X=self.token_to_ids_for_test(after[::-1])
 
-        preds_vec = self.model.predict([f_X, r_X], verbose=0)
+        preds_vec = self.model.predict([[f_X], [r_X]], verbose=0)
 
         #choices は必ず1語
         for word in choices:
@@ -507,14 +513,14 @@ class ModelTest_CLOTH():
                 r_X=ids[i+self.N+1 : i+2*self.N+1]
 
                 word_vec=vecs[i+self.N]
-                preds_vec = self.model.predict([f_X, r_X], verbose=0)
-                score=self.calc_similarity(preds_vec, word_vec)
+                preds_vec = self.model.predict([[f_X], [r_X]], verbose=0)
+                tmp_score=self.calc_similarity(preds_vec, word_vec)
 
-                if score==0:
-                    score=0.00000001  #仮
-                score+=math.log(score)
+                if not tmp_score>0:
+                    tmp_score=0.00000001  #仮
+                score+=math.log(tmp_score)
 
-            scores.append(score/(sent_len-2*self.N-1))
+            scores.append(score/(sent_len-2*self.N))
 
         return scores
 
@@ -584,17 +590,17 @@ class ModelTest_CLOTH():
 
         for cloze_sent, choices, ans_word in zip(cloze_list, choices_list, ans_list):
             #直近予測スコア(1語のみ)
-            line, OK=check_one_sent_by_near_score(cloze_sent, choices, ans_word)
+            line, OK=self.check_one_sent_by_near_score(cloze_sent, choices, ans_word)
             near_line+=line
             near_OK+=OK
 
             #補充文スコア(1語のみ)
-            line, OK=check_one_sent_by_sent_score(cloze_sent, choices, ans_word, one_word=True)
+            line, OK=self.check_one_sent_by_sent_score(cloze_sent, choices, ans_word, one_word=True)
             sent_line_one_word+=line
             sent_OK_one_word+=OK
 
             #補充文スコア(1語以上)
-            line, OK=check_one_sent_by_sent_score(cloze_sent, choices, ans_word, one_word=False)
+            line, OK=self.check_one_sent_by_sent_score(cloze_sent, choices, ans_word, one_word=False)
             sent_line+=line
             sent_OK+=OK
 
