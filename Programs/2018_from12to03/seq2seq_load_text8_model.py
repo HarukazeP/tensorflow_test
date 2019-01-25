@@ -1104,7 +1104,6 @@ def trim_sents(inp_sent, ans_sent):
 
         else:
             last=ans_clz_st-MAX_LENGTH//2+MAX_LENGTH-1-ans_clz_end
-            print('last=', last)
             new_inp=inp_list[inp_clz_st-MAX_LENGTH//2:inp_clz_end+last]
             new_ans=ans_list[ans_clz_st-MAX_LENGTH//2:ans_clz_end+last]
 
@@ -1114,7 +1113,7 @@ def trim_sents(inp_sent, ans_sent):
 #テストデータに対する予測と精度計算
 #空所内のみを予測するモード
 #および、選択肢を利用するモード
-def test_choices(lang, encoder, decoder, test_data, choices, saveAttention=False, file_output=False):
+def test_choices(lang, encoder, decoder, test_data, choices, saveAttention=False, file_output=False, one_word=False):
     print("Test ...")
     #input_sentence や ansは文字列であるのに対し、output_wordsはリストであることに注意
     preds=[]
@@ -1122,26 +1121,33 @@ def test_choices(lang, encoder, decoder, test_data, choices, saveAttention=False
     preds_cloze=[]
     preds_choices=[]
     for pair, choi in zip(test_data, choices):
-        input_sentence, ans_sentence = trim_sents(pair[0], pair[1])
-        ans.append(ans_sentence)
+        flag=0
+        for words in choi:
+            #2語以上の選択肢がある場合はしない
+            if len(words.split(' '))>1:
+                flag=1
+                break
+        if flag==0 or one_word==False:
+            input_sentence, ans_sentence = trim_sents(pair[0], pair[1])
+            ans.append(ans_sentence)
 
-        #output_words, attentions = evaluate(lang, encoder, decoder, input_sentence)
-        #preds.append(' '.join(output_words))
+            #output_words, attentions = evaluate(lang, encoder, decoder, input_sentence)
+            #preds.append(' '.join(output_words))
 
-        #output_cloze_ct, cloze_attentions = evaluate_cloze(lang, encoder, decoder, input_sentence)
-        #preds_cloze.append(' '.join(output_cloze_ct))
+            #output_cloze_ct, cloze_attentions = evaluate_cloze(lang, encoder, decoder, input_sentence)
+            #preds_cloze.append(' '.join(output_cloze_ct))
 
-        output_choice_words, choice_attentions = evaluate_choice(lang, encoder, decoder, input_sentence, choi)
-        preds_choices.append(' '.join(output_choice_words))
+            output_choice_words, choice_attentions = evaluate_choice(lang, encoder, decoder, input_sentence, choi)
+            preds_choices.append(' '.join(output_choice_words))
 
-        if saveAttention:
-            #showAttention('all', input_sentence, output_words, attentions)
-            #showAttention('cloze', input_sentence, output_cloze_ct, cloze_attentions)
-            showAttention('choice', input_sentence, output_choice_words, choice_attentions)
-        if file_output:
-            #output_preds(save_path+'preds.txt', preds)
-            #output_preds(save_path+'preds_cloze.txt', preds_cloze)
-            output_preds(save_path+'preds_choices.txt', preds_choices)
+            if saveAttention:
+                #showAttention('all', input_sentence, output_words, attentions)
+                #showAttention('cloze', input_sentence, output_cloze_ct, cloze_attentions)
+                showAttention('choice', input_sentence, output_choice_words, choice_attentions)
+            if file_output:
+                #output_preds(save_path+'preds.txt', preds)
+                #output_preds(save_path+'preds_cloze.txt', preds_cloze)
+                output_preds(save_path+'preds_choices.txt', preds_choices)
     print("Calc scores ...")
     #score(preds, ans, file_output, save_path+'score.txt')
     #score(preds_cloze, ans, file_output, save_path+'score_cloze.txt')
@@ -1199,7 +1205,7 @@ def get_best_sent(lang, encoder, decoder, sents):
     return sents[scores.index(max(scores))]
 
 #一旦1語以上，選択肢ありモード
-def test_choices_by_sent_score(lang, encoder, decoder, test_data, choices, saveAttention=False, file_output=False):
+def test_choices_by_sent_score(lang, encoder, decoder, test_data, choices, saveAttention=False, file_output=False, one_word=False):
     print("Test by sent score...")
     #input_sentence や ansは文字列であるのに対し、output_wordsはリストであることに注意
     preds=[]
@@ -1207,16 +1213,23 @@ def test_choices_by_sent_score(lang, encoder, decoder, test_data, choices, saveA
     preds_cloze=[]
     preds_choices=[]
     for pair, choi in zip(test_data, choices):
-        input_sentence, ans_sentence = trim_sents(pair[0], pair[1])
-        ans.append(ans_sentence)
+        flag=0
+        for words in choi:
+            #2語以上の選択肢がある場合はしない
+            if len(words.split(' '))>1:
+                flag=1
+                break
+        if flag==0 or one_word==False:
+            input_sentence, ans_sentence = trim_sents(pair[0], pair[1])
+            ans.append(ans_sentence)
 
-        sents=make_sents_with_cloze_mark(input_sentence, choi)
-        pred=get_best_sent(lang, encoder, decoder, sents)
+            sents=make_sents_with_cloze_mark(input_sentence, choi)
+            pred=get_best_sent(lang, encoder, decoder, sents)
 
-        preds_choices.append(pred)
+            preds_choices.append(pred)
 
-        if file_output:
-            output_preds(save_path+'preds_choices.txt', preds_choices)
+            if file_output:
+                output_preds(save_path+'preds_choices.txt', preds_choices)
     print("Calc scores ...")
     score(preds_choices, ans, file_output, save_path+'score_choices.txt')
 
@@ -1291,22 +1304,24 @@ if __name__ == '__main__':
     #テストデータに対する予測と精度の計算
     #選択肢を使ったテスト
     #これは前からの予測
+    '''
     print('center')
-    test_choices(vocab, my_encoder, my_decoder, center_data, center_choices, saveAttention=False, file_output=True)
+    test_choices(vocab, my_encoder, my_decoder, center_data, center_choices, saveAttention=False, file_output=True, one_word=True)
     #これは文スコア
-    test_choices_by_sent_score(vocab, my_encoder, my_decoder, center_data, center_choices, saveAttention=False, file_output=False)
+    test_choices_by_sent_score(vocab, my_encoder, my_decoder, center_data, center_choices, saveAttention=False, file_output=False, one_word=True)
 
     print('MS')
-    test_choices(vocab, my_encoder, my_decoder, MS_data, MS_choices, saveAttention=False, file_output=True)
+    test_choices(vocab, my_encoder, my_decoder, MS_data, MS_choices, saveAttention=False, file_output=True, one_word=True)
     #これは文スコア
-    test_choices_by_sent_score(vocab, my_encoder, my_decoder, MS_data, MS_choices, saveAttention=False, file_output=False)
+    test_choices_by_sent_score(vocab, my_encoder, my_decoder, MS_data, MS_choices, saveAttention=False, file_output=False, one_word=True)
+    '''
 
     print('CLOTH_high')
-    test_choices(vocab, my_encoder, my_decoder, CLOTH_high_data, CLOTH_high_choices, saveAttention=False, file_output=True)
+    test_choices(vocab, my_encoder, my_decoder, CLOTH_high_data, CLOTH_high_choices, saveAttention=False, file_output=True, one_word=True)
     #これは文スコア
-    test_choices_by_sent_score(vocab, my_encoder, my_decoder, CLOTH_high_data, CLOTH_high_choices, saveAttention=False, file_output=False)
+    test_choices_by_sent_score(vocab, my_encoder, my_decoder, CLOTH_high_data, CLOTH_high_choices, saveAttention=False, file_output=False, one_word=True)
 
     print('CLOTH_middle')
-    test_choices(vocab, my_encoder, my_decoder, CLOTH_middle_data, CLOTH_middle_choices, saveAttention=False, file_output=True)
+    test_choices(vocab, my_encoder, my_decoder, CLOTH_middle_data, CLOTH_middle_choices, saveAttention=False, file_output=True, one_word=True)
     #これは文スコア
-    test_choices_by_sent_score(vocab, my_encoder, my_decoder, CLOTH_middle_data, CLOTH_middle_choices, saveAttention=False, file_output=False)
+    test_choices_by_sent_score(vocab, my_encoder, my_decoder, CLOTH_middle_data, CLOTH_middle_choices, saveAttention=False, file_output=False, one_word=True)
