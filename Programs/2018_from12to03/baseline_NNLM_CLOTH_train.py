@@ -67,6 +67,7 @@ today1=datetime.datetime.today()
 today_str=today1.strftime('%m_%d_%H%M')
 save_path=file_path + today_str
 
+CLZ_word='XXXX'
 
 #事前処理いろいろ
 print('Start: '+today_str)
@@ -443,15 +444,45 @@ def showPlot4(val_plot, file_name, label_name):
 # 4.モデルによる予測
 ###########################
 
-class ModelTest():
-    def __init__(self, model, maxlen_words, word_to_id, vec_dict, ft_path, bin_path, id_to_word):
+class ModelTest_CLOTH():
+    def __init__(self, model, maxlen_words, lang):
         self.model=model
         self.N=maxlen_words
-        self.word_to_id=word_to_id
-        self.vec_dict=vec_dict
-        self.ft_path=ft_path
-        self.bin_path=bin_path
-        self.id_to_word=id_to_word
+        self.lang=lang
+
+
+    def preprocess_for_test(self, s):
+        sent_tokens=[]
+        s = unicodeToAscii(s)
+        s = re.sub(r'[ ]+', ' ', s)
+        s = s.strip()
+        tokens=nltk.word_tokenize(s)
+        symbol_tag=("$", "''", "(", ")", ",", "--", ".", ":", "``", "SYM")
+        num_tag=("LS", "CD")
+        tagged = nltk.pos_tag(tokens)
+        for word, tag in tagged:
+            if word==CLZ_word:
+                sent_tokens.append(CLZ_word)
+            if tag in symbol_tag:
+                pass
+                #記号は無視
+            elif tag in num_tag:
+                sent_tokens.append('NUM')
+            else:
+                sent_tokens.append(word.lower())
+
+        return sent_tokens
+
+
+    #nltkのtoken列をidsへ
+    def token_to_ids_for_test(self, tokens):
+        ids=[]
+
+        for word in tokens:
+            ids.append(self.lang.check_word2index(word))
+
+        return [0] * (self.N - len(ids)) +ids
+
 
     #選択肢が全て1語かどうかのチェック
     def is_one_word(self, choices):
@@ -461,69 +492,69 @@ class ModelTest():
 
         return True
 
+
     #直近予測スコアの算出
     #モデルの出力と各選択肢との類似度
     def calc_near_scores(self, cloze_sent, choices):
         scores=[]
-        cloze_list=cloze_sent.split()
-        clz_index=cloze_list.index(CLZ_word)
+        tokens=self.preprocess_for_test(cloze_sent)
+        clz_index=tokens.index(CLZ_word)
 
-        f_X=cloze_list[clz_index-self.N:clz_index-1]
-        r_X=cloze_list[clz_index+1:clz_index+self.N]
-        #TODO　padding
-        #TODO indexにもしてない
-        #TODO r_Xの方は逆順にする？
+        before=tokens[:clz_index]
 
-        preds_vec = self.model.predict([f_X, r_X], verbose=0)
+        X=self.token_to_ids_for_test(before)
+
+        preds = self.model.predict(X, verbose=0)
 
         #choices は必ず1語
         for word in choices:
-            word_vec=get_ft_vec(word, self.vec_dict, self.ft_path, self.bin_path)
-            score=calc_similarity(preds_vec, word_vec)
+            score=preds[self.lang.check_word2index(word)]
             scores.append(score)
 
         return scores
 
 
-    def make_sent_list_for_sent_score(self, cloze_sent, choice_words):
-        #paddingもやる
+    def make_inputs_for_sent_score(self, cloze_sent, choice_words):
+        sent=cloze_sent.replace(CLZ_word, choice_words)
+        tokens=self.preprocess_for_test(sent)
 
-        #choices_wordsは1語だけとは限らない
+        ids=[]
 
+        len_text=len(tokens)
 
-        pass
+        for word in tokens:
+            ids.append(search_word_indices(word, self.word_to_id))
 
-        return sent_list
+        while(len_text < self.N+1):
+            ids=[0]+ids+[0]
+            len_text+=2
+
+        return ids
+
 
     #補充文スコアの算出
-    #モデルの出力と、補充文でのそこの単語との類似度の積？
-    #式確認、logとって和とか？
     def calc_sent_scores(self, cloze_sent, choices):
         scores=[]
 
         for words in choices:
             score=0
-            sent_list=self.make_sent_list_for_sent_score(cloze_sent, words)
-            sent_len=len(sent_list)
+            ids=self.make_inputs_for_sent_score(cloze_sent, words)
+
+            sent_len=len(ids)
 
             #Nとかの数rangeのとこも要確認
-            for i in range(sent_len-2*self.N-1):
+            for i in range(sent_len-self.N+1):
                 #長さ計って、iとかでforループ？
-                f_X=sent_list[i : i+self.N-1]
-                r_X=sent_list[i+self.N+1 : i+2*self.N]
-                tmp_word=sent_list[i+self.N]
+                X=ids[i : i+self.N]
 
-                word_vec=get_ft_vec(tmp_word, self.vec_dict, self.ft_path, self.bin_path)
-                #TODO ここの数の計算あってる？ Nとか +1とか
-                preds_vec = self.model.predict([f_X, r_X], verbose=0)
-                score=calc_similarity(preds_vec, word_vec)
+                preds = self.model.predict(X, verbose=0)
+                score=preds[self.lang.check_word2index(word)]
 
-                score+=score
-                #scoreの対数化とか
-                #長さで割るのも
+                if score==0:
+                    score=0.00000001  #仮
+                score+=math.log(score)
 
-            scores.append(score)
-
+            scores.append(score/(sent_len-self.N+1))
 
         return scores
 
@@ -617,8 +648,6 @@ class ModelTest():
         print('line:%d, acc:%.4f'% (sent_line, 1.0*sent_OK/sent_line))
 
 
-        return result_str
-
 
 #コマンドライン引数の設定いろいろ
 def get_args():
@@ -708,7 +737,7 @@ if __name__ == '__main__':
 
     datas=[center_data, MS_data, CLOTH_high_data, CLOTH_middle_ans]
 
-    test=ModelTest(model, maxlen_words, word_to_id, vec_dict, ft_path, bin_path, id_to_word)
+    test=ModelTest_CLOTH(model, maxlen_words, word_to_id, vec_dict, ft_path, bin_path, id_to_word)
 
     for data in datas:
         data_name=data[0]
