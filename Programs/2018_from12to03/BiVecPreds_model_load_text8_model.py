@@ -10,8 +10,8 @@ text8の前処理
 テストデータも変わってる
 結構かなり書き換え
 
-動かしていたバージョン
-python  : 3.5.2
+python2用の書き方してるから
+CLOTHで学習する方とはところどころ異なる
 
 
 min_modelをロードしてテストする用
@@ -170,7 +170,7 @@ def get_ft_vec(word, vec_dict, ft_path, bin_path):
 def readCloze2(file):
     #print("Reading data...")
     data=[]
-    with open(file, encoding='utf-8') as f:
+    with open(file) as f:
         for line in f:
             line=preprocess_line(line)
             line=re.sub(r'{.*}', CLZ_word, line)
@@ -183,7 +183,7 @@ def readCloze2(file):
 #選択肢読み取り
 def readChoices(file_name):
     choices=[]
-    with open(file_name, encoding='utf-8') as f:
+    with open(file_name) as f:
         for line in f:
             line=preprocess_line_for_choices(line)
             line=re.sub(r'.*{ ', '', line)
@@ -197,7 +197,7 @@ def readChoices(file_name):
 #空所内の単語読み取り
 def readAns(file_name):
     data=[]
-    with open(file_name, encoding='utf-8') as f:
+    with open(file_name) as f:
         for line in f:
             line=preprocess_line(line)
             line=re.sub(r'.*{ ', '', line)
