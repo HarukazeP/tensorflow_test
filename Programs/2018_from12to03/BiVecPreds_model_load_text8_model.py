@@ -10,8 +10,6 @@ text8の前処理
 テストデータも変わってる
 結構かなり書き換え
 
-#TODO まだ未作成
-
 動かしていたバージョン
 python  : 3.5.2
 
@@ -223,7 +221,8 @@ def search_word_indices(word, word_to_id):
         return word_to_id['#OTHER']
 
 
-class ModelTest():
+#Test_CLOTHとは異なり，ファイル読み込み時に前処理してる
+class ModelTest_text8():
     def __init__(self, model, maxlen_words, word_to_id, vec_dict, ft_path, bin_path, id_to_word):
         self.model=model
         self.N=maxlen_words
@@ -233,6 +232,17 @@ class ModelTest():
         self.bin_path=bin_path
         self.id_to_word=id_to_word
 
+
+    #nltkのtoken列をidsへ
+    def token_to_ids_for_test(self, tokens):
+        ids=[]
+
+        for word in tokens:
+            ids.append(search_word_indices(word, self.word_to_id))
+
+        return [0] * (self.N - len(ids)) +ids
+
+
     #選択肢が全て1語かどうかのチェック
     def is_one_word(self, choices):
         for c in choices:
@@ -241,69 +251,87 @@ class ModelTest():
 
         return True
 
+
+    #2つのベクトルのコサイン類似度を返す
+    def calc_similarity(self, pred_vec, ans_vec):
+        len_p=np.linalg.norm(pred_vec)
+        len_a=np.linalg.norm(ans_vec)
+        if len_p==0 or len_a==0:
+            return 0.0
+        return np.dot(pred_vec/len_p, ans_vec/len_a)
+
+
     #直近予測スコアの算出
     #モデルの出力と各選択肢との類似度
     def calc_near_scores(self, cloze_sent, choices):
         scores=[]
-        cloze_list=cloze_sent.split()
-        clz_index=cloze_list.index(CLZ_word)
+        tokens=cloze_sent.split()
+        clz_index=tokens.index(CLZ_word)
 
-        f_X=cloze_list[clz_index-self.N:clz_index-1]
-        r_X=cloze_list[clz_index+1:clz_index+self.N]
-        #TODO　padding
-        #TODO indexにもしてない
-        #TODO r_Xの方は逆順にする？
+        before=tokens[:clz_index]
+        after=tokens[clz_index+1:]
+
+        f_X=self.token_to_ids_for_test(before)
+        r_X=self.token_to_ids_for_test(after[::-1])
 
         preds_vec = self.model.predict([f_X, r_X], verbose=0)
 
         #choices は必ず1語
         for word in choices:
             word_vec=get_ft_vec(word, self.vec_dict, self.ft_path, self.bin_path)
-            score=calc_similarity(preds_vec, word_vec)
+            score=self.calc_similarity(preds_vec, word_vec)
             scores.append(score)
 
         return scores
 
 
-    def make_sent_list_for_sent_score(self, cloze_sent, choice_words):
-        #paddingもやる
+    def make_inputs_for_sent_score(self, cloze_sent, choice_words):
+        sent=cloze_sent.replace(CLZ_word, choice_words)
+        tokens=sent.split()
 
-        #choices_wordsは1語だけとは限らない
+        ids=[]
+        vecs=[]
 
+        len_text=len(tokens)
 
-        pass
+        for word in tokens:
+            ids.append(search_word_indices(word, self.word_to_id))
+            vecs.append(get_ft_vec(word, self.vec_dict, self.ft_path, self.bin_path))
 
-        return sent_list
+        while(len_text < self.N*2+1):
+            ids=[0]+ids+[0]
+            vecs.insert(0, np.zeros(vec_size))
+            vecs.append(np.zeros(vec_size))
+            len_text+=2
+
+        return ids, vecs
+
 
     #補充文スコアの算出
-    #モデルの出力と、補充文でのそこの単語との類似度の積？
-    #式確認、logとって和とか？
     def calc_sent_scores(self, cloze_sent, choices):
         scores=[]
 
         for words in choices:
             score=0
-            sent_list=self.make_sent_list_for_sent_score(cloze_sent, words)
-            sent_len=len(sent_list)
+            ids, vecs=self.make_inputs_for_sent_score(cloze_sent, words)
+
+            sent_len=len(ids)
 
             #Nとかの数rangeのとこも要確認
             for i in range(sent_len-2*self.N-1):
                 #長さ計って、iとかでforループ？
-                f_X=sent_list[i : i+self.N-1]
-                r_X=sent_list[i+self.N+1 : i+2*self.N]
-                tmp_word=sent_list[i+self.N]
+                f_X=ids[i : i+self.N]
+                r_X=ids[i+self.N+1 : i+2*self.N+1]
 
-                word_vec=get_ft_vec(tmp_word, self.vec_dict, self.ft_path, self.bin_path)
-                #TODO ここの数の計算あってる？ Nとか +1とか
+                word_vec=vecs[i+self.N]
                 preds_vec = self.model.predict([f_X, r_X], verbose=0)
-                score=calc_similarity(preds_vec, word_vec)
+                score=self.calc_similarity(preds_vec, word_vec)
 
-                score+=score
-                #scoreの対数化とか
-                #長さで割るのも
+                if score==0:
+                    score=0.00000001  #仮
+                score+=math.log(score)
 
-            scores.append(score)
-
+            scores.append(score/(sent_len-2*self.N-1))
 
         return scores
 
@@ -371,7 +399,7 @@ class ModelTest():
         choices_list=readChoices(choices_path)
         ans_list=readAns(ans_path)
 
-        for cloze_sent, choices, ans_word in zip(cloze_list, choices_list, ans_list)
+        for cloze_sent, choices, ans_word in zip(cloze_list, choices_list, ans_list):
             #直近予測スコア(1語のみ)
             line, OK=check_one_sent_by_near_score(cloze_sent, choices, ans_word)
             near_line+=line
@@ -397,7 +425,6 @@ class ModelTest():
         print('line:%d, acc:%.4f'% (sent_line, 1.0*sent_OK/sent_line))
 
 
-        return result_str
 
 
 
@@ -420,15 +447,6 @@ if __name__ == '__main__':
     save_path=save_path+'NEW_TEST_'
 
 
-    #学習データの候補
-    train_big='../corpus/WikiSentWithEndMark1.txt'   # 約5.8GB，約2000万行
-    train_enwiki='../corpus/enwiki.txt'   # 約24GB，1行のみ，約435億単語(約237種類)
-    train_mid='../corpus/miniWiki_tmp8.txt'   # 約1.5MB，約5000行
-    train_small='../corpus/nietzsche.txt'   # 約600KB，約1万行
-    train_test='../corpus/mini_text8.txt'
-
-    train_text8='../corpus/text8.txt'   # 約95MB 1行のみ, 約1700万単語(約7万これ違う種類)  http://mattmahoney.net/dc/text8.zip
-
 
     # 2.fasttextのロードと辞書の作成
     '''
@@ -437,13 +455,11 @@ if __name__ == '__main__':
     '''
 
     #TODO fastText系のパス
-    ft_path='../../FastText/fastText-0.1.0/fasttext'
+    ft_path='../../../../M1/FastText/fastText-0.1.0/fasttext'
 
     #ベクトルファイルの候補
-    vec_enwiki='../../FastText/Model/enwiki_dim'+str(vec_size)+'_minC0.vec'
-    bin_enwiki='../../FastText/Model/enwiki_dim'+str(vec_size)+'_minC0.bin'
-    vec_text8='../../FastText/Model/text8_dim'+str(vec_size)+'_minC0.vec'
-    bin_text8='../../FastText/Model/text8_dim'+str(vec_size)+'_minC0.bin'
+    vec_text8='../../../../M1/FastText/Model/text8_dim'+str(vec_size)+'_minC0.vec'
+    bin_text8='../../../../M1/FastText/text8_dim'+str(vec_size)+'_minC0.bin'
 
     #実際に使うもの
     vec_path=vec_text8
@@ -504,7 +520,7 @@ if __name__ == '__main__':
 
     datas=[center_data, MS_data, CLOTH_high_data, CLOTH_middle_ans]
 
-    test=ModelTest(min_model, maxlen_words, word_to_id, vec_dict, ft_path, bin_path, id_to_word)
+    test=ModelTest_text8(min_model, maxlen_words, word_to_id, vec_dict, ft_path, bin_path, id_to_word)
 
     for data in datas:
         data_name=data[0]

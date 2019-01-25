@@ -12,6 +12,8 @@ seq2seq_attention_pretrain_vec.py から変更
 動作確認
 ビームサーチの実装
 
+#未完成
+
 動かしていたバージョン
 python  : 3.5.2 / 3.6.5
 pytorch : 2.0.4

@@ -491,9 +491,6 @@ class ModelTest_CLOTH():
 
 
     #補充文スコアの算出
-    #モデルの出力と、補充文でのそこの単語との類似度の積？
-    #式確認、logとって和とか？
-    #TODO 未完成
     def calc_sent_scores(self, cloze_sent, choices):
         scores=[]
 
@@ -639,7 +636,7 @@ if __name__ == '__main__':
     https://github.com/facebookresearch/fastText
     このfastextを事前に実行しておき，その結果を利用
     '''
-    #todo fastText系のパス
+
     ft_path='../../../../M1/FastText/fastText-0.1.0/fasttext'
 
     #ベクトルファイル

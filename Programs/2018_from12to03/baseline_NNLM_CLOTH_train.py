@@ -7,8 +7,6 @@ seq2seqの時はpytorchで書いてたけど、kerasで書きなおしたやつ
 
 CLOTHで学習、CLOTHと同じ前処理
 
-#TODO まだ未作成、まだ何も手つけてない
-
 動かしていたバージョン
 python  : 3.5.2
 

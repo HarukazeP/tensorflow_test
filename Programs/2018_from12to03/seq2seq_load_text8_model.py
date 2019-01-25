@@ -4,7 +4,6 @@
 
 seq2seq_attention_pretrain_vec.py から変更
 入力が40字以上だったときに打ち切るやつ追加
-#TODO ↑まだ未実装
 
 動かしていたバージョン
 python  : 3.5.2 / 3.6.5
@@ -821,7 +820,7 @@ def make_next_word(cloze_ct, cloze_words, choices):
         #重複を削除
         next_word_list=list(set(next_word_list))
     else:
-        #TODO そもそもこのケースある？
+        #そもそもこのケースある？
         next_word_list.append('}')
 
     return next_word_list
@@ -916,7 +915,7 @@ def evaluate_choice(lang, encoder, decoder, sentence, choices, max_length=MAX_LE
 
 #attentionの重みの対応グラフの描画
 def showAttention(file_header, input_sentence, output_words, attentions):
-    #TODO 描画方法は要改善
+    #描画方法は要改善
     #目盛り間隔、軸ラベルの位置など
 
     fig = plt.figure()
@@ -945,60 +944,6 @@ def get_ngrams(segment, max_order):
           ngram_counts[ngram] += 1
     return ngram_counts
 
-
-def compute_bleu(preds_sentences, ans_sentences, max_order=4,
-                 smooth=False):
-    matches_by_order = [0] * max_order
-    possible_matches_by_order = [0] * max_order
-    pred_length = 0
-    ans_length = 0
-    for (preds, ans) in zip(preds_sentences, ans_sentences):
-        pred_length += len(preds)
-        ans_length += len(ans)
-
-        merged_pred_ngram_counts = get_ngrams(preds, max_order)
-        ans_ngram_counts = get_ngrams(ans, max_order)
-
-        #2つのngram集合の積集合
-        overlap = ans_ngram_counts & merged_pred_ngram_counts
-        for ngram in overlap:
-            matches_by_order[len(ngram)-1] += overlap[ngram]
-        for order in range(1, max_order+1):
-            possible_matches = len(ans) - order + 1
-            if possible_matches > 0:
-                possible_matches_by_order[order-1] += possible_matches
-
-    precisions = [0] * max_order
-    for i in range(0, max_order):
-        if smooth:
-            precisions[i] = ((matches_by_order[i] + 1.) /
-                           (possible_matches_by_order[i] + 1.))
-        else:
-            if possible_matches_by_order[i] > 0:
-                precisions[i] = (float(matches_by_order[i]) /
-                             possible_matches_by_order[i])
-            else:
-                precisions[i] = 0.0
-
-    if min(precisions) > 0:
-        p_log_sum = sum((1. / max_order) * math.log(p) for p in precisions)
-        geo_mean = math.exp(p_log_sum)
-    else:
-        geo_mean = 0
-
-    if pred_length!=0:
-        ratio = float(ans_length) / pred_length
-        if ratio > 1.0:
-            bp = 1.
-        else:
-            bp = math.exp(1 - 1. / ratio)
-        bleu = geo_mean * bp
-    else:
-        ratio=0
-        bp=0
-        bleu=0
-
-    return bleu
 
 
 def is_correct_cloze(line):
@@ -1038,6 +983,7 @@ def calc_score(preds_sentences, ans_sentences):
     clozeOK=0
     partOK=0
     miss=0
+    BLEU=0
 
     for pred, ans in zip(preds_sentences, ans_sentences):
         pred=pred.replace(' <EOS>', '')
@@ -1045,10 +991,12 @@ def calc_score(preds_sentences, ans_sentences):
         if pred == ans:
             allOK+=1
             flag=1
+        line_num+=1
+        '''
         pred_cloze = get_cloze(pred)
         ans_cloze = get_cloze(ans)
         tmp_ans_length=len(ans_cloze.split(' '))
-        line_num+=1
+
         if is_correct_cloze(pred):
             tmp_match=match(pred_cloze, ans_cloze)
             if tmp_match > 0:
@@ -1060,8 +1008,10 @@ def calc_score(preds_sentences, ans_sentences):
                     print(ans)
         else:
             miss+=1
+        '''
 
-    BLEU=compute_bleu(preds_sentences, ans_sentences)
+    #BLEU=compute_bleu(preds_sentences, ans_sentences)
+
 
     return line_num, allOK, clozeOK, partOK, BLEU, miss
 
@@ -1074,13 +1024,13 @@ def output_preds(file_name, preds):
 
 def print_score(line, allOK, clozeOK, partOK, BLEU, miss):
     print('  acc(all): ', '{0:.2f}'.format(1.0*allOK/line*100),' %')
-    print('acc(cloze): ', '{0:.2f}'.format(1.0*clozeOK/line*100),' %')
-    print(' acc(part): ', '{0:.2f}'.format(1.0*partOK/line*100),' %')
+    #print('acc(cloze): ', '{0:.2f}'.format(1.0*clozeOK/line*100),' %')
+    #print(' acc(part): ', '{0:.2f}'.format(1.0*partOK/line*100),' %')
 
-    print(' BLEU: ','{0:.2f}'.format(BLEU*100.0))
+    #print(' BLEU: ','{0:.2f}'.format(BLEU*100.0))
     print('  all: ', allOK)
-    print('cloze: ',clozeOK)
-    print(' part: ',partOK)
+    #print('cloze: ',clozeOK)
+    #print(' part: ',partOK)
     print(' line: ',line)
     print(' miss: ',miss)
 
@@ -1088,12 +1038,12 @@ def print_score(line, allOK, clozeOK, partOK, BLEU, miss):
 def output_score(file_name, line, allOK, clozeOK, partOK, BLEU, miss):
     output=''
     output=output+'  acc(all): '+str(1.0*allOK/line*100)+' %\n'
-    output=output+'acc(cloze): '+str(1.0*clozeOK/line*100)+' %\n'
-    output=output+' acc(part): '+str(1.0*partOK/line*100)+' %\n\n'
-    output=output+'      BLEU: '+str(BLEU*100.0)+' %\n\n'
+    #output=output+'acc(cloze): '+str(1.0*clozeOK/line*100)+' %\n'
+    #output=output+' acc(part): '+str(1.0*partOK/line*100)+' %\n\n'
+    #output=output+'      BLEU: '+str(BLEU*100.0)+' %\n\n'
     output=output+'       all: '+str(allOK)+'\n'
-    output=output+'     cloze: '+str(clozeOK)+'\n'
-    output=output+'      part: '+str(partOK)+'\n'
+    #output=output+'     cloze: '+str(clozeOK)+'\n'
+    #output=output+'      part: '+str(partOK)+'\n'
     output=output+'      line: '+str(line)+'\n'
     output=output+'      miss: '+str(miss)+'\n'
 
@@ -1120,6 +1070,48 @@ def score(preds, ans, file_output, file_name):
         output_score(file_name, line, allOK, clozeOK, partOK, BLEU, miss)
 
 
+def trim_sents(inp_sent, ans_sent):
+    inp_list=inp_sent.split(' ')
+    ans_list=ans_sent.split(' ')
+
+    len_ans=len(ans_list)
+
+    if len_ans< MAX_LENGTH-1:
+        return inp_sent, ans_sent
+    else:
+        inp_clz_st=inp_list.index('{')
+        inp_clz_end=inp_list.index('}')
+        ans_clz_st=ans_list.index('{')
+        ans_clz_end=ans_list.index('}')
+
+        before_len=ans_clz_st
+        after_len=len_ans-ans_clz_end
+
+        if before_len < MAX_LENGTH/2:
+            last=MAX_LENGTH-1-ans_clz_end
+            new_inp=inp_list[:inp_clz_end+last]
+            new_ans=ans_list[:ans_clz_end+last]
+
+        elif after_len < MAX_LENGTH/2:
+            st_len=ans_clz_st-(len_ans-MAX_LENGTH+1)
+            new_inp=inp_list[inp_clz_st-st_len:]
+            new_ans=ans_list[ans_clz_st-st_len:]
+
+        elif before_len < after_len:
+            #python3系だと整数どうしの割り算が少数になってしまうので//を使って余り切り捨てしてる
+            st_len=ans_clz_st-(ans_clz_end+MAX_LENGTH//2-MAX_LENGTH+1)
+            new_inp=inp_list[inp_clz_st-st_len:inp_clz_end+MAX_LENGTH//2]
+            new_ans=ans_list[ans_clz_st-st_len:ans_clz_end+MAX_LENGTH//2]
+
+        else:
+            last=ans_clz_st-MAX_LENGTH//2+MAX_LENGTH-1-ans_clz_end
+            print('last=', last)
+            new_inp=inp_list[inp_clz_st-MAX_LENGTH//2:inp_clz_end+last]
+            new_ans=ans_list[ans_clz_st-MAX_LENGTH//2:ans_clz_end+last]
+
+        return ' '.join(new_inp), ' '.join(new_ans)
+
+
 #テストデータに対する予測と精度計算
 #空所内のみを予測するモード
 #および、選択肢を利用するモード
@@ -1131,29 +1123,29 @@ def test_choices(lang, encoder, decoder, test_data, choices, saveAttention=False
     preds_cloze=[]
     preds_choices=[]
     for pair, choi in zip(test_data, choices):
-        input_sentence=pair[0]
-        ans.append(pair[1])
+        input_sentence, ans_sentence = trim_sents(pair[0], pair[1])
+        ans.append(ans_sentence)
 
-        output_words, attentions = evaluate(lang, encoder, decoder, input_sentence)
-        preds.append(' '.join(output_words))
+        #output_words, attentions = evaluate(lang, encoder, decoder, input_sentence)
+        #preds.append(' '.join(output_words))
 
-        output_cloze_ct, cloze_attentions = evaluate_cloze(lang, encoder, decoder, input_sentence)
-        preds_cloze.append(' '.join(output_cloze_ct))
+        #output_cloze_ct, cloze_attentions = evaluate_cloze(lang, encoder, decoder, input_sentence)
+        #preds_cloze.append(' '.join(output_cloze_ct))
 
         output_choice_words, choice_attentions = evaluate_choice(lang, encoder, decoder, input_sentence, choi)
         preds_choices.append(' '.join(output_choice_words))
 
         if saveAttention:
-            showAttention('all', input_sentence, output_words, attentions)
-            showAttention('cloze', input_sentence, output_cloze_ct, cloze_attentions)
+            #showAttention('all', input_sentence, output_words, attentions)
+            #showAttention('cloze', input_sentence, output_cloze_ct, cloze_attentions)
             showAttention('choice', input_sentence, output_choice_words, choice_attentions)
         if file_output:
-            output_preds(save_path+'preds.txt', preds)
-            output_preds(save_path+'preds_cloze.txt', preds_cloze)
+            #output_preds(save_path+'preds.txt', preds)
+            #output_preds(save_path+'preds_cloze.txt', preds_cloze)
             output_preds(save_path+'preds_choices.txt', preds_choices)
     print("Calc scores ...")
-    score(preds, ans, file_output, save_path+'score.txt')
-    score(preds_cloze, ans, file_output, save_path+'score_cloze.txt')
+    #score(preds, ans, file_output, save_path+'score.txt')
+    #score(preds_cloze, ans, file_output, save_path+'score_cloze.txt')
     score(preds_choices, ans, file_output, save_path+'score_choices.txt')
 
 
@@ -1208,7 +1200,6 @@ def get_best_sent(lang, encoder, decoder, sents):
     return sents[scores.index(max(scores))]
 
 #一旦1語以上，選択肢ありモード
-#TODO あとで全単語からもできるように
 def test_choices_by_sent_score(lang, encoder, decoder, test_data, choices, saveAttention=False, file_output=False):
     print("Test by sent score...")
     #input_sentence や ansは文字列であるのに対し、output_wordsはリストであることに注意
@@ -1217,8 +1208,8 @@ def test_choices_by_sent_score(lang, encoder, decoder, test_data, choices, saveA
     preds_cloze=[]
     preds_choices=[]
     for pair, choi in zip(test_data, choices):
-        input_sentence=pair[0]
-        ans.append(pair[1])
+        input_sentence, ans_sentence = trim_sents(pair[0], pair[1])
+        ans.append(ans_sentence)
 
         sents=make_sents_with_cloze_mark(input_sentence, choi)
         pred=get_best_sent(lang, encoder, decoder, sents)
@@ -1240,7 +1231,6 @@ def get_args():
     parser.add_argument('--encoder', help='encoder file name (when load model, mode=test)')
     parser.add_argument('--decoder', help='decoder file name (when load model, mode=test)')
     parser.add_argument('--epoch', type=int, default=30)
-    #TODO ほかにも引数必要に応じて追加
     return parser.parse_args()
 
 
