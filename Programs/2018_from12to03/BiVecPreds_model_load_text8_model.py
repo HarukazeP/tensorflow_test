@@ -275,8 +275,8 @@ class ModelTest_text8():
         before=tokens[:clz_index]
         after=tokens[clz_index+1:]
 
-        f_X=np.array(self.token_to_ids_for_test(before))
-        r_X=np.array(self.token_to_ids_for_test(after[::-1]))
+        f_X=np.array([self.token_to_ids_for_test(before)])
+        r_X=np.array([self.token_to_ids_for_test(after[::-1])])
 
         preds_vec = self.model.predict([f_X, r_X], verbose=0)
 
@@ -324,8 +324,8 @@ class ModelTest_text8():
             #Nとかの数rangeのとこも要確認
             for i in range(sent_len-2*self.N-1):
                 #長さ計って、iとかでforループ？
-                f_X=np.array(ids[i : i+self.N])
-                r_X=np.array(ids[i+self.N+1 : i+2*self.N+1])
+                f_X=np.array([ids[i : i+self.N]])
+                r_X=np.array([ids[i+self.N+1 : i+2*self.N+1]])
 
                 word_vec=vecs[i+self.N]
                 preds_vec = self.model.predict([f_X, r_X], verbose=0)
