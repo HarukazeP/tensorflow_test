@@ -86,7 +86,7 @@ def preprocess_line(before_line):
     return after_line
 
 
-#学習データやテストデータへの前処理
+#選択肢データへの前処理
 def preprocess_line_for_choices(before_line):
     after_line=before_line.lower()
     after_line=after_line.replace('0', ' zero ')
@@ -104,11 +104,6 @@ def preprocess_line_for_choices(before_line):
 
     return after_line
 
-
-#listの各要素を単語で連結してstring型で返す
-def list_to_sent(list_line, start, end):
-    sent=' '.join(list_line[start:end])
-    return sent
 
 
 #fasttextのベクトルファイルから単語辞書とベクトル辞書の作成

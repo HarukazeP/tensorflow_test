@@ -35,8 +35,6 @@ import os
 import argparse
 import collections
 
-import nltk
-
 from keras import regularizers
 from keras import backend as K
 from keras.models import Model, model_from_json, load_model
@@ -83,6 +81,43 @@ CLZ_word='XXXX'
 ###########################
 # 1.データの準備，データ変換
 ###########################
+#学習データやテストデータへの前処理
+def preprocess_line(before_line):
+    after_line=before_line.lower()
+    after_line=after_line.replace('0', ' zero ')
+    after_line=after_line.replace('1', ' one ')
+    after_line=after_line.replace('2', ' two ')
+    after_line=after_line.replace('3', ' three ')
+    after_line=after_line.replace('4', ' four ')
+    after_line=after_line.replace('5', ' five ')
+    after_line=after_line.replace('6', ' six ')
+    after_line=after_line.replace('7', ' seven ')
+    after_line=after_line.replace('8', ' eight ')
+    after_line=after_line.replace('9', ' nine ')
+    after_line = re.sub(r'[^a-z{}]', ' ', after_line)
+    after_line = re.sub(r'[ ]+', ' ', after_line)
+
+    return after_line
+
+
+#選択肢データへの前処理
+def preprocess_line_for_choices(before_line):
+    after_line=before_line.lower()
+    after_line=after_line.replace('0', ' zero ')
+    after_line=after_line.replace('1', ' one ')
+    after_line=after_line.replace('2', ' two ')
+    after_line=after_line.replace('3', ' three ')
+    after_line=after_line.replace('4', ' four ')
+    after_line=after_line.replace('5', ' five ')
+    after_line=after_line.replace('6', ' six ')
+    after_line=after_line.replace('7', ' seven ')
+    after_line=after_line.replace('8', ' eight ')
+    after_line=after_line.replace('9', ' nine ')
+    after_line = re.sub(r'[^a-z{}#]', ' ', after_line)
+    after_line = re.sub(r'[ ]+', ' ', after_line)
+
+    return after_line
+
 
 
 #空所つき英文読み取り
@@ -229,27 +264,6 @@ def build_model(len_words, embedding_matrix):
 # 3.モデルの学習
 ###########################
 
-def preprocess(s):
-    sent_tokens=[]
-    s = unicodeToAscii(s)
-    s = re.sub(r'[ ]+', ' ', s)
-    s = s.strip()
-    tokens=nltk.word_tokenize(s)
-    symbol_tag=("$", "''", "(", ")", ",", "--", ".", ":", "``", "SYM")
-    num_tag=("LS", "CD")
-    tagged = nltk.pos_tag(tokens)
-    for word, tag in tagged:
-        if tag in symbol_tag:
-            pass
-            #記号は無視
-        elif tag in num_tag:
-            sent_tokens.append('NUM')
-        else:
-            sent_tokens.append(word.lower())
-
-    return sent_tokens
-
-
 #1行の文字列を学習データの形式に変換
 def tokens_to_data(tokens, len_words, word_to_id, id_to_word, vec_dict, ft_path, bin_path):
     f_X = []
@@ -287,7 +301,7 @@ def make_data(file_path, len_words, word_to_id, id_to_word, vec_dict, ft_path, b
 
     with open(file_path, encoding='utf-8') as f:
         for line in f:
-            tokens=preprocess(line)
+            tokens=preprocess_line(line)
             f, r, y=tokens_to_data(tokens, len_words, word_to_id, id_to_word, vec_dict, ft_path, bin_path)
             f_X_list.extend(f)
             r_X_list.extend(r)
@@ -311,15 +325,12 @@ def getNewestModel(model):
 
 
 #学習をn_iters回，残り時間の算出をlossグラフの描画も
-def trainIters(model, train_path, val_path, len_words, word_to_id, id_to_word, vec_dict, ft_path, bin_path, n_iters=5, print_every=10, saveModel=False):
+def trainIters(model, train_path, len_words, word_to_id, id_to_word, vec_dict, ft_path, bin_path, n_iters=5, print_every=10, saveModel=False):
 
     print('Make data for model...')
     f_X_train, r_X_train, Y_train=make_data(train_path, len_words, word_to_id, id_to_word, vec_dict, ft_path, bin_path)
-    f_X_val, r_X_val, Y_val=make_data(val_path, len_words, word_to_id, id_to_word, vec_dict, ft_path, bin_path)
-
 
     X_train=[f_X_train, r_X_train]
-    X_val=[f_X_val, r_X_val]
 
     cp_cb = ModelCheckpoint(filepath = save_path+'model_ep{epoch:02d}.hdf5', monitor='val_loss', verbose=1, save_best_only=True, mode='min')
 
@@ -330,7 +341,7 @@ def trainIters(model, train_path, val_path, len_words, word_to_id, id_to_word, v
 
     # Ctrl+c で強制終了してもそこまでのモデルで残りの処理継続
     try:
-        hist=model.fit(X_train, Y_train, batch_size=BATCH_SIZE, epochs=n_iters, verbose=1, validation_data=(X_val, Y_val), callbacks=[cp_cb], shuffle=True)
+        hist=model.fit(X_train, Y_train, batch_size=BATCH_SIZE, epochs=n_iters, verbose=1, , validation_split=0.1 callbacks=[cp_cb], shuffle=True)
 
         #全学習終わり
         #lossとaccのグラフ描画
@@ -380,7 +391,8 @@ def showPlot4(val_plot, file_name, label_name):
 # 4.モデルによる予測
 ###########################
 
-class ModelTest_CLOTH():
+#Test_CLOTHとは異なり，ファイル読み込み時に前処理してる
+class ModelTest_text8():
     def __init__(self, model, maxlen_words, word_to_id, vec_dict, ft_path, bin_path, id_to_word):
         self.model=model
         self.N=maxlen_words
@@ -391,30 +403,7 @@ class ModelTest_CLOTH():
         self.id_to_word=id_to_word
 
 
-    def preprocess_for_test(self, s):
-        sent_tokens=[]
-        s = unicodeToAscii(s)
-        s = re.sub(r'[ ]+', ' ', s)
-        s = s.strip()
-        tokens=nltk.word_tokenize(s)
-        symbol_tag=("$", "''", "(", ")", ",", "--", ".", ":", "``", "SYM")
-        num_tag=("LS", "CD")
-        tagged = nltk.pos_tag(tokens)
-        for word, tag in tagged:
-            if word==CLZ_word:
-                sent_tokens.append(CLZ_word)
-            if tag in symbol_tag:
-                pass
-                #記号は無視
-            elif tag in num_tag:
-                sent_tokens.append('NUM')
-            else:
-                sent_tokens.append(word.lower())
-
-        return sent_tokens
-
-
-    #nltkのtoken列をidsへ
+    #token列をidsへ
     def token_to_ids_for_test(self, tokens):
         ids=[]
 
@@ -451,16 +440,16 @@ class ModelTest_CLOTH():
     #モデルの出力と各選択肢との類似度
     def calc_near_scores(self, cloze_sent, choices):
         scores=[]
-        tokens=self.preprocess_for_test(cloze_sent)
+        tokens=cloze_sent.split()
         clz_index=tokens.index(CLZ_word)
 
         before=tokens[:clz_index]
         after=tokens[clz_index+1:]
 
-        f_X=self.token_to_ids_for_test(before)
-        r_X=self.token_to_ids_for_test(after[::-1])
+        f_X=np.array([self.token_to_ids_for_test(before)])
+        r_X=np.array([self.token_to_ids_for_test(after[::-1])])
 
-        preds_vec = self.model.predict([[f_X], [r_X]], verbose=0)
+        preds_vec = self.model.predict([f_X, r_X], verbose=0)
 
         #choices は必ず1語
         for word in choices:
@@ -473,7 +462,7 @@ class ModelTest_CLOTH():
 
     def make_inputs_for_sent_score(self, cloze_sent, choice_words):
         sent=cloze_sent.replace(CLZ_word, choice_words)
-        tokens=self.preprocess_for_test(sent)
+        tokens=sent.split()
 
         ids=[]
         vecs=[]
@@ -506,13 +495,13 @@ class ModelTest_CLOTH():
             #Nとかの数rangeのとこも要確認
             for i in range(sent_len-2*self.N-1):
                 #長さ計って、iとかでforループ？
-                f_X=ids[i : i+self.N]
-                r_X=ids[i+self.N+1 : i+2*self.N+1]
+                f_X=np.array([ids[i : i+self.N]])
+                r_X=np.array([ids[i+self.N+1 : i+2*self.N+1]])
 
                 word_vec=vecs[i+self.N]
-                preds_vec = self.model.predict([[f_X], [r_X]], verbose=0)
+                preds_vec = self.model.predict([f_X, r_X], verbose=0)
                 tmp_score=self.calc_similarity(preds_vec, word_vec)
-                #コサイン類似度は -1〜1の間なのでlogがうまくいくように足してる
+
                 tmp_score+=1.000001
                 score+=math.log(tmp_score)
 
@@ -610,7 +599,6 @@ class ModelTest_CLOTH():
         print('line:%d, acc:%.4f'% (sent_line, 1.0*sent_OK/sent_line))
 
 
-
 #コマンドライン引数の設定いろいろ
 def get_args():
     parser = argparse.ArgumentParser()
@@ -660,11 +648,10 @@ if __name__ == '__main__':
 
     #学習時
     if args.mode == 'all' or args.mode == 'mini':
-        train_path=CLOTH_path+'for_KenLM_CLOTH.txt'
-        val_path=CLOTH_path+'for_KenLM_CLOTH_val.txt'
+        train_path=file_path+'text8_preprocessed50000.txt'
 
         #モデルとか結果とかを格納するディレクトリの作成
-        save_path=save_path+'_BiVecPresModel'
+        save_path=save_path+'_BiVecPresModel_text8'
         if os.path.exists(save_path)==False:
             os.mkdir(save_path)
         save_path=save_path+'/'
@@ -689,7 +676,7 @@ if __name__ == '__main__':
     center_ans=git_data_path+'center_ans.txt'
 
     MS_cloze=git_data_path+'microsoft_cloze.txt'
-    MS_choi=git_data_path+'microsoft_choices_for_CLOTH.txt'
+    MS_choi=git_data_path+'microsoft_choices.txt'
     MS_ans=git_data_path+'microsoft_ans.txt'
 
     high_path=git_data_path+'CLOTH_test_high'
@@ -711,7 +698,7 @@ if __name__ == '__main__':
 
     datas=[center_data, MS_data, CLOTH_high_data, CLOTH_middle_ans]
 
-    test=ModelTest_CLOTH(model, maxlen_words, word_to_id, vec_dict, ft_path, bin_path, id_to_word)
+    test=ModelTest_text8(model, maxlen_words, word_to_id, vec_dict, ft_path, bin_path, id_to_word)
 
     for data in datas:
         data_name=data[0]

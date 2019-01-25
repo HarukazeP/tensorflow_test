@@ -550,7 +550,7 @@ class ModelTest_CLOTH():
                 preds = self.model.predict(X, verbose=0)
                 score=preds[self.lang.check_word2index(word)]
 
-                if score==0:
+                if not score>=0:
                     score=0.00000001  #仮
                 score+=math.log(score)
 
