@@ -62,7 +62,6 @@ PAD_token = 0
 SOS_token = 1
 EOS_token = 2
 UNK_token = 3
-NUM_token = 4
 
 #事前処理いろいろ
 print('Start: '+today_str)
@@ -84,8 +83,8 @@ class Lang:
     def __init__(self):
         self.word2index = {"<UNK>": UNK_token}
         self.word2count = {"<UNK>": 0}
-        self.index2word = {PAD_token: "PAD", SOS_token: "SOS", EOS_token: "EOS", UNK_token: "<UNK>", NUM_token: "NUM"}
-        self.n_words = 5  # PAD と SOS と EOS と UNK　とNUM
+        self.index2word = {PAD_token: "PAD", SOS_token: "SOS", EOS_token: "EOS", UNK_token: "<UNK>"}
+        self.n_words = 4  # PAD と SOS と EOS と UNK　とNUM
 
     #文から単語を語彙へ
     def addSentence(self, sentence):
