@@ -39,6 +39,7 @@ import datetime
 import os
 import os.path
 import subprocess
+import math
 
 #----- グローバル変数一覧 -----
 my_epoch=100
