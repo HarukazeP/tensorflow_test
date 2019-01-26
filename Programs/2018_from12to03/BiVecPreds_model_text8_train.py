@@ -308,13 +308,15 @@ def make_data(file_path, len_words, word_to_id, id_to_word, vec_dict, ft_path, b
 
     with open(file_path, encoding='utf-8') as f:
         for line in f:
-            tokens=preprocess_line(line)
+            tokens=preprocess_line(line).split(' ')
             f, r, y=tokens_to_data(tokens, len_words, word_to_id, id_to_word, vec_dict, ft_path, bin_path)
             f_X_list.extend(f)
             r_X_list.extend(r)
             Y_list.extend(y)
     f_X=np.array(f_X_list, dtype=np.int)
+    del f_X_list
     r_X=np.array(r_X_list, dtype=np.int)
+    del r_X_list
     Y=np.array(Y_list, dtype=np.float)
 
     return f_X, r_X, Y
@@ -348,7 +350,7 @@ def trainIters(model, train_path, len_words, word_to_id, id_to_word, vec_dict, f
 
     # Ctrl+c で強制終了してもそこまでのモデルで残りの処理継続
     try:
-        hist=model.fit(X_train, Y_train, batch_size=BATCH_SIZE, epochs=n_iters, verbose=1, , validation_split=0.1 callbacks=[cp_cb], shuffle=True)
+        hist=model.fit(X_train, Y_train, batch_size=BATCH_SIZE, epochs=n_iters, verbose=1, validation_split=0.1, callbacks=[cp_cb], shuffle=True)
 
         #全学習終わり
         #lossとaccのグラフ描画
@@ -585,7 +587,7 @@ class ModelTest_text8():
         for cloze_sent, choices, ans_word in zip(cloze_list, choices_list, ans_list):
             i+=1
             if i%500==0:
-                print('line;',i)
+                print('line:',i)
             #直近予測スコア(1語のみ)
             line, OK=self.check_one_sent_by_near_score(cloze_sent, choices, ans_word)
             near_line+=line
@@ -618,7 +620,7 @@ def get_args():
     parser.add_argument('--mode', choices=['all', 'mini', 'test', 'mini_test', 'train_loop'], default='all')
     parser.add_argument('--model_dir', help='model directory path (when load model, mode=test)')
     parser.add_argument('--model', help='model file name (when load model, mode=test)')
-    parser.add_argument('--epoch', type=int, default=100)
+    parser.add_argument('--epoch', type=int, default=30)
     parser.add_argument('--model_kind', choices=['origin', 'plus_CAR', 'plus_KenLM', 'plus_both', 'replace_CAR', 'replace_KenLM', 'replace_both'], default='origin', help='model file kind')
 
     # ほかにも引数必要に応じて追加
@@ -671,7 +673,7 @@ if __name__ == '__main__':
         #model.summary()
 
         # 3.学習
-        model = trainIters(model, train_path, val_path, len_words, word_to_id, id_to_word, vec_dict, ft_path, bin_path, n_iters=epoch, saveModel=True)
+        model = trainIters(model, train_path, len_words, word_to_id, id_to_word, vec_dict, ft_path, bin_path, n_iters=epoch, saveModel=True)
         print('Train end')
 
     #すでにあるモデルでテスト時
@@ -708,7 +710,7 @@ if __name__ == '__main__':
     CLOTH_high_data=['CLOTH_high', CLOTH_high_cloze, CLOTH_high_choi, CLOTH_high_ans]
     CLOTH_middle_data=['CLOTH_middle', CLOTH_middle_cloze, CLOTH_middle_choi, CLOTH_middle_ans]
 
-    datas=[center_data, MS_data, CLOTH_high_data, CLOTH_middle_ans]
+    datas=[center_data, MS_data, CLOTH_high_data, CLOTH_middle_data]
 
     test=ModelTest_text8(model, maxlen_words, word_to_id, vec_dict, ft_path, bin_path, id_to_word)
 
@@ -720,4 +722,4 @@ if __name__ == '__main__':
 
         test.model_test_both_score(data_name, cloze_path, choices_path, ans_path)
 
-    end_test=print_time('test end')
+    #end_test=print_time('test end')

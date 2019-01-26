@@ -35,7 +35,7 @@ from keras import backend as K
 from keras.models import Model, model_from_json, load_model
 
 from keras.layers import Dense, Activation, Input, Embedding
-from keras.layers import LSTM
+from keras.layers import LSTM, Dropout, Bidirectional
 from keras.layers import add, concatenate, multiply
 #from keras.utils.vis_utils import plot_model
 from keras.callbacks import ModelCheckpoint
@@ -47,13 +47,14 @@ from keras.utils.data_utils import get_file
 from glob import glob
 
 import sys
-import subprocess
+import gensim
 
 #----- グローバル変数一覧 -----
 
 
 maxlen_words = 5
 BATCH_SIZE=256
+EMB_DIM=300
 
 PAD_token = 0
 UNK_token = 1
@@ -275,7 +276,7 @@ def get_weight_matrix(lang):
 # モデルの構築
 def build_model(lang, embedding_matrix):
     input=Input(shape=(maxlen_words,))
-    emb=Embedding(output_dim=300, input_dim=lang.n_words, input_length=maxlen_words, mask_zero=True, weights=[embedding_matrix], trainable=Ture)(input)
+    emb=Embedding(output_dim=300, input_dim=lang.n_words, input_length=maxlen_words, mask_zero=True, weights=[embedding_matrix], trainable=True)(input)
 
     emb=Dropout(0.5)(emb)
 
@@ -358,6 +359,7 @@ def make_data(file_path, lang):
             X_list.extend(x)
             Y_list.extend(y)
     X=np.array(X_list, dtype=np.int)
+    del X_list
     Y=np.array(Y_list, dtype=np.int)
 
     return X, Y
@@ -690,7 +692,7 @@ if __name__ == '__main__':
         val_path=CLOTH_path+'for_KenLM_CLOTH_val.txt'
 
         #モデルとか結果とかを格納するディレクトリの作成
-        save_path=save_path+'_NNLM'
+        save_path=save_path+'_NNLM_CLOTH'
         if os.path.exists(save_path)==False:
             os.mkdir(save_path)
         save_path=save_path+'/'
@@ -735,7 +737,7 @@ if __name__ == '__main__':
     CLOTH_high_data=['CLOTH_high', CLOTH_high_cloze, CLOTH_high_choi, CLOTH_high_ans]
     CLOTH_middle_data=['CLOTH_middle', CLOTH_middle_cloze, CLOTH_middle_choi, CLOTH_middle_ans]
 
-    datas=[center_data, MS_data, CLOTH_high_data, CLOTH_middle_ans]
+    datas=[center_data, MS_data, CLOTH_high_data, CLOTH_middle_data]
 
     test=ModelTest_CLOTH(model, maxlen_words, word_to_id, vec_dict, ft_path, bin_path, id_to_word)
 

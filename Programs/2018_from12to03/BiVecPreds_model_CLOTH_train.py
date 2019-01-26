@@ -596,7 +596,7 @@ class ModelTest_CLOTH():
         for cloze_sent, choices, ans_word in zip(cloze_list, choices_list, ans_list):
             i+=1
             if i%500==0:
-                print('line;',i)
+                print('line:',i)
             #直近予測スコア(1語のみ)
             line, OK=self.check_one_sent_by_near_score(cloze_sent, choices, ans_word)
             near_line+=line
@@ -721,8 +721,8 @@ if __name__ == '__main__':
     CLOTH_high_data=['CLOTH_high', CLOTH_high_cloze, CLOTH_high_choi, CLOTH_high_ans]
     CLOTH_middle_data=['CLOTH_middle', CLOTH_middle_cloze, CLOTH_middle_choi, CLOTH_middle_ans]
 
-    datas=[CLOTH_high_data, CLOTH_middle_ans]
-    #済：　center_data, MS_data,
+    datas=[CLOTH_middle_data]
+    #済：　center_data, MS_data,CLOTH_high_data,
 
     test=ModelTest_CLOTH(model, maxlen_words, word_to_id, vec_dict, ft_path, bin_path, id_to_word)
 
@@ -734,4 +734,4 @@ if __name__ == '__main__':
 
         test.model_test_both_score(data_name, cloze_path, choices_path, ans_path)
 
-    end_test=print_time('test end')
+    #end_test=print_time('test end')

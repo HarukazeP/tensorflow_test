@@ -984,8 +984,8 @@ def trainIters(ngram, lang, model, train_pairs, val_pairs, my_model_kind, n_iter
     C_val=np.array([choices_to_ids(lang, s) for s in val_pairs[1]], dtype=np.int)
     Y_val=np.array([ans_to_ids(lang, s, c) for s,c in zip(val_pairs[2], val_pairs[1])], dtype=np.bool)
 
-    print('train_ans_rate', np.sum(Y_train, axis=0))
-    print('val_ans_rate', np.sum(Y_val, axis=0))
+    #print('train_ans_rate', np.sum(Y_train, axis=0))
+    #print('val_ans_rate', np.sum(Y_val, axis=0))
 
     c1_train, c2_train, c3_train, c4_train = split_choices(C_train)
     c1_val, c2_val, c3_val, c4_val = split_choices(C_val)
@@ -1038,7 +1038,7 @@ def trainIters(ngram, lang, model, train_pairs, val_pairs, my_model_kind, n_iter
         showPlot3(hist.history['loss'], hist.history['val_loss'], 'loss.png', 'loss')
         showPlot3(hist.history['acc'], hist.history['val_acc'], 'acc.png', 'acc')
 
-        print(hist.history['loss'])
+        #print(hist.history['loss'])
 
     except KeyboardInterrupt:
         print()
