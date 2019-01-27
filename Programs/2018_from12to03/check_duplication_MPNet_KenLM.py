@@ -1112,11 +1112,11 @@ def model_test_MPNet_and_KenLM(ngram, lang, MPNet_model, KenLM_model_path, cloze
 def get_args():
     parser = argparse.ArgumentParser()
     #miniはプログラムエラーないか確認用的な
-    parser.add_argument('--mode', choices=['all', 'mini', 'test', 'mini_test', 'train_loop'], default='all')
+    parser.add_argument('--mode', choices=['all', 'mini', 'test', 'mini_test', 'train_loop'], default='test')
     parser.add_argument('--model_dir', help='model directory path (when load model, mode=test)')
     parser.add_argument('--model', help='model file name (when load model, mode=test)')
     parser.add_argument('--epoch', type=int, default=30)
-    parser.add_argument('--model_kind', choices=['origin', 'plus_CAR', 'plus_KenLM', 'plus_both', 'replace_CAR', 'replace_KenLM', 'replace_both'], default='origin', help='model file kind')
+    parser.add_argument('--model_kind', choices=['origin', 'plus_CAR', 'plus_KenLM', 'plus_both', 'replace_CAR', 'replace_KenLM', 'replace_both'], default='plus_KenLM', help='model file kind')
     parser.add_argument('--machine', choices=['whitePC', 'note', '19', '25', 'kasouka'], default='whitePC')
 
     # ほかにも引数必要に応じて追加
