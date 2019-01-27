@@ -1175,6 +1175,9 @@ if __name__ == '__main__':
     CLOTH_middle_ans = middle_path+'_ans.txt'
 
     KenLM_model_path='/media/tamaki/HDCL-UT/tamaki/M2/kenlm_models/all_words/CLOTH_NUM_N7.arpa'
+    #if args.machine=='note':
+    #    KenLM_model_path=KenLM_path+'CLOTH_NUM_N7.arpa'
+    # KenLMで7gram以上対応してるの白いPCのみ？
 
     model_test_MPNet_and_KenLM(clothNg, vocab, model, KenLM_model_path, center_cloze, center_choi, center_ans, my_model_kind, data_name='center')
 
