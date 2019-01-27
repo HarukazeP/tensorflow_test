@@ -1087,6 +1087,9 @@ def model_test_MPNet_and_KenLM(ngram, lang, MPNet_model, KenLM_model_path, cloze
     only_K_OK=0
     both_NG=0
     line=0
+    print(len(MPNet_pred))
+    print(len(KenLM_pred))
+    print(len(Y_test))
 
     for M_p, K_p, y in zip(MPNet_pred, KenLM_pred, Y_test):
         line+=1
@@ -1101,6 +1104,7 @@ def model_test_MPNet_and_KenLM(ngram, lang, MPNet_model, KenLM_model_path, cloze
         else:
             both_NG+=1
 
+    print(line)
     print('both_OK  : %d (%.4f)' % (both_OK, 1.0*both_OK/line))
     print('only_M_OK: %d (%.4f)' % (only_M_OK, 1.0*only_M_OK/line))
     print('only_K_OK: %d (%.4f)' % (only_K_OK, 1.0*only_K_OK/line))
@@ -1181,8 +1185,8 @@ if __name__ == '__main__':
 
     model_test_MPNet_and_KenLM(clothNg, vocab, model, KenLM_model_path, center_cloze, center_choi, center_ans, my_model_kind, data_name='center')
 
-    model_test_MPNet_and_KenLM(clothNg, vocab, model, KenLM_model_path, MS_cloze, MS_choi, MS_ans, my_model_kind, data_name='MS')
+    #model_test_MPNet_and_KenLM(clothNg, vocab, model, KenLM_model_path, MS_cloze, MS_choi, MS_ans, my_model_kind, data_name='MS')
 
-    model_test_MPNet_and_KenLM(clothNg, vocab, model, KenLM_model_path, CLOTH_high_cloze, CLOTH_high_choi, CLOTH_high_ans, my_model_kind, data_name='CLOTH_high')
+    #model_test_MPNet_and_KenLM(clothNg, vocab, model, KenLM_model_path, CLOTH_high_cloze, CLOTH_high_choi, CLOTH_high_ans, my_model_kind, data_name='CLOTH_high')
 
     model_test_MPNet_and_KenLM(clothNg, vocab, model, KenLM_model_path, CLOTH_middle_cloze, CLOTH_middle_choi, CLOTH_middle_ans, my_model_kind, data_name='CLOTH_middle')
