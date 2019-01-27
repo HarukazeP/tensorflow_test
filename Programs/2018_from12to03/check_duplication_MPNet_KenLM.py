@@ -1077,7 +1077,7 @@ def model_test_MPNet_and_KenLM(ngram, lang, MPNet_model, KenLM_model_path, cloze
 
     data_size=len(Y_test)+1
 
-    MPNet_pred=MPNet_model.evaluate(X_test, Y_test, batch_size=data_size, verbose=1)
+    MPNet_pred=MPNet_model.predict(X_test, batch_size=data_size, verbose=1)
 
     KenLM_model = kenlm.LanguageModel(KenLM_model_path)
 
