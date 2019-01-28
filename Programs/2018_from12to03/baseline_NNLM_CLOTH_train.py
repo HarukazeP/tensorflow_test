@@ -351,9 +351,13 @@ def tokens_to_data(tokens, lang):
 def make_data(file_path, lang):
     X_list=[]
     Y_list=[]
+    i=0
 
     with open(file_path, encoding='utf-8') as f:
         for line in f:
+            i+=1
+            if i%1000==0:
+                print('line',i)
             tokens=preprocess(line)
             x, y=tokens_to_data(tokens, lang)
             X_list.extend(x)
