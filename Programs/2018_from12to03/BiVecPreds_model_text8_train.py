@@ -127,6 +127,7 @@ def readCloze2(file):
     data=[]
     with open(file, encoding='utf-8') as f:
         for line in f:
+            line=preprocess_line(line)
             line=re.sub(r'{.*}', CLZ_word, line)
             line = re.sub(r'[ ]+', ' ', line)
             data.append(line.strip())
@@ -139,8 +140,9 @@ def readChoices(file_name):
     choices=[]
     with open(file_name, encoding='utf-8') as f:
         for line in f:
-            line=re.sub(r'.*{ ', '', line)
-            line=re.sub(r' }.*', '', line)
+            line=preprocess_line_for_choices(line)
+            line=re.sub(r'.*{', '', line)
+            line=re.sub(r'}.*', '', line)
             line=line.strip()
             choices.append(line.split(' ### '))     #選択肢を区切る文字列
 
@@ -152,8 +154,9 @@ def readAns(file_name):
     data=[]
     with open(file_name, encoding='utf-8') as f:
         for line in f:
-            line=re.sub(r'.*{ ', '', line)
-            line=re.sub(r' }.*', '', line)
+            line=preprocess_line(line)
+            line=re.sub(r'.*{', '', line)
+            line=re.sub(r'}.*', '', line)
             data.append(line.strip())
 
     return data
@@ -524,11 +527,18 @@ class ModelTest_text8():
         line=0
         OK=0
         if self.is_one_word(choices):
-            ans_index=choices.index(ans_word)
-            line=1
-            scores=self.calc_near_scores(cloze_sent, choices)
-            if ans_index==scores.index(max(scores)):
-                OK=1
+            try:
+                ans_index=choices.index(ans_word)
+
+                line=1
+                scores=self.calc_near_scores(cloze_sent, choices)
+                if ans_index==scores.index(max(scores)):
+                    OK=1
+            except ValueError:
+                line=1
+                print(cloze_sent)
+                print(choices)
+                print(ans_word)
 
         return line, OK
 
@@ -537,20 +547,27 @@ class ModelTest_text8():
     def check_one_sent_by_sent_score(self, cloze_sent, choices, ans_word, one_word=True):
         line=0
         OK=0
-        ans_index=choices.index(ans_word)
-        #1語のとき
-        if self.is_one_word(choices):
-            line=1
-            scores=self.calc_sent_scores(cloze_sent, choices)
-            if ans_index==scores.index(max(scores)):
-                OK=1
+        try:
+            ans_index=choices.index(ans_word)
 
-        #1語以上もテストするとき
-        elif one_word==False:
+            #1語のとき
+            if self.is_one_word(choices):
+                line=1
+                scores=self.calc_sent_scores(cloze_sent, choices)
+                if ans_index==scores.index(max(scores)):
+                    OK=1
+
+            #1語以上もテストするとき
+            elif one_word==False:
+                line=1
+                scores=self.calc_sent_scores(cloze_sent, choices)
+                if ans_index==scores.index(max(scores)):
+                    OK=1
+        except ValueError:
             line=1
-            scores=self.calc_sent_scores(cloze_sent, choices)
-            if ans_index==scores.index(max(scores)):
-                OK=1
+            print(cloze_sent)
+            print(choices)
+            print(ans_word)
 
         return line, OK
 
@@ -710,7 +727,8 @@ if __name__ == '__main__':
     CLOTH_high_data=['CLOTH_high', CLOTH_high_cloze, CLOTH_high_choi, CLOTH_high_ans]
     CLOTH_middle_data=['CLOTH_middle', CLOTH_middle_cloze, CLOTH_middle_choi, CLOTH_middle_ans]
 
-    datas=[center_data, MS_data, CLOTH_high_data, CLOTH_middle_data]
+    datas=[CLOTH_high_data, CLOTH_middle_data]
+    #済：　center_data, MS_data,
 
     test=ModelTest_text8(model, maxlen_words, word_to_id, vec_dict, ft_path, bin_path, id_to_word)
 
