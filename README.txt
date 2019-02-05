@@ -2,6 +2,7 @@
 keras_test ( https://github.com/tamakiHaru/keras_test ) の続きみたいな感じ
 
 tensorflowやpytorch使ってRNNの勉強というか練習する過程のいろいろ
+名前に入ってないけど結局kerasも使ってる
 研究用あぷろだ代わりのリポジトリ
 実際にPC上で動かして時とはフォルダ分け違うところあるのでダウンロードして実行する際はファイルパス等に注意
 commitとかpushだけでなくブラウザ上の操作でもファイル更新や追加してるので履歴は雑
