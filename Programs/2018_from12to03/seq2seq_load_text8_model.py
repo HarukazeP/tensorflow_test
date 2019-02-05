@@ -841,6 +841,41 @@ def pred_next_word(lang, next_word_list, decoder_output_data):
     return max_word
 
 
+#考察用
+#予測順位とか確認
+def check_all_words_prob(lang, next_word_list, decoder_output_data, sent):
+    '''
+    選択肢の各単語に対する確率、順位
+    全体の確率top3とか？の単語、確率
+    '''
+    word_prob_dict={}
+
+    with open(save_path+'check_all_words_prob.txt', 'a') as f:
+        f.write(sent+'\n')
+        if len(next_word_list)==1:
+            max_word=next_word_list[0]
+        else:
+            for i, word in lang.index2word.items():
+                word_prob_dict[word]=decoder_output_data[0][i].item()
+
+            #確率降順ソート
+            word_prob_list=sorted(word_prob_dict.items(), key=lambda x: x[1], reverse=True)
+            for i in range(3):
+                f.write(str(i)+': '+str(word_prob_list[i])+'\n')
+
+            for word in next_word_list:
+                i=0
+                for w, p in word_prob_list:
+                    i+=1
+                    index=lang.check_word2index(w)
+                    if index==lang.check_word2index(word):
+                        f.write(word+': rank = '+str(i)+', prob = '+str(math.exp(p))+'\n')
+        f.write('-'*30+'\n')
+
+
+
+
+
 #空所内のみを予想かつ選択肢の利用
 #evaluate_clozeの拡張
 def evaluate_choice(lang, encoder, decoder, sentence, choices, max_length=MAX_LENGTH):
@@ -887,6 +922,7 @@ def evaluate_choice(lang, encoder, decoder, sentence, choices, max_length=MAX_LE
                 next_word_list=make_next_word(cloze_ct, cloze_words, choices)
                 #候補リストから確率最大の1語を返す
                 word=pred_next_word(lang, next_word_list, decoder_output.data)
+                check_all_words_prob(lang, next_word_list, decoder_output.data, sentence)
                 cloze_words.append(word)
                 decoded_words.append(word)
                 word_tensor=torch.tensor([lang.check_word2index(word)], device=my_device)
@@ -987,10 +1023,12 @@ def calc_score(preds_sentences, ans_sentences):
     for pred, ans in zip(preds_sentences, ans_sentences):
         pred=pred.replace(' <EOS>', '')
         flag=0
+        line_num+=1
         if pred == ans:
             allOK+=1
             flag=1
-        line_num+=1
+            print('OK, line:',line_num)
+
         '''
         pred_cloze = get_cloze(pred)
         ans_cloze = get_cloze(ans)
@@ -1304,18 +1342,19 @@ if __name__ == '__main__':
     #テストデータに対する予測と精度の計算
     #選択肢を使ったテスト
     #これは前からの予測
-    '''
+
     print('center')
     test_choices(vocab, my_encoder, my_decoder, center_data, center_choices, saveAttention=False, file_output=True, one_word=True)
     #これは文スコア
-    test_choices_by_sent_score(vocab, my_encoder, my_decoder, center_data, center_choices, saveAttention=False, file_output=False, one_word=True)
-
+    #test_choices_by_sent_score(vocab, my_encoder, my_decoder, center_data, center_choices, saveAttention=False, file_output=False, one_word=True)
+    '''
     print('MS')
     test_choices(vocab, my_encoder, my_decoder, MS_data, MS_choices, saveAttention=False, file_output=True, one_word=True)
     #これは文スコア
     test_choices_by_sent_score(vocab, my_encoder, my_decoder, MS_data, MS_choices, saveAttention=False, file_output=False, one_word=True)
     '''
 
+    '''
     print('CLOTH_high')
     test_choices(vocab, my_encoder, my_decoder, CLOTH_high_data, CLOTH_high_choices, saveAttention=False, file_output=True, one_word=True)
     #これは文スコア
@@ -1325,3 +1364,4 @@ if __name__ == '__main__':
     test_choices(vocab, my_encoder, my_decoder, CLOTH_middle_data, CLOTH_middle_choices, saveAttention=False, file_output=True, one_word=True)
     #これは文スコア
     test_choices_by_sent_score(vocab, my_encoder, my_decoder, CLOTH_middle_data, CLOTH_middle_choices, saveAttention=False, file_output=False, one_word=True)
+    '''

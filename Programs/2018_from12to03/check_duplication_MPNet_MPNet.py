@@ -1112,19 +1112,25 @@ def model_test_MPNet_and_MPNet(ngram, lang, model_A, model_B, cloze_path, choice
     only_B_OK=0
     both_NG=0
     line=0
+    with open(save_path+data_name+'_only_origin_OK.txt', 'w') as f_orig:
+        with open(save_path+data_name+'_only_plus_KenLM_OK.txt', 'w') as f_KenLM:
+            for A_p, B_p, y in zip(A_pred, B_pred, Y_test):
+                A_OK=(A_p.argmax()==y.argmax())
+                B_OK=(B_p.argmax()==y.argmax())
+                if A_OK and B_OK:
+                    both_OK+=1
+                elif A_OK:
+                    only_A_OK+=1
+                    f_orig.write('X: '+str(test_X[line])+'\n')
+                    f_orig.write('C: '+str(test_C[line])+'\n')
+                elif B_OK:
+                    only_B_OK+=1
+                    f_KenLM.write('X: '+str(test_X[line])+'\n')
+                    f_KenLM.write('C: '+str(test_C[line])+'\n')
+                else:
+                    both_NG+=1
 
-    for A_p, B_p, y in zip(A_pred, B_pred, Y_test):
-        line+=1
-        A_OK=(A_p.argmax()==y.argmax())
-        B_OK=(B_p.argmax()==y.argmax())
-        if A_OK and B_OK:
-            both_OK+=1
-        elif A_OK:
-            only_A_OK+=1
-        elif B_OK:
-            only_B_OK+=1
-        else:
-            both_NG+=1
+                line+=1
 
     print(line)
     print('both_OK  : %d (%.4f)' % (both_OK, 1.0*both_OK/line))
@@ -1177,7 +1183,7 @@ if __name__ == '__main__':
     model_A = build_model(vocab.n_words, EMB_DIM, HIDDEN_DIM, weights_matrix, model_kind_A)
     model_B = build_model(vocab.n_words, EMB_DIM, HIDDEN_DIM, weights_matrix, model_kind_B)
 
-    save_path='../../../pytorch_data/MPNet_origin_plusKenLM/'
+    save_path='../../../pytorch_data/MPNet_origin_vs_plusKenLM/'
     model_A_path='../../../pytorch_data/01_18_1801_MPNet_origin/model_ep05.hdf5'
     model_B_path='../../../pytorch_data/01_24_2310_MPNet_plus_KenLM/model_ep03.hdf5'
 
@@ -1186,7 +1192,7 @@ if __name__ == '__main__':
     model_B.load_weights(model_B_path)
     #model.summary()
 
-    save_path=save_path+today_str
+    #save_path=save_path+today_str
 
     # 4.評価
     center_cloze=git_data_path+'center_cloze.txt'
@@ -1209,10 +1215,10 @@ if __name__ == '__main__':
     CLOTH_middle_ans = middle_path+'_ans.txt'
 
 
-    #model_test_MPNet_and_MPNet(clothNg, vocab, model_A, model_B, center_cloze, center_choi, center_ans, model_kind_A, model_kind_B, data_name='center')
+    model_test_MPNet_and_MPNet(clothNg, vocab, model_A, model_B, center_cloze, center_choi, center_ans, model_kind_A, model_kind_B, data_name='center')
 
-    #model_test_MPNet_and_MPNet(clothNg, vocab, model_A, model_B, MS_cloze, MS_choi, MS_ans, model_kind_A, model_kind_B, data_name='MS')
+    model_test_MPNet_and_MPNet(clothNg, vocab, model_A, model_B, MS_cloze, MS_choi, MS_ans, model_kind_A, model_kind_B, data_name='MS')
 
-    #model_test_MPNet_and_MPNet(clothNg, vocab, model_A, model_B, CLOTH_high_cloze, CLOTH_high_choi, CLOTH_high_ans, model_kind_A, model_kind_B, data_name='CLOTH_high')
+    model_test_MPNet_and_MPNet(clothNg, vocab, model_A, model_B, CLOTH_high_cloze, CLOTH_high_choi, CLOTH_high_ans, model_kind_A, model_kind_B, data_name='CLOTH_high')
 
     model_test_MPNet_and_MPNet(clothNg, vocab, model_A, model_B, CLOTH_middle_cloze, CLOTH_middle_choi, CLOTH_middle_ans, model_kind_A, model_kind_B, data_name='CLOTH_middle')

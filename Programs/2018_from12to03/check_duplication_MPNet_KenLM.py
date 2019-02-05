@@ -1087,22 +1087,29 @@ def model_test_MPNet_and_KenLM(ngram, lang, MPNet_model, KenLM_model_path, cloze
     only_K_OK=0
     both_NG=0
     line=0
-    print(len(MPNet_pred))
-    print(len(KenLM_pred))
-    print(len(Y_test))
+    #print(len(MPNet_pred))
+    #print(len(KenLM_pred))
+    #print(len(Y_test))
+    with open(save_path+data_name+'_only_MPNet_OK.txt', 'w') as f_MP:
+        with open(save_path+data_name+'_only_KenLM_OK.txt', 'w') as f_KenLM:
+            for M_p, K_p, y in zip(MPNet_pred, KenLM_pred, Y_test):
 
-    for M_p, K_p, y in zip(MPNet_pred, KenLM_pred, Y_test):
-        line+=1
-        M_OK=(M_p.argmax()==y.argmax())
-        K_OK=(K_p.argmax()==y.argmax())
-        if M_OK and K_OK:
-            both_OK+=1
-        elif M_OK:
-            only_M_OK+=1
-        elif K_OK:
-            only_K_OK+=1
-        else:
-            both_NG+=1
+                M_OK=(M_p.argmax()==y.argmax())
+                K_OK=(K_p.argmax()==y.argmax())
+                if M_OK and K_OK:
+                    both_OK+=1
+                elif M_OK:
+                    only_M_OK+=1
+                    f_MP.write('X: '+str(test_X[line])+'\n')
+                    f_MP.write('C: '+str(test_C[line])+'\n')
+                elif K_OK:
+                    only_K_OK+=1
+                    f_KenLM.write('X: '+str(test_X[line])+'\n')
+                    f_KenLM.write('C: '+str(test_C[line])+'\n')
+                else:
+                    both_NG+=1
+
+                line+=1
 
     print(line)
     print('both_OK  : %d (%.4f)' % (both_OK, 1.0*both_OK/line))
@@ -1152,11 +1159,12 @@ if __name__ == '__main__':
     # 2.モデル定義
     model = build_model(vocab.n_words, EMB_DIM, HIDDEN_DIM, weights_matrix, my_model_kind)
 
-    save_path=args.model_dir+'/'
-    model.load_weights(save_path+args.model+'.hdf5')
-    #model.summary()
+    #save_path=args.model_dir+'/'
+    save_path='../../../pytorch_data/MPNet_vs_KenLM/'
+    #model.load_weights(save_path+args.model+'.hdf5')
 
-    save_path=save_path+today_str
+    model.load_weights('../../../pytorch_data/01_24_2310_MPNet_plus_KenLM/model_ep03.hdf5')
+    #model.summary()
 
     # 4.評価
     center_cloze=git_data_path+'center_cloze.txt'
@@ -1185,8 +1193,8 @@ if __name__ == '__main__':
 
     model_test_MPNet_and_KenLM(clothNg, vocab, model, KenLM_model_path, center_cloze, center_choi, center_ans, my_model_kind, data_name='center')
 
-    #model_test_MPNet_and_KenLM(clothNg, vocab, model, KenLM_model_path, MS_cloze, MS_choi, MS_ans, my_model_kind, data_name='MS')
+    model_test_MPNet_and_KenLM(clothNg, vocab, model, KenLM_model_path, MS_cloze, MS_choi, MS_ans, my_model_kind, data_name='MS')
 
-    #model_test_MPNet_and_KenLM(clothNg, vocab, model, KenLM_model_path, CLOTH_high_cloze, CLOTH_high_choi, CLOTH_high_ans, my_model_kind, data_name='CLOTH_high')
+    model_test_MPNet_and_KenLM(clothNg, vocab, model, KenLM_model_path, CLOTH_high_cloze, CLOTH_high_choi, CLOTH_high_ans, my_model_kind, data_name='CLOTH_high')
 
     model_test_MPNet_and_KenLM(clothNg, vocab, model, KenLM_model_path, CLOTH_middle_cloze, CLOTH_middle_choi, CLOTH_middle_ans, my_model_kind, data_name='CLOTH_middle')

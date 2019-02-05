@@ -463,11 +463,35 @@ class ModelTest_text8():
 
         preds_vec = self.model.predict([f_X, r_X], verbose=0)
 
+        sim_dict={}
+        for word, vec in self.vec_dict.items():
+            sim_dict[word]=self.calc_similarity(preds_vec, vec)
+
+
+
+
         #choices は必ず1語
         for word in choices:
             word_vec=get_ft_vec(word, self.vec_dict, self.ft_path, self.bin_path)
             score=self.calc_similarity(preds_vec, word_vec)
+            if not word in sim_dict:
+                sim_dict[word]=score
             scores.append(score)
+
+        sim_list=sorted(sim_dict.items(), key=lambda x: x[1], reverse=True)
+
+        with open(save_path+'check_all_words_prob.txt', 'a') as f:
+            f.write('-'*30+'\n')
+            f.write(cloze_sent+'\n')
+            for i in range(3):
+                f.write(str(i)+': '+str(sim_list[i])+'\n')
+            for word in choices:
+                i=0
+                for w, sim in sim_list:
+                    i+=1
+                    if w==word:
+                        f.write(word+': rank = '+str(i)+', sim = '+str(sim)+'\n')
+
 
         return scores
 
@@ -534,11 +558,14 @@ class ModelTest_text8():
                 scores=self.calc_near_scores(cloze_sent, choices)
                 if ans_index==scores.index(max(scores)):
                     OK=1
+                    print(cloze_sent)
+
             except ValueError:
                 line=1
                 print(cloze_sent)
                 print(choices)
                 print(ans_word)
+
 
         return line, OK
 
@@ -565,9 +592,9 @@ class ModelTest_text8():
                     OK=1
         except ValueError:
             line=1
-            print(cloze_sent)
-            print(choices)
-            print(ans_word)
+            #print(cloze_sent)
+            #print(choices)
+            #print(ans_word)
 
         return line, OK
 
@@ -610,6 +637,7 @@ class ModelTest_text8():
             near_line+=line
             near_OK+=OK
 
+            '''
             #補充文スコア(1語のみ)
             line, OK=self.check_one_sent_by_sent_score(cloze_sent, choices, ans_word, one_word=True)
             sent_line_one_word+=line
@@ -619,16 +647,17 @@ class ModelTest_text8():
             line, OK=self.check_one_sent_by_sent_score(cloze_sent, choices, ans_word, one_word=False)
             sent_line+=line
             sent_OK+=OK
+            '''
 
         print('near score')
         print('line:%d, acc:%.4f'% (near_line, 1.0*near_OK/near_line))
-
+        '''
         print('sent score (one word)')
         print('line:%d, acc:%.4f'% (sent_line_one_word, 1.0*sent_OK_one_word/sent_line_one_word))
 
         print('sent score')
         print('line:%d, acc:%.4f'% (sent_line, 1.0*sent_OK/sent_line))
-
+        '''
 
 #コマンドライン引数の設定いろいろ
 def get_args():
@@ -727,8 +756,8 @@ if __name__ == '__main__':
     CLOTH_high_data=['CLOTH_high', CLOTH_high_cloze, CLOTH_high_choi, CLOTH_high_ans]
     CLOTH_middle_data=['CLOTH_middle', CLOTH_middle_cloze, CLOTH_middle_choi, CLOTH_middle_ans]
 
-    datas=[CLOTH_high_data, CLOTH_middle_data]
-    #済：　center_data, MS_data,
+    datas=[center_data]
+    #済：　center_data, MS_data,CLOTH_high_data, CLOTH_middle_data
 
     test=ModelTest_text8(model, maxlen_words, word_to_id, vec_dict, ft_path, bin_path, id_to_word)
 
